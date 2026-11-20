@@ -39,13 +39,14 @@ Long-term direction:
 
 ## Latest verified repository state — 2026-11-21
 
-- Latest source commit: `0e412336c4f2f1be0ad7f4620a2fd88b630d2247`.
-- Latest main branch commit including generated renderer files: `0915f4de98084391e4d35576e4fcf1c3c7ed7c59`.
-- GitHub Actions run [44782960920](https://github.com/Sakurefa/test-game/actions/runs/44782960920) completed successfully for the source commit:
+- Latest source commit: `5a4d8103e673b589aeab5b7596bba0c8c99bf13b`.
+- Latest main branch commit including generated renderer files: `f843b1f5e177d09ca7e48cf930201ed2a309bc88`.
+- GitHub Actions run [44788224888](https://github.com/Sakurefa/test-game/actions/runs/44788224888) completed successfully for the UI synchronization fix:
   - Electron/engine syntax checks: passed.
-  - Full automated suite: 41 passed, 0 failed.
+  - Full automated suite: 45 passed, 0 failed (four new clock interpolation tests included).
   - Vite renderer build: passed.
-  - Generated renderer files were committed by the workflow as `0915f4de98084391e4d35576e4fcf1c3c7ed7c59` (`dist/index.html` and hashed JS/CSS assets).
+  - Generated renderer files were committed by the workflow as `f843b1f5e177d09ca7e48cf930201ed2a309bc88` (`dist/index.html` and hashed JS/CSS assets).
+- The previous continuous-time kernel verification remains [44782960920](https://github.com/Sakurefa/test-game/actions/runs/44782960920), with 41/41 tests passing.
 - An initial CI run [44782725042](https://github.com/Sakurefa/test-game/actions/runs/44782725042) correctly exposed one simulation-system ordering assertion (40/41 passed). The topological ordering implementation was fixed in `0e41233`, and the complete suite then passed.
 - The companion runtime workflow [44782725039](https://github.com/Sakurefa/test-game/actions/runs/44782725039) stopped at the same test failure before building a launcher. The subsequent fix changed only the engine registry; the existing separately distributed Electron launcher remains compatible because it loads `electron/main.cjs`, preload and `dist/` from the adjacent repository directory. No new EXE was produced in this session.
 - The Mod tree contains only INI package files; there are no tracked JSON files under `mods/`.
@@ -177,3 +178,20 @@ Long-term direction:
 - No Windows desktop GUI launch was performed by the assistant. User-side test is now the next required verification: download the latest main ZIP, put the separately distributed launcher EXE beside the extracted repository files, start a new world, confirm it begins paused, test pause and 1x–4x, let one day elapse, verify daily market/war updates, let day 7 elapse for weekly production, save/load, and confirm a loaded world is paused with no duplicate weekly settlement.
 - Known limitations: the current PRNG is still a single global stream; no calculation audit display, event/command bus, asset/audio manager, real 2D scene renderer, contextual tooltips or font scanning have been implemented yet. Tactical combat remains deferred.
 - Next concrete step after the user's Windows smoke test: begin Phase B (named RNG streams plus versioned calculation formulas/audit traces), retaining the user’s rule that visual/debug toggles cannot change outcomes.
+
+
+### 2026-11-21 — fix continuous clock display synchronization and renderer overhead
+
+- User reported a concrete runtime defect: the day progress percentage only changed after clicking a speed button; world panels also appeared stale, and the game felt sluggish.
+- Read the complete root `AGENTS.md` and `ASTRA_WORKLOG.md`, checked current `main` and the latest successful CI run before investigating. Starting main head: `de2bfeefba5981ec3ae9f2b8fd48268e590bcb18`.
+- Root cause: the renderer's polling code read `state.world.clock.day`, but the actual snapshot shape is `state.world.world.clock.day`. This threw before it could update the stored snapshot or display, so the periodic refresh silently aborted in its catch handler. Speed-button actions appeared to fix the display because they returned a fresh full snapshot and explicitly rerendered the screen.
+- Second issue: the old 500 ms poll invoked `world:time-status`, which constructed and serialized a full world snapshot even though the UI only needed the clock fraction. This caused avoidable IPC and repeated catalog/snapshot work.
+- Added `world:clock-status` in Electron main and a narrow preload API `getClockStatus()`; it returns only the campaign clock, time-control state, save ID and dirty marker. Full `getStatus()` snapshots are now requested only when the authoritative day count changes and daily simulation systems have committed.
+- Added `src/time-display.mjs` with a pure interpolation helper. Renderer uses `requestAnimationFrame` to smoothly animate the progress percentage/bar between authoritative clock samples. It clamps the predicted display at 99.9% until the main process confirms the day boundary, so visual interpolation cannot invent a calendar day or mutate simulation state.
+- Split clock DOM updates into two paths: metadata (date, day/week, speed buttons and save status) updates only when a clock sample changes; animation frames update only the progress percentage, progress-bar width and its accessible value. Clock DOM elements are cached after each world render.
+- Reduced polling to a lightweight 250 ms clock-status request. Complete world panels refresh only when the day changes, which is when current market and war systems actually update. This is deliberate: the displayed day progress animates continuously, but daily market values do not change continuously between scheduled daily settlements.
+- Added `tests/time-display.test.mjs`: verifies interpolation at 1x, scaling at 4x, pause behavior, end-of-day clamping and invalid input rejection. Updated the playtest guide and architecture doc to explain the smooth display and day-boundary refresh behavior.
+- Exact source changes: `src/main.js`, `src/world.js`, `src/time-controls.css`, new `src/time-display.mjs`, `electron/main.cjs`, `electron/preload.cjs`, new `tests/time-display.test.mjs`, `docs/PLAYTEST_GUIDE.md`, and `docs/ENGINE_ARCHITECTURE.md`. CI generated the corresponding updated files in `dist/`.
+- Source fix commit: `5a4d8103e673b589aeab5b7596bba0c8c99bf13b`. Windows GitHub Actions run [44788224888](https://github.com/Sakurefa/test-game/actions/runs/44788224888) completed successfully: syntax checks passed, all 45 tests passed (0 failed), and Vite renderer build passed. Generated renderer output was committed as `f843b1f5e177d09ca7e48cf930201ed2a309bc88`.
+- No local full test suite/build was run in this environment. No Windows desktop GUI launch was performed by the assistant. The issue requires user-side confirmation on the newly downloaded main ZIP; the separate EXE does not need updating because its bootstrap loads the adjacent repository's current `electron/main.cjs`, preload and `dist/`.
+- Next verification: user should download the latest main ZIP and confirm (1) percentage/progress bar move smoothly without clicking, (2) date and all relevant panels refresh on day rollover, (3) pause freezes the progress, (4) no obvious stutter remains at 1x–4x. If confirmed, continue with Phase B named random streams and formula/audit traces.

@@ -15,7 +15,7 @@ function parseIni(source) {
       const name = line.slice(1, -1).trim();
       if (!name || FORBIDDEN_KEYS.has(name)) throw new Error("Invalid INI section at line " + lineNumber);
       if (Object.prototype.hasOwnProperty.call(result, name)) throw new Error('Duplicate INI section "' + name + '" at line ' + lineNumber);
-      section = Object.create(null);
+      section = {};
       result[name] = section;
       continue;
     }

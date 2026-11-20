@@ -184,6 +184,7 @@ function createWindow(settings) {
       sandbox: true
     }
   });
+  window.setMenuBarVisibility(false);
   if (fullscreen) window.setFullScreen(true);
   window.webContents.setZoomFactor((settings?.graphics?.ui_scale || 100) / 100);
   window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
@@ -202,6 +203,7 @@ function createWindow(settings) {
     return { action: "deny" };
   });
   window.on("unresponsive", () => logger.error("window", "Renderer became unresponsive"));
+  window.on("close", () => logger.info("window", "Main window close requested"));
   window.on("responsive", () => logger.info("window", "Renderer became responsive"));
   window.on("closed", () => logger.info("window", "Main window closed"));
 
@@ -237,9 +239,10 @@ app.on("before-quit", (event) => {
     Promise.allSettled([...cleanupTasks]).finally(() => app.quit());
   }
 });
-app.on("render-process-gone", (_event, _webContents, details) => {
-  logger.error("renderer", details);
+app.on("child-process-gone", (_event, details) => {
+  logger.error("process.child-gone", details);
 });
+app.on("will-quit", () => logger.info("shutdown", "Application will quit"));
 app.on("window-all-closed", () => {
   logger.info("window", "All windows closed");
   if (process.platform !== "darwin") app.quit();

@@ -35,7 +35,7 @@ See [docs/ENGINE_ARCHITECTURE.md](docs/ENGINE_ARCHITECTURE.md) for subsystem bou
 
 ## Modding
 
-Mods are data-only packages. The required `mods/core/` package declares the base universe and core definitions. Community packages use the same registry/content/localization structure. Mod packages cannot execute scripts or alter engine code.
+Mod packages are **INI-only**: manifests, registry declarations, content definitions and localization all use INI. The required `mods/core/` package declares the base universe and core definitions. Community packages use the same structure. JSON Mod files and inline JSON values are rejected; Mods cannot execute scripts or alter engine code.
 
 See [MOD_API.md](MOD_API.md) for the API v3 format and safety limits.
 

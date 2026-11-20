@@ -25,16 +25,13 @@
   "build": {
     "appId": "com.sakurefa.stockmarketsimulator",
     "productName": "Market Simulator",
-    "directories": {
-      "output": "release"
-    },
+    "directories": { "output": "release" },
     "artifactName": "Market-Simulator-${version}-Windows-${arch}.${ext}",
     "files": [
-      "**/*",
-      "!release/**",
-      "!scripts/**",
-      "!mods/**",
-      "!source/**"
+      "package.json",
+      "electron/main.cjs",
+      "electron/preload.cjs",
+      "dist/**/*"
     ],
     "extraFiles": [
       { "from": "mods", "to": "mods" },
@@ -49,12 +46,7 @@
     ],
     "asar": true,
     "win": {
-      "target": [
-        {
-          "target": "dir",
-          "arch": ["x64"]
-        }
-      ]
+      "target": [{ "target": "dir", "arch": ["x64"] }]
     }
   }
 }

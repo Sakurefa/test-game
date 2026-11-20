@@ -26,14 +26,14 @@ jobs:
       - name: Install dependencies
         run: npm install
 
-      - name: Build portable Windows application
+      - name: Build unpacked Windows application and ZIP
         run: npm run build:win
 
-      - name: Upload build artifact
+      - name: Upload Windows ZIP
         uses: actions/upload-artifact@v4
         with:
           name: Market-Simulator-Windows
-          path: release/*.exe
+          path: release/*.zip
           if-no-files-found: error
           retention-days: 14
 
@@ -42,4 +42,4 @@ jobs:
         uses: softprops/action-gh-release@v2
         with:
           generate_release_notes: true
-          files: release/*.exe
+          files: release/*.zip

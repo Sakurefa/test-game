@@ -1,34 +1,266 @@
 {
   "schemaVersion": 1,
   "commodities": [
-    {"id":"ore","name":"矿石","category":"raw-material","unit":"吨","basePrice":18,"targetStock":100,"priceElasticity":0.8,"volatility":0.025},
-    {"id":"water","name":"工业用水","category":"resource","unit":"吨","basePrice":7,"targetStock":90,"priceElasticity":0.55,"volatility":0.012},
-    {"id":"food","name":"合成食品","category":"consumer-good","unit":"吨","basePrice":12,"targetStock":120,"priceElasticity":0.7,"volatility":0.018},
-    {"id":"alloys","name":"复合合金","category":"industrial-good","unit":"吨","basePrice":46,"targetStock":65,"priceElasticity":0.9,"volatility":0.03},
-    {"id":"fuel","name":"舰船燃料","category":"strategic-good","unit":"吨","basePrice":31,"targetStock":55,"priceElasticity":1.1,"volatility":0.035},
-    {"id":"electronics","name":"精密电子元件","category":"industrial-good","unit":"箱","basePrice":88,"targetStock":35,"priceElasticity":1.05,"volatility":0.04}
+    {
+      "id": "ore",
+      "category": "raw-material",
+      "unit": "吨",
+      "basePrice": 18,
+      "targetStock": 100,
+      "priceElasticity": 0.8,
+      "volatility": 0.025,
+      "nameKey": "entity.ore.name"
+    },
+    {
+      "id": "water",
+      "category": "resource",
+      "unit": "吨",
+      "basePrice": 7,
+      "targetStock": 90,
+      "priceElasticity": 0.55,
+      "volatility": 0.012,
+      "nameKey": "entity.water.name"
+    },
+    {
+      "id": "food",
+      "category": "consumer-good",
+      "unit": "吨",
+      "basePrice": 12,
+      "targetStock": 120,
+      "priceElasticity": 0.7,
+      "volatility": 0.018,
+      "nameKey": "entity.food.name"
+    },
+    {
+      "id": "alloys",
+      "category": "industrial-good",
+      "unit": "吨",
+      "basePrice": 46,
+      "targetStock": 65,
+      "priceElasticity": 0.9,
+      "volatility": 0.03,
+      "nameKey": "entity.alloys.name"
+    },
+    {
+      "id": "fuel",
+      "category": "strategic-good",
+      "unit": "吨",
+      "basePrice": 31,
+      "targetStock": 55,
+      "priceElasticity": 1.1,
+      "volatility": 0.035,
+      "nameKey": "entity.fuel.name"
+    },
+    {
+      "id": "electronics",
+      "category": "industrial-good",
+      "unit": "箱",
+      "basePrice": 88,
+      "targetStock": 35,
+      "priceElasticity": 1.05,
+      "volatility": 0.04,
+      "nameKey": "entity.electronics.name"
+    }
   ],
   "recipes": [
-    {"id":"ore-extraction","name":"矿石开采","inputs":[],"outputs":[{"commodityId":"ore","quantity":13}],"workforce":180},
-    {"id":"water-extraction","name":"水资源提取","inputs":[],"outputs":[{"commodityId":"water","quantity":9}],"workforce":90},
-    {"id":"food-production","name":"合成食品生产","inputs":[{"commodityId":"water","quantity":2}],"outputs":[{"commodityId":"food","quantity":8}],"workforce":120},
-    {"id":"alloy-refining","name":"合金精炼","inputs":[{"commodityId":"ore","quantity":5}],"outputs":[{"commodityId":"alloys","quantity":3.5}],"workforce":220},
-    {"id":"fuel-synthesis","name":"舰船燃料合成","inputs":[{"commodityId":"water","quantity":2},{"commodityId":"ore","quantity":1}],"outputs":[{"commodityId":"fuel","quantity":4}],"workforce":100},
-    {"id":"electronics-fabrication","name":"精密电子制造","inputs":[{"commodityId":"alloys","quantity":2},{"commodityId":"water","quantity":1}],"outputs":[{"commodityId":"electronics","quantity":1.5}],"workforce":160}
+    {
+      "id": "ore-extraction",
+      "inputs": [],
+      "outputs": [
+        {
+          "commodityId": "ore",
+          "quantity": 13
+        }
+      ],
+      "workforce": 180,
+      "nameKey": "entity.ore-extraction.name"
+    },
+    {
+      "id": "water-extraction",
+      "inputs": [],
+      "outputs": [
+        {
+          "commodityId": "water",
+          "quantity": 9
+        }
+      ],
+      "workforce": 90,
+      "nameKey": "entity.water-extraction.name"
+    },
+    {
+      "id": "food-production",
+      "inputs": [
+        {
+          "commodityId": "water",
+          "quantity": 2
+        }
+      ],
+      "outputs": [
+        {
+          "commodityId": "food",
+          "quantity": 8
+        }
+      ],
+      "workforce": 120,
+      "nameKey": "entity.food-production.name"
+    },
+    {
+      "id": "alloy-refining",
+      "inputs": [
+        {
+          "commodityId": "ore",
+          "quantity": 5
+        }
+      ],
+      "outputs": [
+        {
+          "commodityId": "alloys",
+          "quantity": 3.5
+        }
+      ],
+      "workforce": 220,
+      "nameKey": "entity.alloy-refining.name"
+    },
+    {
+      "id": "fuel-synthesis",
+      "inputs": [
+        {
+          "commodityId": "water",
+          "quantity": 2
+        },
+        {
+          "commodityId": "ore",
+          "quantity": 1
+        }
+      ],
+      "outputs": [
+        {
+          "commodityId": "fuel",
+          "quantity": 4
+        }
+      ],
+      "workforce": 100,
+      "nameKey": "entity.fuel-synthesis.name"
+    },
+    {
+      "id": "electronics-fabrication",
+      "inputs": [
+        {
+          "commodityId": "alloys",
+          "quantity": 2
+        },
+        {
+          "commodityId": "water",
+          "quantity": 1
+        }
+      ],
+      "outputs": [
+        {
+          "commodityId": "electronics",
+          "quantity": 1.5
+        }
+      ],
+      "workforce": 160,
+      "nameKey": "entity.electronics-fabrication.name"
+    }
   ],
   "companies": [
-    {"id":"helios-extraction","name":"赫利俄斯资源联合体","factionId":"helios-compact","colonyIds":["new-dawn-colony"],"description":"经营矿业与水资源设施。"},
-    {"id":"verdant-agriworks","name":"翡翠农业与电子","factionId":"free-haven-league","colonyIds":["verdant-colony"],"description":"食品与精密电子产品生产商。"},
-    {"id":"ember-foundries","name":"烬环铸造集团","factionId":"ember-syndicate","colonyIds":["emberfall-colony"],"description":"经营合金精炼与舰船燃料合成设施。"}
+    {
+      "id": "helios-extraction",
+      "factionId": "helios-compact",
+      "colonyIds": [
+        "new-dawn-colony"
+      ],
+      "nameKey": "entity.helios-extraction.name",
+      "descriptionKey": "entity.helios-extraction.description"
+    },
+    {
+      "id": "verdant-agriworks",
+      "factionId": "free-haven-league",
+      "colonyIds": [
+        "verdant-colony"
+      ],
+      "nameKey": "entity.verdant-agriworks.name",
+      "descriptionKey": "entity.verdant-agriworks.description"
+    },
+    {
+      "id": "ember-foundries",
+      "factionId": "ember-syndicate",
+      "colonyIds": [
+        "emberfall-colony"
+      ],
+      "nameKey": "entity.ember-foundries.name",
+      "descriptionKey": "entity.ember-foundries.description"
+    }
   ],
   "securities": [
-    {"id":"helios-extraction-share","ticker":"HXR","name":"赫利俄斯资源联合体","issuerId":"helios-extraction","initialPrice":74.5,"volatility":0.012},
-    {"id":"verdant-agriworks-share","ticker":"VAE","name":"翡翠农业与电子","issuerId":"verdant-agriworks","initialPrice":112.3,"volatility":0.016},
-    {"id":"ember-foundries-share","ticker":"EFG","name":"烬环铸造集团","issuerId":"ember-foundries","initialPrice":91.8,"volatility":0.02}
+    {
+      "id": "helios-extraction-share",
+      "ticker": "HXR",
+      "issuerId": "helios-extraction",
+      "initialPrice": 74.5,
+      "volatility": 0.012,
+      "nameKey": "entity.helios-extraction-share.name"
+    },
+    {
+      "id": "verdant-agriworks-share",
+      "ticker": "VAE",
+      "issuerId": "verdant-agriworks",
+      "initialPrice": 112.3,
+      "volatility": 0.016,
+      "nameKey": "entity.verdant-agriworks-share.name"
+    },
+    {
+      "id": "ember-foundries-share",
+      "ticker": "EFG",
+      "issuerId": "ember-foundries",
+      "initialPrice": 91.8,
+      "volatility": 0.02,
+      "nameKey": "entity.ember-foundries-share.name"
+    }
   ],
   "markets": [
-    {"id":"new-dawn-market","name":"新曙光商品交易所","colonyId":"new-dawn-colony","commodityIds":["ore","water","alloys","fuel"],"securityIds":["helios-extraction-share"]},
-    {"id":"verdant-exchange","name":"翡翠联合交易所","colonyId":"verdant-colony","commodityIds":["food","water","electronics","alloys"],"securityIds":["verdant-agriworks-share"]},
-    {"id":"emberfall-market","name":"烬环工业市场","colonyId":"emberfall-colony","commodityIds":["ore","alloys","fuel","electronics"],"securityIds":["ember-foundries-share"]}
+    {
+      "id": "new-dawn-market",
+      "colonyId": "new-dawn-colony",
+      "commodityIds": [
+        "ore",
+        "water",
+        "alloys",
+        "fuel"
+      ],
+      "securityIds": [
+        "helios-extraction-share"
+      ],
+      "nameKey": "entity.new-dawn-market.name"
+    },
+    {
+      "id": "verdant-exchange",
+      "colonyId": "verdant-colony",
+      "commodityIds": [
+        "food",
+        "water",
+        "electronics",
+        "alloys"
+      ],
+      "securityIds": [
+        "verdant-agriworks-share"
+      ],
+      "nameKey": "entity.verdant-exchange.name"
+    },
+    {
+      "id": "emberfall-market",
+      "colonyId": "emberfall-colony",
+      "commodityIds": [
+        "ore",
+        "alloys",
+        "fuel",
+        "electronics"
+      ],
+      "securityIds": [
+        "ember-foundries-share"
+      ],
+      "nameKey": "entity.emberfall-market.name"
+    }
   ]
 }

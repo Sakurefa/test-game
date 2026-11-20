@@ -13,8 +13,9 @@ function createWorldCommandRuntime({dispatcher,eventBus=null}={}){
   const nextWorld=outcome.world;
   if(!nextWorld.clock||!Number.isInteger(nextWorld.clock.day)||typeof nextWorld.clock.date!=="string")throw new Error("Command runtime requires an authoritative campaign clock");
   const emitDomainEvent=createDomainEventEmitter(nextWorld,nextWorld.clock);
+  const previousSequence=nextWorld.domainEventSequence;
   const committedEvents=outcome.events.map(event=>emitDomainEvent(event));
-  if(eventBus)for(const event of committedEvents)eventBus.publish(event);
+  if(eventBus)for(const event of committedEvents){if(event.sequence>previousSequence)eventBus.publish(event);}
   return {...outcome,events:committedEvents};
  }
  return Object.freeze({dispatch});

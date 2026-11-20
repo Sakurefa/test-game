@@ -68,7 +68,11 @@ handleIpc("mods:load-all", async () => {
 
 function getCoreContent() {
   if (!coreContentPromise) {
-    coreContentPromise = loadCoreContent(getModsDirectory()).then((result) => {
+    coreContentPromise = (async () => {
+      await ensureStorage();
+      const settings = await readSettings(GAME_ROOT);
+      return loadCoreContent(getModsDirectory(), { enabledMods: settings.mods.enabled });
+    })().then((result) => {
       if (!result.ok) logger.error("mods.core", result.error);
       else logger.info("mods.core", "Core data package loaded");
       return result;

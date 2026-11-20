@@ -68,7 +68,7 @@
         "to": "MOD_API.md"
       }
     ],
-    "asar": true,
+    "asar": false,
     "win": {
       "target": [
         {
@@ -82,6 +82,12 @@
     "files": [
       "**/*",
       "package.json"
+    ],
+    "extraResources": [
+      {
+        "from": "electron-app/package.json",
+        "to": "app/package.json"
+      }
     ]
   }
 }

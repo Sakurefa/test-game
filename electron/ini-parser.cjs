@@ -1,7 +1,7 @@
 const MAX_INI_BYTES = 2 * 1024 * 1024;
 const FORBIDDEN_KEYS = new Set(["__proto__", "prototype", "constructor"]);
 
-function parseIni(source) {
+function parseIni(source, options = {}) {
   if (typeof source !== "string") throw new TypeError("INI source must be a string");
   if (Buffer.byteLength(source, "utf8") > MAX_INI_BYTES) throw new Error("INI file is too large");
   const result = {};
@@ -25,11 +25,11 @@ function parseIni(source) {
     const rawValue = line.slice(separator + 1).trim();
     if (!key || FORBIDDEN_KEYS.has(key)) throw new Error("Invalid INI key at line " + lineNumber);
     if (Object.prototype.hasOwnProperty.call(section, key)) throw new Error('Duplicate INI key "' + key + '" at line ' + lineNumber);
-    section[key] = parseIniValue(rawValue, lineNumber);
+    section[key] = parseIniValue(rawValue, lineNumber, options);
   }
   return result;
 }
-function parseIniValue(raw, lineNumber) {
+function parseIniValue(raw, lineNumber, options = {}) {
   if (raw === "") return "";
   if (raw === "true") return true;
   if (raw === "false") return false;
@@ -47,7 +47,7 @@ function parseIniValue(raw, lineNumber) {
       throw new Error("Invalid quoted string at line " + lineNumber + ": " + error.message);
     }
   }
-  if (raw.startsWith("[") || raw.startsWith("{")) throw new Error("Inline JSON values are not supported in INI files at line " + lineNumber);
+  if (raw.startsWith("[") || raw.startsWith("{")) {\n    if (options.rejectInlineJson) throw new Error("Inline JSON values are not supported in Mod INI files at line " + lineNumber);\n    try { return JSON.parse(raw); } catch (error) { throw new Error("Invalid inline value at line " + lineNumber + ": " + error.message); }\n  }
   return raw;
 }
 module.exports = { MAX_INI_BYTES, parseIni };

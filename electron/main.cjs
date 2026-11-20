@@ -68,7 +68,10 @@ async function failActiveWorld(error, source) {
     logger.error("world.fatal-log-read", readError);
   }
   pendingFatalReport = { failureId, source, message: errorMessage, stack: errorStack, logContext };
-  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("app:world-fatal-error", pendingFatalReport);
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("app:world-fatal-error", pendingFatalReport);
+    pendingFatalReport = null;
+  }
   logger.error("world.fatal", { failureId, status: "returned-to-title-screen" });
 }
 const campaignTime = new CampaignTimeController({
@@ -221,6 +224,8 @@ handleIpc("world:start-new", async () => {
     disposeWorldCommandGateway();
     activeCatalog = nextCatalog;
     activeWorld = nextWorld;
+    fatalHandling = false;
+    pendingFatalReport = null;
     campaignTime.reset();
     activeSaveId = nextSaveId;
     activeWorldDirty = false;
@@ -439,6 +444,7 @@ function createWindow(settings) {
       sandbox: true
     }
   });
+  mainWindow = window;
   window.setMenuBarVisibility(false);
   if (fullscreen) window.setFullScreen(true);
   window.webContents.setZoomFactor((settings?.graphics?.ui_scale || 100) / 100);
@@ -465,7 +471,10 @@ function createWindow(settings) {
     if (mainWindow === window) mainWindow = null;
   });
   window.webContents.on("did-finish-load", () => {
-    if (pendingFatalReport) window.webContents.send("app:world-fatal-error", pendingFatalReport);
+    if (pendingFatalReport) {
+      window.webContents.send("app:world-fatal-error", pendingFatalReport);
+      pendingFatalReport = null;
+    }
   });
 
   if (DEV_URL) window.loadURL(DEV_URL);

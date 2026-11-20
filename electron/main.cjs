@@ -274,6 +274,8 @@ handleIpc("world:load-save", async (_event, saveId) => {
     disposeWorldCommandGateway();
     activeCatalog = nextCatalog;
     activeWorld = nextWorld;
+    fatalHandling = false;
+    pendingFatalReport = null;
     campaignTime.reset();
     activeSaveId = saveId;
     activeWorldDirty = false;
@@ -335,13 +337,13 @@ handleIpc("world:advance-day", async () => {
 
 handleIpc("world:save", async () => {
   if (!activeWorld) throw new Error("No active world is loaded");
+  if (worldSaveInProgress || worldTransitionInProgress) throw new Error("A world save or transition is already in progress");
   if (!activeSaveId || activeSaveId.startsWith("slot_auto_")) {
-    const manualSaveId = "slot_manual_" + Date.now().toString(36);
+    const manualSaveId = "slot_manual_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
     await createSaveSlot(GAME_ROOT, manualSaveId, activeWorld.metadata.name + "（手动存档）");
     activeSaveId = manualSaveId;
     activeWorldDirty = true;
   }
-  if (worldSaveInProgress || worldTransitionInProgress) throw new Error("A world save or transition is already in progress");
   worldSaveInProgress = true;
   let worldBeingSaved = null;
   let saveId = null;

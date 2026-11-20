@@ -32,7 +32,9 @@ $runtimeManifest = @{
   private = $true
   main = "electron/main.cjs"
 }
-$runtimeManifest | ConvertTo-Json -Depth 5 | Set-Content -Path (Join-Path $appDirectory "package.json") -Encoding utf8NoBOM
+$manifestJson = $runtimeManifest | ConvertTo-Json -Depth 5
+$utf8NoBom = New-Object System.Text.UTF8Encoding $false
+[System.IO.File]::WriteAllText((Join-Path $appDirectory "package.json"), $manifestJson, $utf8NoBom)
 
 Write-Host "Prepared clean Electron app directory: $appDirectory"
 Get-ChildItem $appDirectory -Recurse | Select-Object FullName

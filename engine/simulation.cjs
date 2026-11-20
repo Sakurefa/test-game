@@ -288,45 +288,57 @@ function validateWorldState(world, catalog) {
   return true;
 }
 
-function advanceDay(world, catalog, { eventBus = null } = {}) {
-  if (eventBus !== null && (!eventBus || typeof eventBus.publish !== "function")) throw new TypeError("A domain event bus must provide publish(event)");
-  validateWorldState(world, catalog);
-  const previousEventSequence = world.domainEventSequence;
+function settleDay(world, catalog) {
   const randomStreams = new NamedRandomStreams(world.rng.seed, world.rng.streams);
   const calculations = createCalculationService();
   world.clock = advanceClock(world.clock, 1);
   const summary = { production: {}, market: {} };
   const emitDomainEvent = createDomainEventEmitter(world, world.clock);
-  const systemsRun = simulationSystems.runDue({ world, day: world.clock.day,
-    context: { catalog, randomStreams, calculations, summary, emitDomainEvent } });
+  const systemsRun = simulationSystems.runDue({
+    world, day: world.clock.day,
+    context: { catalog, randomStreams, calculations, summary, emitDomainEvent }
+  });
 
   world.rng = randomStreams.snapshot();
   if (!world.audit || typeof world.audit !== "object") world.audit = { calculations: [] };
   if (!Array.isArray(world.audit.calculations)) world.audit.calculations = [];
-  world.audit.calculations.push(...calculations.getRecords());
+  const calculationRecords = calculations.getRecords();
+  world.audit.calculations.push(...calculationRecords);
   if (world.audit.calculations.length > CALCULATION_AUDIT_LIMIT) {
     world.audit.calculations.splice(0, world.audit.calculations.length - CALCULATION_AUDIT_LIMIT);
   }
+
   const productionCount = Object.keys(summary.production).length;
   const marketCount = Object.keys(summary.market).length;
   const report = productionCount > 0
     ? `第 ${world.clock.day} 天结束：${productionCount} 个殖民地完成每周生产，${marketCount} 个市场更新报价。`
     : `第 ${world.clock.day} 天结束：${marketCount} 个市场更新报价。`;
   appendEvent(world, {
-    id: `day-${world.clock.day}`,
-    day: world.clock.day,
-    date: world.clock.date,
-    type: "daily-report",
-    text: report,
-    production: summary.production,
-    marketChanges: summary.market,
-    systemsRun
+    id: `day-${world.clock.day}`, day: world.clock.day, date: world.clock.date,
+    type: "daily-report", text: report, production: summary.production,
+    marketChanges: summary.market, systemsRun
   });
+  return { day: world.clock.day, date: world.clock.date, summary, systemsRun, calculations: calculationRecords };
+}
+
+function advanceDay(world, catalog, { eventBus = null, onDaySettled = null } = {}) {
+  if (eventBus !== null && (!eventBus || typeof eventBus.publish !== "function")) {
+    throw new TypeError("A domain event bus must provide publish(event)");
+  }
+  validateWorldState(world, catalog);
+  const previousEventSequence = world.domainEventSequence;
+  const candidate = structuredClone(world);
+  const detail = settleDay(candidate, catalog);
+
+  for (const key of Object.keys(world)) delete world[key];
+  Object.assign(world, candidate);
+
   if (eventBus) {
     for (const event of world.domainEvents) {
       if (event.sequence > previousEventSequence) eventBus.publish(event);
     }
   }
+  if (typeof onDaySettled === "function") onDaySettled(world, detail);
   return world;
 }
 

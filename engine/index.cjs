@@ -5,6 +5,7 @@ module.exports = {
   ...require("./event-bus.cjs"),
   ...require("./commands.cjs"),
   ...require("./command-runtime.cjs"),
+  ...require("./ledger.cjs"),
   ...require("./clock.cjs"),
   ...require("./system-registry.cjs"),
   ...require("./campaign-time.cjs"),

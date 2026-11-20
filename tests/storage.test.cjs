@@ -15,7 +15,7 @@ async function fixture(t) {
   return root;
 }
 
-test("logger preserves startup log and rotates runtime logs within five files", async (t) => {
+test("logger writes separate JSONL records and rotates runtime logs", async (t) => {
   const root = await fixture(t);
   const logger = createLogger(root, { maxBytes: 512 });
   logger.startup("INFO", "bootstrap", "initialization");

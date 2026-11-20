@@ -265,6 +265,9 @@ function validateLocalizationReferences(catalog, localizations, locale) {
     for (const entity of catalog[collectionName].values()) {
       for (const field of ["nameKey", "descriptionKey", "governmentKey"]) {
         const key = entity[field];
+        if (field === "nameKey" && (typeof key !== "string" || !key.trim())) {
+          throw new Error(`Definition ${entity.id} requires a localization nameKey`);
+        }
         if (key !== undefined && (typeof key !== "string" || !Object.hasOwn(strings, key))) {
           throw new Error(`Missing localization key ${String(key)} referenced by ${entity.id}.${field} in locale ${locale}`);
         }
@@ -276,7 +279,9 @@ function validateLocalizationReferences(catalog, localizations, locale) {
 function compileCatalog(modPackages) {
   try {
     if (!Array.isArray(modPackages)) throw new TypeError("Mod packages must be an array");
-    const localizations = collectLocalizations(modPackages);\n    const defaultLocale = "zh-CN";\n    const catalog = {};
+    const localizations = collectLocalizations(modPackages);
+    const defaultLocale = "zh-CN";
+    const catalog = {};
     for (const collectionName of Object.values(DEFINITION_TYPES)) catalog[collectionName] = new Map();
     const registryEntries = [];
     const enabled = modPackages.filter((mod) => mod.enabled !== false && !mod.error)
@@ -310,7 +315,8 @@ function compileCatalog(modPackages) {
       }
     }
 
-    const universe = validateCatalog(catalog, registryEntries);\n    validateLocalizationReferences(catalog, localizations, defaultLocale);
+    const universe = validateCatalog(catalog, registryEntries);
+    validateLocalizationReferences(catalog, localizations, defaultLocale);
     const serializable = {};
     for (const [name, collection] of Object.entries(catalog)) {
       serializable[name] = [...collection.values()].map(({ _type, _source, ...entity }) => entity);

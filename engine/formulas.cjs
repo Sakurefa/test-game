@@ -56,7 +56,10 @@ const DEFAULT_FORMULAS=Object.freeze([
   const raw=noise+drift,move=clamp(raw,-maxMove,maxMove);
   if(move!==raw)recordModifier("daily-movement-limit",move-raw,"Daily movement limited to ±"+(maxMove*100)+"%");
   recordStep("daily-change",move);
-  const rawPrice=previous*(1+move),price=round(clamp(rawPrice,floor,ceiling));
+  const rawPrice=previous*(1+move);
+  const lowerQuote=Math.ceil((previous*(1-maxMove)-1e-9)*1000)/1000;
+  const upperQuote=Math.floor((previous*(1+maxMove)+1e-9)*1000)/1000;
+  const price=round(clamp(rawPrice,Math.max(floor,lowerQuote),Math.min(ceiling,upperQuote)));
   if(price!==round(rawPrice))recordModifier("reference-price-corridor",price-round(rawPrice),"Quote kept inside 0.1×–10× initial price");
   const change=round((price-previous)/previous*100,2);recordStep("final-price",price);return {price,change};
  }})

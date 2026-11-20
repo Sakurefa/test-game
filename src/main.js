@@ -90,12 +90,13 @@ function updateCampaignClockMetadata() {
   if (!worldClockView || !worldClockElements) return;
   const { clock, timeControl } = worldClockView;
   const week = Math.floor(clock.day / 7) + 1;
+  const dayInWeek = clock.day % 7 + 1;
 
   if (worldClockElements.date && worldClockElements.date.textContent !== clock.date) {
     worldClockElements.date.textContent = clock.date;
   }
   if (worldClockElements.day) {
-    const label = `第 ${clock.day} 天 · 第 ${week} 周`;
+    const label = `第 ${clock.day} 天 · 第 ${week} 周 · 本周第 ${dayInWeek} 天`;
     if (worldClockElements.day.textContent !== label) worldClockElements.day.textContent = label;
   }
   if (worldClockElements.status) {

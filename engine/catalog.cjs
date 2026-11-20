@@ -308,7 +308,7 @@ function compileCatalog(modPackages) {
         }
       }
       for (const [file, data] of Object.entries(mod.data?.registry || {})) {
-        if (file === "definitions.json") {
+        if (file === "definitions.ini") {
           if (!Array.isArray(data.entries)) throw new Error(`${mod.id}/${file}: entries must be an array`);
           registryEntries.push(...data.entries);
         }

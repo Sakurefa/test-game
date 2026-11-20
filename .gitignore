@@ -6,4 +6,3 @@ out/
 Thumbs.db
 *.log
 .vite/
-build/

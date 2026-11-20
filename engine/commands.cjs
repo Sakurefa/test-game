@@ -1,4 +1,4 @@
-const COMMAND_ID_PATTERN=/^[a-zA-Z0-9][a-zA-Z0-9._:-]{7,127}$/;
+const COMMAND_ID_PATTERN=/^[a-zA-Z0-9][a-zA-Z0-9._:-]{7,95}$/;
 const COMMAND_TYPE_PATTERN=/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
 const EVENT_TYPE_PATTERN=/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
 const EVENT_SCOPE_PATTERN=/^[a-z][a-z0-9_-]{0,31}$/;
@@ -116,17 +116,17 @@ function createCommandDispatcher(definitions=[],options={}){
   if(world.commandReceipts!==undefined)validateCommandReceiptState(world);
   const payload=normalizeJson(command.payload,"Command payload",MAX_COMMAND_PAYLOAD_BYTES);
   const signature=command.type+"\n"+payload.serialized;
-  const prior=receipts.find(receipt=>receipt.commandId===command.commandId);
-  if(prior){
-   if(prior.type!==command.type||prior.signature!==signature)throw new Error("Command ID was already used for a different command: "+command.commandId);
-   return {world,result:structuredClone(prior.result),events:[],duplicate:true};
-  }
-
   const definition=handlers.get(command.type);
   if(!definition)throw new Error("Unknown command type: "+command.type);
   const readOnlyWorld=deepFreeze(structuredClone(world));
   const readOnlyPayload=deepFreeze(payload.value);
   const guardArgs={world:readOnlyWorld,payload:readOnlyPayload,context,commandId:command.commandId};
+  const prior=receipts.find(receipt=>receipt.commandId===command.commandId);
+  if(prior){
+   if(prior.type!==command.type||prior.signature!==signature)throw new Error("Command ID was already used for a different command: "+command.commandId);
+   if(definition.authorize)runGuard(definition.authorize,guardArgs,"Command authorization "+command.type);
+   return {world,result:structuredClone(prior.result),events:[],duplicate:true};
+  }
   runGuard(definition.validate,guardArgs,"Command validation "+command.type);
   if(definition.authorize)runGuard(definition.authorize,guardArgs,"Command authorization "+command.type);
 

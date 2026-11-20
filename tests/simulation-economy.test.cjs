@@ -1,6 +1,6 @@
 const test=require("node:test"),assert=require("node:assert/strict"),path=require("node:path");
 const {readModPackages}=require("../electron/mod-loader.cjs");
-const {createCalculationService,compileCatalog,createWorld,advanceDay,advanceDays,validateWorldState}=require("../engine/index.cjs");
+const {createCalculationService,createDomainEventBus,compileCatalog,createWorld,advanceDay,advanceDays,validateWorldState}=require("../engine/index.cjs");
 async function loadCatalog(){const mods=await readModPackages(path.join(__dirname,"..","mods"));const compiled=compileCatalog(mods);if(!compiled.ok)throw new Error(compiled.error);return compiled.catalog;}
 test("colony production formula calculates expected throughput and stock constraints",()=>{
  const calculations=createCalculationService();
@@ -46,4 +46,42 @@ test("world validation rejects negative inventory and non-finite market quotes",
  const catalog=await loadCatalog(),world=createWorld(catalog,{seed:"invalid-state"});
  const badInventory=structuredClone(world);badInventory.colonies["new-dawn-colony"].stockpiles.ore=-1;assert.throws(()=>validateWorldState(badInventory,catalog),/invalid stockpile quantity/);
  const badQuote=structuredClone(world);badQuote.markets["new-dawn-market"].prices.ore=Number.POSITIVE_INFINITY;assert.throws(()=>validateWorldState(badQuote,catalog),/invalid market price/);
+});
+
+test("daily and weekly domain facts have one idempotent emission per entity and cadence",async()=>{
+ const catalog=await loadCatalog(),world=createWorld(catalog,{seed:"event-cadence"});
+ const activeWars=Object.values(world.wars).filter(war=>war.status==="active");
+ advanceDays(world,catalog,14);
+ const keys=world.domainEvents.map(event=>event.idempotencyKey);
+ assert.ok(keys.every(key=>typeof key==="string"&&key.length>0));
+ assert.equal(new Set(keys).size,keys.length);
+ for(const marketId of Object.keys(world.markets)){
+  for(let day=1;day<=14;day++){
+   assert.equal(world.domainEvents.filter(event=>event.type==="market.prices-settled"&&event.subjectId===marketId&&event.day===day).length,1);
+  }
+ }
+ for(const war of activeWars){
+  for(let day=1;day<=14;day++){
+   assert.equal(world.domainEvents.filter(event=>event.type==="war.chronology-advanced"&&event.subjectId===war.id&&event.day===day).length,1);
+  }
+ }
+ for(const colonyId of Object.keys(world.colonies)){
+  for(const day of [7,14]){
+   assert.equal(world.domainEvents.filter(event=>event.type==="colony.production-settled"&&event.subjectId===colonyId&&event.day===day).length,1);
+  }
+  assert.equal(world.domainEvents.filter(event=>event.type==="colony.production-settled"&&event.subjectId===colonyId).length,2);
+ }
+ assert.equal(validateWorldState(world,catalog),true);
+});
+test("campaign publishes committed domain events through an optional event bus",async()=>{
+ const catalog=await loadCatalog(),world=createWorld(catalog,{seed:"event-bus-integration"});
+ const bus=createDomainEventBus(),seen=[];
+ bus.subscribe("*",event=>seen.push({sequence:event.sequence,type:event.type,frozen:Object.isFrozen(event)}));
+ advanceDay(world,catalog,{eventBus:bus});
+ assert.deepEqual(seen.map(event=>event.sequence),world.domainEvents.map(event=>event.sequence));
+ assert.ok(seen.length>0&&seen.every(event=>event.frozen));
+ const before=seen.length;
+ advanceDay(world,catalog,{eventBus:bus});
+ assert.ok(seen.length>before);
+ assert.equal(world.domainEventSequence,seen.length);
 });

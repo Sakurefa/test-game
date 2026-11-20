@@ -28,18 +28,20 @@ A saved game records its world schema version, content fingerprint, clock, rando
 
 ## Data-only Mod contract
 
-A Mod may add registry entries and definitions through `registry/` and `content/` JSON or INI files. Player-facing names and descriptions are referenced by stable localization keys and resolved from `localization/`; translated strings do not live in content definitions. The engine validates IDs, cross-references and localization keys before the catalog is usable. Duplicate IDs, unresolved references and missing strings stop catalog compilation with an actionable error. Mods cannot execute scripts or provide runtime hooks.
+A Mod package is INI-only. Its manifest, registry declarations, content definitions and localization files all use INI. JSON files and inline JSON arrays/objects are rejected by the loader. The root npm `package.json` is project build metadata and is not part of the Mod format.
 
-Core definitions currently use:
+Core definitions are divided into:
+- `universe.ini`: universe, systems, locations, colonies and trade routes.
+- `economy.ini`: commodities, production recipes, companies, securities and markets.
+- `factions.ini`: faction definitions.
+- `military.ini`: ship classes, fleet compositions and wars.
+- `events.ini`: declarative event definitions.
+- `registry/definitions.ini`: stable ID/type declarations.
+- `localization/zh-CN.ini`: Chinese player-facing strings referenced by stable keys.
 
-- `universeINI files`: universe, systems, locations, colonies and trade routes.
-- `economyINI files`: commodities, production recipes, companies, securities and markets.
-- `factionsINI files`: faction definitions.
-- `militaryINI files`: ship classes, fleet compositions and active wars.
-- `eventsINI files`: declarative event definitions.
-- `registry/definitionsINI files`: stable ID/type declarations.\n- `localization/zh-CN.ini`: Chinese display strings referenced by content keys.
+Content sections use `[type.stable-id]`; the singleton universe uses `[universe]`. Repeated nested records use numbered keys, and simple lists use semicolon-separated values. The loader normalizes these INI sections into validated engine objects. Player-visible names, descriptions, government labels and commodity units are stored only in locale INI files. The catalog rejects missing localization references, duplicate IDs and unresolved cross-references before a world can start.
 
-The initial implementation intentionally does not decide the final rules for taxation, credit, debt, labor markets, interstellar shipping, tactical damage models, diplomacy, or player trading. Those systems can evolve independently without changing the world-state contract.
+Mods are data-only: they cannot execute scripts, ship native code or provide runtime hooks.
 
 ## Determinism
 

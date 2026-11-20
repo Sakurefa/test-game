@@ -7,10 +7,22 @@ const MAX_RECORD_BYTES = 16 * 1024 * 1024;
 const LEVELS = new Set(["DEBUG", "INFO", "WARN", "ERROR"]);
 const instances = new Map();
 
+function safeValue(value, seen = new WeakSet()) {
+  if (value instanceof Error) return { name: value.name, message: value.message, stack: value.stack || value.message };
+  if (typeof value === "bigint") return value.toString() + "n";
+  if (!value || typeof value !== "object") return value;
+  if (seen.has(value)) return "[Circular]";
+  seen.add(value);
+  if (Array.isArray(value)) return value.map((item) => safeValue(item, seen));
+  const result = {};
+  for (const [key, item] of Object.entries(value)) result[key] = safeValue(item, seen);
+  return result;
+}
+
 function safeText(value) {
   if (value instanceof Error) return value.stack || value.message;
   if (typeof value === "string") return value;
-  try { return JSON.stringify(value); } catch { return String(value); }
+  try { return JSON.stringify(safeValue(value)); } catch { return String(value); }
 }
 
 function createLogger(root, options = {}) {
@@ -50,7 +62,7 @@ function createLogger(root, options = {}) {
       timestamp: new Date().toISOString(),
       level,
       scope: String(scope || "general").slice(0, 120),
-      message: message instanceof Error ? safeText(message) : message
+      message: safeValue(message)
     };
     let line = JSON.stringify(record) + "\n";
     if (Buffer.byteLength(line, "utf8") > Math.min(maxBytes, MAX_RECORD_BYTES)) {

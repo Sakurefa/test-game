@@ -196,5 +196,5 @@ function validateWorldFinancialState(world){
 }
 module.exports={
  MAX_FINANCIAL_TRANSACTIONS,MAX_TRANSACTION_ENTRIES,createFinancialLedger,validateFinancialLedger,
- recordBalancedTransaction,getAccountBalance,createTransferCommand,validateWorldFinancialState
+ createLedgerCurrency,createLedgerAccount,recordBalancedTransaction,getAccountBalance,createTransferCommand,validateWorldFinancialState
 };

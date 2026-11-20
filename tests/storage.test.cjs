@@ -26,9 +26,9 @@ test("logger writes separate JSONL records and rotates runtime logs", async (t) 
   assert.ok(files.length <= 6);
   const startup = await fs.readFile(path.join(root, "Logs", "startup.log"), "utf8");
   assert.match(startup, /initialization/);
-  assert.equal(startup.trimEnd().split("\\n").length, 1);
+  assert.equal(startup.trimEnd().split("\n").length, 1);
   const runtime = await fs.readFile(path.join(root, "Logs", "runtime.log"), "utf8");
-  const records = runtime.trimEnd().split("\\n").map((line) => JSON.parse(line));
+  const records = runtime.trimEnd().split("\n").map((line) => JSON.parse(line));
   assert.ok(records.length > 0);
   assert.ok(records.every((record) => record.timestamp && record.level && record.scope === "test"));
 });

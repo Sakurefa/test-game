@@ -2,8 +2,9 @@ const { NamedRandomStreams, hashSeed } = require("./random.cjs");
 const { createCalculationService, CALCULATION_AUDIT_LIMIT } = require("./formulas.cjs");
 const { createClock, advanceClock, advanceClockTime } = require("./clock.cjs");
 const { createSystemRegistry } = require("./system-registry.cjs");
+const { createDomainEventEmitter, validateDomainEventState } = require("./domain-events.cjs");
 
-const GAME_STATE_SCHEMA_VERSION = 3;
+const GAME_STATE_SCHEMA_VERSION = 4;
 const MAX_ADVANCE_DAYS = 30;
 const MAX_CAMPAIGN_CATCH_UP_DAYS = 3650;
 const LOG_LIMIT = 100;
@@ -88,6 +89,8 @@ function createWorld(catalog, options = {}) {
     scheduler: { lastRunDayBySystem: {} },
     rng: randomStreams.snapshot(),
     audit: { calculations: [] },
+    domainEventSequence: 0,
+    domainEvents: [],
     player: {
       factionId: options.playerFactionId || catalog.universe.defaultPlayerFactionId,
       account: { cash: 250000, holdings: {} }
@@ -106,38 +109,38 @@ function createWorld(catalog, options = {}) {
   };
 }
 
-function produceForColony(catalog, colonyState) {
+function produceForColony(catalog, colonyState, calculations, day, emitDomainEvent) {
   const output = {};
+  let activeIndustryCount = 0;
   for (const industry of colonyState.industries) {
     const recipe = catalog.recipes.get(industry.recipeId);
-    const efficiency = clamp(colonyState.stability / 100, 0.1, 1);
-    let batchScale = industry.level * efficiency;
-    for (const input of recipe.inputs || []) {
-      const available = colonyState.stockpiles[input.commodityId] || 0;
-      batchScale = Math.min(batchScale, available / input.quantity);
+    const recipeInputs = (recipe.inputs || []).map((input) => ({
+      commodityId: input.commodityId,
+      quantity: input.quantity,
+      available: colonyState.stockpiles[input.commodityId] || 0
+    }));
+    const { result } = calculations.evaluate("economy.colony-production", {
+      level: industry.level, stability: colonyState.stability,
+      recipeInputs, recipeOutputs: recipe.outputs || []
+    }, { day });
+    if (result.batchScale <= 0) continue;
+    activeIndustryCount += 1;
+    for (const [commodityId, consumed] of Object.entries(result.consumed)) {
+      colonyState.stockpiles[commodityId] = round(Math.max(0, (colonyState.stockpiles[commodityId] || 0) - consumed), 3);
     }
-    batchScale = Math.max(0, batchScale);
-    if (batchScale <= 0) continue;
-
-    for (const input of recipe.inputs || []) {
-      const consumed = input.quantity * batchScale;
-      colonyState.stockpiles[input.commodityId] = round(
-        Math.max(0, (colonyState.stockpiles[input.commodityId] || 0) - consumed), 3
-      );
-    }
-    for (const item of recipe.outputs || []) {
-      const produced = item.quantity * batchScale;
-      colonyState.stockpiles[item.commodityId] = round(
-        (colonyState.stockpiles[item.commodityId] || 0) + produced, 3
-      );
-      output[item.commodityId] = round((output[item.commodityId] || 0) + produced, 3);
+    for (const [commodityId, produced] of Object.entries(result.produced)) {
+      const quantity = round(produced, 3);
+      colonyState.stockpiles[commodityId] = round((colonyState.stockpiles[commodityId] || 0) + quantity, 3);
+      output[commodityId] = round((output[commodityId] || 0) + quantity, 3);
     }
   }
   colonyState.lastProduction = output;
+  emitDomainEvent({ type: "colony.production-settled", scope: "colony", subjectId: colonyState.id,
+    payload: { industryCount: colonyState.industries.length, activeIndustryCount, production: output } });
   return output;
 }
 
-function updateMarket(catalog, marketState, colonyState, allColonyStates, randomStreams, calculations, day) {
+function updateMarket(catalog, marketState, colonyState, allColonyStates, randomStreams, calculations, day, emitDomainEvent) {
   const market = catalog.markets.get(marketState.id);
   const changes = {};
   for (const commodityId of market.commodityIds || []) {
@@ -169,12 +172,16 @@ function updateMarket(catalog, marketState, colonyState, allColonyStates, random
     const { result } = calculations.evaluate("economy.security-price", {
       outputValue,
       volatility: security.volatility,
-      previousPrice: previous
+      previousPrice: previous,
+      initialPrice: security.initialPrice,
+      maxDailyChange: 0.12
     }, { random: randomStreams.get(streamId), randomStreamId: streamId, day });
     marketState.prices[securityId] = result.price;
     changes[securityId] = result.change;
   }
   marketState.lastChanges = changes;
+  emitDomainEvent({ type: "market.prices-settled", scope: "market", subjectId: marketState.id,
+    payload: { instrumentCount: Object.keys(changes).length, changes } });
   return changes;
 }
 
@@ -184,9 +191,9 @@ const simulationSystems = createSystemRegistry([
     id: "colonies.production",
     cadence: "weekly",
     order: 10,
-    update: ({ world, catalog, summary }) => {
+    update: ({ world, catalog, summary, calculations, day, emitDomainEvent }) => {
       for (const [colonyId, colonyState] of Object.entries(world.colonies)) {
-        summary.production[colonyId] = produceForColony(catalog, colonyState);
+        summary.production[colonyId] = produceForColony(catalog, colonyState, calculations, day, emitDomainEvent);
       }
     }
   },
@@ -195,11 +202,11 @@ const simulationSystems = createSystemRegistry([
     cadence: "daily",
     order: 20,
     dependsOn: ["colonies.production"],
-    update: ({ world, catalog, randomStreams, calculations, summary, day }) => {
+    update: ({ world, catalog, randomStreams, calculations, summary, day, emitDomainEvent }) => {
       for (const marketState of Object.values(world.markets)) {
         const definition = catalog.markets.get(marketState.id);
         summary.market[marketState.id] = updateMarket(
-          catalog, marketState, world.colonies[definition.colonyId], world.colonies, randomStreams, calculations, day
+          catalog, marketState, world.colonies[definition.colonyId], world.colonies, randomStreams, calculations, day, emitDomainEvent
         );
       }
     }
@@ -208,9 +215,12 @@ const simulationSystems = createSystemRegistry([
     id: "military.war-chronology",
     cadence: "daily",
     order: 30,
-    update: ({ world }) => {
+    update: ({ world, emitDomainEvent }) => {
       for (const war of Object.values(world.wars)) {
-        if (war.status === "active") war.daysActive += 1;
+        if (war.status !== "active") continue;
+        war.daysActive += 1;
+        emitDomainEvent({ type: "war.chronology-advanced", scope: "war", subjectId: war.id,
+          payload: { daysActive: war.daysActive } });
       }
     }
   }
@@ -234,6 +244,7 @@ function validateWorldState(world, catalog) {
   }
   new NamedRandomStreams(world.rng.seed, world.rng.streams);
   if (!world.audit || !Array.isArray(world.audit.calculations)) throw new Error("Save has an invalid calculation audit");
+  validateDomainEventState(world);
   if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)
     || !Number.isFinite(world.clock.dayFraction) || world.clock.dayFraction < 0 || world.clock.dayFraction >= 1) {
     throw new Error("Save has an invalid game clock");
@@ -241,14 +252,31 @@ function validateWorldState(world, catalog) {
   if (!world.scheduler || typeof world.scheduler !== "object" || !world.scheduler.lastRunDayBySystem
     || typeof world.scheduler.lastRunDayBySystem !== "object") throw new Error("Save has an invalid simulation scheduler state");
   for (const id of catalog.colonies.keys()) {
-    if (!world.colonies?.[id] || !world.colonies[id].stockpiles) throw new Error(`Save is missing colony state: ${id}`);
+    const colony = world.colonies?.[id];
+    if (!colony || !colony.stockpiles || !Array.isArray(colony.industries)) throw new Error(`Save is missing or has invalid colony state: ${id}`);
+    if (!Number.isFinite(colony.population) || colony.population < 0 || !Number.isFinite(colony.stability) || colony.stability < 0 || colony.stability > 100) {
+      throw new Error(`Save has invalid colony population or stability: ${id}`);
+    }
+    for (const [commodityId, quantity] of Object.entries(colony.stockpiles)) {
+      if (!catalog.commodities.has(commodityId) || !Number.isFinite(quantity) || quantity < 0) throw new Error(`Save has invalid stockpile quantity: ${id}.${commodityId}`);
+    }
   }
-  for (const id of catalog.markets.keys()) {
-    if (!world.markets?.[id] || !world.markets[id].prices) throw new Error(`Save is missing market state: ${id}`);
+  for (const [id, definition] of catalog.markets) {
+    const market = world.markets?.[id];
+    if (!market || !market.prices || !market.lastChanges) throw new Error(`Save is missing or has invalid market state: ${id}`);
+    for (const instrumentId of [...(definition.commodityIds || []), ...(definition.securityIds || [])]) {
+      const price = market.prices[instrumentId];
+      if (!Number.isFinite(price) || price <= 0) throw new Error(`Save has invalid market price: ${id}.${instrumentId}`);
+      if (!Number.isFinite(market.lastChanges[instrumentId] ?? 0)) throw new Error(`Save has invalid market change: ${id}.${instrumentId}`);
+    }
   }
-  for (const id of catalog.fleets.keys()) {
-    if (!world.fleets?.[id]) throw new Error(`Save is missing fleet state: ${id}`);
+  for (const id of catalog.fleets.keys()) if (!world.fleets?.[id]) throw new Error(`Save is missing fleet state: ${id}`);
+  for (const [id, definition] of catalog.wars) {
+    const war = world.wars?.[id];
+    if (!war || !Number.isInteger(war.daysActive) || war.daysActive < 0 || !war.warWeariness) throw new Error(`Save has invalid war state: ${id}`);
+    for (const factionId of definition.participants) if (!Number.isFinite(war.warWeariness[factionId]) || war.warWeariness[factionId] < 0) throw new Error(`Save has invalid war weariness: ${id}.${factionId}`);
   }
+  if (!world.player?.account || !Number.isFinite(world.player.account.cash) || !world.player.account.holdings || typeof world.player.account.holdings !== "object") throw new Error("Save has an invalid player account");
   return true;
 }
 
@@ -258,11 +286,9 @@ function advanceDay(world, catalog) {
   const calculations = createCalculationService();
   world.clock = advanceClock(world.clock, 1);
   const summary = { production: {}, market: {} };
-  const systemsRun = simulationSystems.runDue({
-    world,
-    day: world.clock.day,
-    context: { catalog, randomStreams, calculations, summary }
-  });
+  const emitDomainEvent = createDomainEventEmitter(world, world.clock);
+  const systemsRun = simulationSystems.runDue({ world, day: world.clock.day,
+    context: { catalog, randomStreams, calculations, summary, emitDomainEvent } });
 
   world.rng = randomStreams.snapshot();
   if (!world.audit || typeof world.audit !== "object") world.audit = { calculations: [] };
@@ -319,14 +345,12 @@ function migrateWorldState(world) {
 
   if (world.schemaVersion < 3) {
     const legacySeed = Number.isInteger(world.rng?.seed) ? world.rng.seed : 0x6d2b79f5;
-    // Legacy saves used one shared stream. New streams derive independently from seed + stable ID.
-    world.rng = { seed: hashSeed(legacySeed), streams: {} };
-    world.audit = { calculations: [] };
-    world.schemaVersion = GAME_STATE_SCHEMA_VERSION;
+    world.rng = { seed: hashSeed(legacySeed), streams: {} }; world.audit = { calculations: [] }; world.schemaVersion = 3;
   } else {
     if (!world.rng || !world.rng.streams) world.rng = { seed: hashSeed(world.rng?.seed ?? 0x6d2b79f5), streams: {} };
     if (!world.audit || !Array.isArray(world.audit.calculations)) world.audit = { calculations: [] };
   }
+  if (world.schemaVersion < 4) { world.domainEventSequence = 0; world.domainEvents = []; world.schemaVersion = 4; }
   return world;
 }
 

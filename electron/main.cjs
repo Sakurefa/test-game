@@ -5,6 +5,7 @@ const { readModPackages, loadCoreContent } = require("./mod-loader.cjs");
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 const SAVE_DIR = () => path.join(app.getPath("userData"), "saves");
+let coreContentPromise;
 
 function getModsDirectory() {
   return app.isPackaged
@@ -23,7 +24,12 @@ ipcMain.handle("mods:list", async () => {
 });
 
 ipcMain.handle("mods:load-all", async () => readModPackages(getModsDirectory()));
-ipcMain.handle("content:load-core", async () => loadCoreContent(getModsDirectory()));
+function getCoreContent() {
+  if (!coreContentPromise) coreContentPromise = loadCoreContent(getModsDirectory());
+  return coreContentPromise;
+}
+
+ipcMain.handle("content:load-core", async () => getCoreContent());
 
 ipcMain.handle("save:read", async (_event, key) => {
   if (!isSafeSaveKey(key)) throw new Error("Invalid save key");
@@ -89,7 +95,8 @@ function createWindow() {
   }
 }
 
-app.whenReady().then(() => {
+app.whenReady().then(async () => {
+  await getCoreContent();
   createWindow();
 
   app.on("activate", () => {

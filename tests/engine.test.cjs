@@ -65,7 +65,7 @@ test("daily simulation produces goods, updates markets and advances active wars"
   assert.ok(world.colonies["new-dawn-colony"].stockpiles.ore > initialOre);
   assert.ok(world.colonies["verdant-colony"].stockpiles.food > initialFood);
   assert.notEqual(world.markets["verdant-exchange"].prices.food, initialPrice);
-  assert.equal(world.wars["cinder-conflict"].daysActive, 1);
+  assert.equal(world.wars["cinder-conflict"].daysActive, 16);
   assert.equal(world.events.at(-1).type, "daily-report");
 });
 

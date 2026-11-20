@@ -38,10 +38,16 @@ function trackCleanup(task) {
 }
 
 ipcMain.handle("mods:list", async () => {
-  const mods = await readModPackages(getModsDirectory());
+  await ensureStorage();
+  const settings = await readSettings(GAME_ROOT);
+  const mods = await readModPackages(getModsDirectory(), { enabledMods: settings.mods.enabled });
   return mods.map(({ data, ...metadata }) => metadata);
 });
-ipcMain.handle("mods:load-all", async () => readModPackages(getModsDirectory()));
+ipcMain.handle("mods:load-all", async () => {
+  await ensureStorage();
+  const settings = await readSettings(GAME_ROOT);
+  return readModPackages(getModsDirectory(), { enabledMods: settings.mods.enabled });
+});
 
 function getCoreContent() {
   if (!coreContentPromise) {
@@ -54,6 +60,12 @@ function getCoreContent() {
   return coreContentPromise;
 }
 ipcMain.handle("content:load-core", async () => getCoreContent());
+
+ipcMain.handle("app:quit", async () => {
+  logger.info("shutdown", "Quit requested from title menu");
+  app.quit();
+  return true;
+});
 
 ipcMain.handle("settings:read", async () => {
   await ensureStorage();

@@ -156,7 +156,7 @@ function validateCatalog(catalog, registryEntries) {
     requireFinite(commodity.targetStock, `commodity ${commodity.id} targetStock`, { min: 0, exclusiveMin: true });
     requireFinite(commodity.priceElasticity, `commodity ${commodity.id} priceElasticity`, { min: 0, max: 10 });
     requireFinite(commodity.volatility, `commodity ${commodity.id} volatility`, { min: 0, max: 1 });
-    if (typeof commodity.unit !== "string" || !commodity.unit.trim()) throw new Error(`Commodity ${commodity.id} requires a unit`);
+    if (typeof commodity.unitKey !== "string" || !commodity.unitKey.trim()) throw new Error(`Commodity ${commodity.id} requires a localization unitKey`);
   }
   for (const recipe of catalog.recipes.values()) {
     requireArray(recipe.inputs, `recipe ${recipe.id} inputs`);
@@ -263,7 +263,7 @@ function validateLocalizationReferences(catalog, localizations, locale) {
   const strings = localizations[locale] || {};
   for (const collectionName of Object.values(DEFINITION_TYPES)) {
     for (const entity of catalog[collectionName].values()) {
-      for (const field of ["nameKey", "descriptionKey", "governmentKey"]) {
+      for (const field of ["nameKey", "descriptionKey", "governmentKey", "unitKey"]) {
         const key = entity[field];
         if (field === "nameKey" && (typeof key !== "string" || !key.trim())) {
           throw new Error(`Definition ${entity.id} requires a localization nameKey`);

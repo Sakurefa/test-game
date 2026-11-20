@@ -1,0 +1,9 @@
+{
+  "schemaVersion": 1,
+  "currency": "CNY",
+  "startingCash": 100000,
+  "tradingDaysPerYear": 252,
+  "priceFloor": 0.01,
+  "marketMood": 0,
+  "eventFrequency": 0.035
+}

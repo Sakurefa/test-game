@@ -68,7 +68,6 @@ function showFatalError(report) {
   state.domainEventsOpen = false;
   state.worldNotice = "";
   homePage();
-if (hostAvailable()) window.gameHost.app.onWorldFatalError(showFatalError);
   const details = report.logContext || report.stack || report.message || "No error details available";
   app.insertAdjacentHTML("beforeend", `
     <div class="fatal-error-backdrop" role="alertdialog" aria-modal="true" aria-labelledby="fatal-error-title">
@@ -563,3 +562,4 @@ app.addEventListener("click", async (event) => {
 });
 
 homePage();
+if (hostAvailable()) window.gameHost.app.onWorldFatalError(showFatalError);

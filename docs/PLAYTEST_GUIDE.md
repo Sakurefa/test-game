@@ -94,3 +94,12 @@ This prototype is designed to be inspected and broken safely. A damaged save sho
 - Market and military tabs update only their daily changing sections.
 - Colony stockpiles and production details update only after a weekly production cycle.
 - The central content scroll position should remain stable during all of these updates.
+
+
+## Economy calculations and persisted domain events
+
+- Start a new world with a fixed seed and advance to day 7. Open the calculation inspector and confirm that `economy.colony-production` records appear alongside commodity and security pricing records.
+- Expand a production record and inspect stability efficiency, requested batches, the limiting input (when stock is insufficient), consumed quantities and produced quantities. An industry must scale down when inputs are scarce and must never make a stockpile negative.
+- Continue advancing for several weeks. Commodity quotes must remain within 0.1×–10× their base price; security quotes must move no more than 12% in one daily settlement and remain within 0.1×–10× their initial price.
+- Save and reload after several settlements, then resume the simulation. Daily and weekly schedules must continue without duplicating the previous settlement. Typed domain events are persisted alongside the world state for future subscribers and diagnostics.
+- The calculation inspector and these new engine features have automated coverage, but this revision still needs one combined Windows desktop test. Distinguish that GUI check from the CI test results.

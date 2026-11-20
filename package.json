@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "build:web": "vite build",
-    "build:win": "vite build && electron-builder --win dir && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1",
+    "build:win": "vite build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-electron-app.ps1 && electron-builder --win dir --publish never && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1",
     "preview": "vite preview"
   },
   "engines": {
@@ -26,7 +26,8 @@
     "appId": "com.sakurefa.stockmarketsimulator",
     "productName": "Market Simulator",
     "directories": {
-      "output": "release"
+      "output": "release",
+      "app": "build/app"
     },
     "artifactName": "Market-Simulator-${version}-Windows-${arch}.${ext}",
     "extraFiles": [
@@ -77,9 +78,6 @@
           ]
         }
       ]
-    },
-    "files": [
-      "**/*"
-    ]
+    }
   }
 }

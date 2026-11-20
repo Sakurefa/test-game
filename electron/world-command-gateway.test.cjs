@@ -16,7 +16,7 @@ test("main-process gateway injects trusted actor and commits validated world dra
   getActor:current=>({type:"player",id:current.player.factionId}),
   validateWorld:draft=>validateWorldFinancialState(draft),
   onWorldCommit:next=>{world=next;committed+=1;},
-  onEvent:event=>delivered.push(event)
+  onEvent:event=>{assert.equal(world.finance.sequence,2);delivered.push(event);}
  });
  assert.deepEqual(gateway.commandTypes(),["finance.transfer"]);
  const outcome=gateway.dispatch(makeCommand());

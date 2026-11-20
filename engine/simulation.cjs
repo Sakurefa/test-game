@@ -372,7 +372,7 @@ function migrateWorldState(world) {
     const legacyAccount = world.player?.account || { cash: 0, holdings: {} };
     if (!Number.isFinite(legacyAccount.cash) || legacyAccount.cash < 0 || legacyAccount.cash * 100 > Number.MAX_SAFE_INTEGER) throw new Error("Legacy player cash cannot be migrated safely");
     const positions = legacyAccount.holdings && typeof legacyAccount.holdings === "object" && !Array.isArray(legacyAccount.holdings) ? legacyAccount.holdings : {};
-    world.finance = createFinancialLedger({ playerFactionId: world.player.factionId, startDate: world.clock.date, startingBalanceMinor: Math.round(legacyAccount.cash * 100), positions });
+    world.finance = createFinancialLedger({ playerFactionId: world.player.factionId, startDate: world.clock.date, openingDay: world.clock.day, startingBalanceMinor: Math.round(legacyAccount.cash * 100), positions });
     world.player.accountId = "player-main";
     delete world.player.account;
     world.schemaVersion = 6;

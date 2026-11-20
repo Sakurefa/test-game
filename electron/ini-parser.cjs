@@ -29,6 +29,7 @@ function parseIni(source, options = {}) {
   }
   return result;
 }
+
 function parseIniValue(raw, lineNumber, options = {}) {
   if (raw === "") return "";
   if (raw === "true") return true;
@@ -47,7 +48,15 @@ function parseIniValue(raw, lineNumber, options = {}) {
       throw new Error("Invalid quoted string at line " + lineNumber + ": " + error.message);
     }
   }
-  if (raw.startsWith("[") || raw.startsWith("{")) {\n    if (options.rejectInlineJson) throw new Error("Inline JSON values are not supported in Mod INI files at line " + lineNumber);\n    try { return JSON.parse(raw); } catch (error) { throw new Error("Invalid inline value at line " + lineNumber + ": " + error.message); }\n  }
+  if (raw.startsWith("[") || raw.startsWith("{")) {
+    if (options.rejectInlineJson) throw new Error("Inline JSON values are not supported in Mod INI files at line " + lineNumber);
+    try {
+      return JSON.parse(raw);
+    } catch (error) {
+      throw new Error("Invalid inline value at line " + lineNumber + ": " + error.message);
+    }
+  }
   return raw;
 }
+
 module.exports = { MAX_INI_BYTES, parseIni };

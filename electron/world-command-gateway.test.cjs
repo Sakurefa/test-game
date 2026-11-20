@@ -7,7 +7,7 @@ function fixture(){
   finance:createFinancialLedger({playerFactionId:"free-port-alliance",startDate:"2478-04-01"}),
   commandReceipts:[],domainEventSequence:0,domainEvents:[]};
 }
-const makeCommand=(id="cmd-gateway-01",from="player-main")=>({commandId:id,type:"finance.transfer",payload:{fromAccountId:from,toAccountId:"system-treasury",amountMinor:1000}});
+const makeCommand=(id="cmd-gateway-01",from="player-main")=>({commandId:id,type:"finance.transfer",payload:{fromAccountId:from,toAccountId:from==="player-main"?"system-treasury":"player-main",amountMinor:1000}});
 
 test("main-process gateway injects trusted actor and commits validated world drafts",()=>{
  let world=fixture(),committed=0;const delivered=[];

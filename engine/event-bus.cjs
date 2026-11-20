@@ -13,7 +13,7 @@ function cloneJson(value,label="Domain event"){
   else{
    const prototype=Object.getPrototypeOf(item);
    if(prototype!==Object.prototype&&prototype!==null)throw new TypeError(label+" must contain plain objects only");
-   result={};
+   result=Object.create(null);
    for(const key of Object.keys(item))result[key]=copy(item[key]);
   }
   ancestors.delete(item);

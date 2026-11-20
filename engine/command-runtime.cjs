@@ -19,19 +19,25 @@ function createWorldCommandRuntime({dispatcher,eventBus=null,onCommit=null}={}){
   if(eventBus?.isDisposed?.())throw new Error("Domain event bus has been disposed");
   const outcome=dispatcher.dispatch({world,command,context});
   if(outcome.duplicate)return {...outcome,events:[],eventDelivery:[]};
-  if(!outcome.events.length){
-   commitWorld(outcome.world);
-   return {...outcome,events:[],eventDelivery:[]};
+  try {
+   if(!outcome.events.length){
+    commitWorld(outcome.world);
+    return {...outcome,events:[],eventDelivery:[]};
+   }
+   const nextWorld=outcome.world;
+   if(!nextWorld.clock||!Number.isInteger(nextWorld.clock.day)||typeof nextWorld.clock.date!=="string")throw new Error("Command runtime requires an authoritative campaign clock");
+   const emitDomainEvent=createDomainEventEmitter(nextWorld,nextWorld.clock);
+   const previousSequence=nextWorld.domainEventSequence;
+   const committedEvents=outcome.events.map(event=>emitDomainEvent(event));
+   commitWorld(nextWorld);
+   const eventDelivery=[];
+   if(eventBus)for(const event of committedEvents){if(event.sequence>previousSequence)eventDelivery.push(eventBus.publish(event));}
+   return {...outcome,events:committedEvents,eventDelivery};
+  } catch(error) {
+   const failure=new Error("Command commit/event publication failed: "+error.message,{cause:error});
+   failure.code="WORLD_COMMAND_COMMIT_FAILURE";
+   throw failure;
   }
-  const nextWorld=outcome.world;
-  if(!nextWorld.clock||!Number.isInteger(nextWorld.clock.day)||typeof nextWorld.clock.date!=="string")throw new Error("Command runtime requires an authoritative campaign clock");
-  const emitDomainEvent=createDomainEventEmitter(nextWorld,nextWorld.clock);
-  const previousSequence=nextWorld.domainEventSequence;
-  const committedEvents=outcome.events.map(event=>emitDomainEvent(event));
-  commitWorld(nextWorld);
-  const eventDelivery=[];
-  if(eventBus)for(const event of committedEvents){if(event.sequence>previousSequence)eventDelivery.push(eventBus.publish(event));}
-  return {...outcome,events:committedEvents,eventDelivery};
  }
  return Object.freeze({dispatch});
 }

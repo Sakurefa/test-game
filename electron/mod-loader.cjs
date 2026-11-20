@@ -105,8 +105,8 @@ async function readModPackages(root, options = {}) {
   return mods;
 }
 
-async function loadCoreContent(root) {
-  const mods = await readModPackages(root);
+async function loadCoreContent(root, options = {}) {
+  const mods = await readModPackages(root, options);
   const core = mods.find((mod) => mod.id === "core");
   if (!core) return { ok: false, error: "Required content package mods/core is missing", mods };
   if (core.error) return { ok: false, error: `Core content package is invalid: ${core.error}`, mods };

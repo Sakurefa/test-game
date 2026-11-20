@@ -61,7 +61,7 @@ async function failActiveWorld(error, source) {
   await new Promise((resolve) => setTimeout(resolve, 150));
   let logContext = errorStack || errorMessage;
   try {
-    const lines = (await fs.readFile(path.join(logger.directory, "runtime.log"), "utf8")).split(/\\r?\\n/).filter(Boolean);
+    const lines = (await fs.readFile(path.join(logger.directory, "runtime.log"), "utf8")).split(/\r?\n/).filter(Boolean);
     const index = lines.findIndex((line) => line.includes(failureId));
     if (index >= 0) logContext = lines.slice(Math.max(0, index - 5), index + 6).join("\\n");
   } catch (readError) {
@@ -250,6 +250,8 @@ handleIpc("world:load-save", async (_event, saveId) => {
     disposeWorldCommandGateway();
     activeCatalog = nextCatalog;
     activeWorld = nextWorld;
+    fatalHandling = false;
+    pendingFatalReport = null;
     campaignTime.reset();
     activeSaveId = saveId;
     activeWorldDirty = false;

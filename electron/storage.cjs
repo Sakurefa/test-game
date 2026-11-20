@@ -63,8 +63,9 @@ function validateGroup(group, value) {
   if (!defaults || !value || typeof value !== "object" || Array.isArray(value)) {
     throw new Error(`Invalid settings group: ${group}`);
   }
+  const section = value[group] && typeof value[group] === "object" ? value[group] : value;
   const result = { ...defaults };
-  for (const [key, item] of Object.entries(value)) {
+  for (const [key, item] of Object.entries(section)) {
     if (key === "schema_version") continue;
     if (group === "mods" && key === "enabled") {
       if (!item || typeof item !== "object" || Array.isArray(item)) throw new Error("mods.enabled must be an object");

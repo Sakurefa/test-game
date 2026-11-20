@@ -1,0 +1,35 @@
+{
+  "schemaVersion": 1,
+  "stocks": [
+    {
+      "id": "northstar-industries",
+      "symbol": "NSI",
+      "name": "北辰工业",
+      "sector": "industry",
+      "style": "stable",
+      "initialPrice": 48.5,
+      "volatility": 0.018,
+      "drift": 0.0003
+    },
+    {
+      "id": "bluepeak-tech",
+      "symbol": "BPT",
+      "name": "蓝峰科技",
+      "sector": "technology",
+      "style": "growth",
+      "initialPrice": 86.2,
+      "volatility": 0.035,
+      "drift": 0.0008
+    },
+    {
+      "id": "redwood-energy",
+      "symbol": "RWE",
+      "name": "红木能源",
+      "sector": "energy",
+      "style": "cyclical",
+      "initialPrice": 32.7,
+      "volatility": 0.028,
+      "drift": 0.0002
+    }
+  ]
+}

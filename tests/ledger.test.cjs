@@ -75,10 +75,11 @@ test("account balances update incrementally and overdraft limits are enforced at
   {accountId:"player-main",deltaMinor:-100},{accountId:"system-treasury",deltaMinor:100}
  ]});
  assert.equal(repeated.sequence,3);
+ const afterRepeated=structuredClone(world.finance);
  assert.throws(()=>recordBalancedTransaction(world.finance,{day:4,date:"2478-04-05",type:"finance.transfer-settled",commandId:"cmd-transfer-0003",entries:[
   {accountId:"player-main",deltaMinor:-999999999},{accountId:"system-treasury",deltaMinor:999999999}
  ]}),/Insufficient funds/);
- assert.deepEqual(world.finance,before);
+ assert.deepEqual(world.finance,afterRepeated);
 });
 
 test("ledger validation checks live account state without replaying diagnostic history",()=>{

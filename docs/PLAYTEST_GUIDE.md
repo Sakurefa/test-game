@@ -38,12 +38,12 @@ The player starts in 自由港同盟 with an initial account balance displayed i
 ## 4. Test the continuous clock
 
 1. Confirm the world initially shows **时间已暂停** and its calendar day does not change.
-2. Select **1x**. The day-progress percentage and slim progress bar should move smoothly without clicking anything. At the default setting, one in-game day takes 60 real seconds.
+2. Select **1x**. The weekly progress bar should move smoothly without clicking anything. It is divided into seven daily segments; each segment fills over one game day. At the default setting, one in-game day takes 60 real seconds.
 3. Select **2x**, **3x** and **4x**. At the default base rate, one in-game day takes approximately 30, 20 and 15 real seconds respectively.
 4. Select the pause control. The day-progress percentage should stop increasing and the calendar should stop advancing.
 5. Open **设置 → 基础时间流速**. Change the number of real seconds assigned to one game day, save, and confirm the selected speed remains independent of that base duration.
-6. Start a fresh test world or continue the current one until it crosses a day boundary. The calendar and world panels refresh when the main process confirms the new day; market quotes and active-war chronology update daily. Between day boundaries, only the clock progress display should animate.
-7. Continue until elapsed day 7, then open **殖民地与生产**. Industrial inventories should reflect one weekly production cycle. Production should run again on elapsed day 14, 21 and so on.
+6. Start a fresh test world or continue the current one until it crosses a day boundary. The calendar and only the active view region due for that day should update. On the overview, scroll down to 最近动态 before a new day arrives: the log should gain the new daily report without sending the content view back to the top. The weekly progress bar should cross one segment per day.
+7. Continue until elapsed day 7. The weekly bar should finish its seventh segment and reset into the next week only after the day boundary is confirmed. Open **殖民地与生产**: industrial inventories should reflect one weekly production cycle. Production should run again on elapsed day 14, 21 and so on.
 
 The initial scheduler is intentionally simple:
 - Market commodity/security quotes and active-war chronology: daily.
@@ -86,3 +86,11 @@ These are deliberate future systems, not hidden features:
 - Do not edit the active save JSON while the game is running.
 
 This prototype is designed to be inspected and broken safely. A damaged save should be reported rather than silently overwritten.
+
+
+### Incremental view refresh expectations
+
+- Overview date changes update the recent-event region, not the entire world screen.
+- Market and military tabs update only their daily changing sections.
+- Colony stockpiles and production details update only after a weekly production cycle.
+- The central content scroll position should remain stable during all of these updates.

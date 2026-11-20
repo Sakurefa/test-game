@@ -115,3 +115,17 @@ The authoritative engine remains plain Node.js and must not import Electron or b
 - **Mod safety:** Mods remain data-only INI packages. Future image/audio/font assets may be declared by data manifests and validated against safe path, size, type and namespace rules. Assets do not grant script execution, runtime hooks or native-code access.
 
 These are architectural seams, not claims that the asset manager, event bus, renderer or audio engine already exist. They should be introduced in small independently tested increments. Tactical combat is a later isolated subsystem and is not part of this foundation phase.
+
+
+## UI refresh and campaign-time visualization
+
+The renderer distinguishes simulation cadence from presentation refresh cadence. The campaign clock is polled through a lightweight clock-only IPC response; its progress is interpolated locally for display and never advances authoritative simulation state. When the main process confirms a day boundary, the current renderer view refreshes only the region whose data is due:
+
+- Overview: recent event log, daily.
+- Markets: market quote section, daily.
+- Military: war chronology section, daily.
+- Colonies: production and stockpile section, on each seven-day production boundary.
+
+The world content scroll container remains mounted while a region is replaced, preserving the user's reading position. A full world snapshot is still transferred at committed day boundaries in this prototype; the next evolution should replace that broad payload with typed domain events or versioned per-domain projections as the number of active systems grows. UI refresh policy must remain downstream of simulation results and must never influence system cadence, random draws or settlement order.
+
+The campaign progress bar represents the current seven-day week and uses seven visual segments. Continuous movement within each segment represents elapsed time in that day; crossing a segment boundary corresponds to a daily settlement, and the weekly boundary corresponds to colony production. The renderer clamps the display just before a boundary until the main process confirms the authoritative date change.

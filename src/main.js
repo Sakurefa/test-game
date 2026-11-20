@@ -1,7 +1,8 @@
 import "./styles.css";
 import "./time-controls.css";
-import { renderWorld } from "./world.js";
-import { estimateCampaignDayFraction } from "./time-display.mjs";
+import { renderWorld, renderWorldRegion } from "./world.js";
+import { estimateCampaignWeekFraction } from "./time-display.mjs";
+import { getWorldDateRefreshRegions } from "./world-refresh.mjs";
 
 const app = document.querySelector("#app");
 const state = {
@@ -120,7 +121,8 @@ function updateCampaignClockProgress() {
   const elapsedMs = timeControl.speed > 0
     ? Math.max(0, performance.now() - worldClockView.syncedAt)
     : 0;
-  const fraction = estimateCampaignDayFraction({
+  const fraction = estimateCampaignWeekFraction({
+    day: clock.day,
     dayFraction: clock.dayFraction || 0,
     speed: timeControl.speed,
     baseDayDurationMs: timeControl.baseDayDurationMs,
@@ -203,6 +205,26 @@ function renderActiveWorld() {
   startCampaignClockAnimation();
 }
 
+function updateActiveWorldRegions(snapshot, previousDay) {
+  const regions = getWorldDateRefreshRegions({
+    activeTab: state.worldTab,
+    previousDay,
+    currentDay: snapshot.world.clock.day
+  });
+  if (regions.length === 0) return;
+
+  // Keep the scroll owner alive. Replacing #app or .world-content would reset the reading position.
+  const scrollRegion = app.querySelector(".world-content");
+  const previousScrollTop = scrollRegion?.scrollTop ?? 0;
+  for (const regionId of regions) {
+    const currentRegion = app.querySelector(`[data-world-region="${regionId}"]`);
+    if (!currentRegion) continue;
+    const nextMarkup = renderWorldRegion(snapshot, regionId);
+    if (nextMarkup) currentRegion.outerHTML = nextMarkup;
+  }
+  if (scrollRegion) scrollRegion.scrollTop = previousScrollTop;
+}
+
 async function pollCampaignClock() {
   if (!hostAvailable() || state.page !== "world" || !state.world || state.busy || worldClockPollInFlight) return;
   worldClockPollInFlight = true;
@@ -215,12 +237,12 @@ async function pollCampaignClock() {
     if (requestEpoch !== worldViewEpoch || state.page !== "world" || state.world !== requestedWorld || state.busy) return;
 
     if (clockStatus.clock.day !== previousDay) {
-      // Market, colony and military panels only need a full snapshot when a game day is committed.
+      // The snapshot refreshes authoritative data; the renderer patches only the due view region.
       const snapshot = await window.gameHost.world.getStatus();
       if (requestEpoch !== worldViewEpoch || state.page !== "world" || state.world !== requestedWorld || state.busy) return;
       state.world = snapshot;
       syncCampaignClockFromSnapshot(snapshot);
-      renderActiveWorld();
+      updateActiveWorldRegions(snapshot, previousDay);
     } else {
       syncCampaignClock(clockStatus);
     }

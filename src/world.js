@@ -1,3 +1,5 @@
+import { getCampaignWeekFraction } from "./time-display.mjs";
+
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
@@ -18,6 +20,16 @@ function entityDescription(snapshot, entity) {
 
 function number(value) {
   return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value || 0);
+}
+
+function renderRecentEventsSection(snapshot) {
+  return `
+    <section class="world-section" data-world-region="recent-events">
+      <div class="world-section-head"><div><span class="world-eyebrow">RECENT LOG</span><h3>最近动态</h3></div></div>
+      <div class="event-list">${snapshot.recentEvents.map((event) => `
+        <article><time>第 ${event.day} 天 · ${escapeHtml(event.date)}</time><p>${escapeHtml(event.text)}</p></article>
+      `).join("")}</div>
+    </section>`;
 }
 
 function overview(snapshot) {
@@ -61,17 +73,12 @@ function overview(snapshot) {
         }).join("")}</div>
       </div>
     </section>
-    <section class="world-section">
-      <div class="world-section-head"><div><span class="world-eyebrow">RECENT LOG</span><h3>最近动态</h3></div></div>
-      <div class="event-list">${snapshot.recentEvents.map((event) => `
-        <article><time>第 ${event.day} 天 · ${escapeHtml(event.date)}</time><p>${escapeHtml(event.text)}</p></article>
-      `).join("")}</div>
-    </section>`;
+    ${renderRecentEventsSection(snapshot)}`;
 }
 
 function colonies(snapshot) {
   return `
-    <section class="world-section">
+    <section class="world-section" data-world-region="colony-production">
       <div class="world-section-head"><div><span class="world-eyebrow">SETTLEMENTS</span><h3>殖民地与生产</h3></div><small>当前生产按殖民地库存结算，星际物流尚未接入</small></div>
       <div class="colony-grid">
         ${snapshot.colonies.map((colony) => {
@@ -97,7 +104,7 @@ function colonies(snapshot) {
 
 function markets(snapshot) {
   return `
-    <section class="world-section">
+    <section class="world-section" data-world-region="market-quotes">
       <div class="world-section-head"><div><span class="world-eyebrow">COMMERCE & FINANCE</span><h3>地方市场</h3></div><small>报价随库存稀缺度和可复现的随机扰动变化</small></div>
       <div class="market-grid">
         ${snapshot.markets.map((market) => {
@@ -121,7 +128,7 @@ function markets(snapshot) {
 
 function military(snapshot) {
   return `
-    <section class="world-section">
+    <section class="world-section" data-world-region="war-chronology">
       <div class="world-section-head"><div><span class="world-eyebrow">STRATEGIC SITUATION</span><h3>势力与战争</h3></div><small>舰队目前为静态编制数据，战术指令与实时战斗仍在后续阶段</small></div>
       <div class="military-grid">
         <div class="military-panel"><h4>势力</h4>${snapshot.factions.map((faction) => `
@@ -142,6 +149,16 @@ function military(snapshot) {
     </section>`;
 }
 
+export function renderWorldRegion(snapshot, regionId) {
+  switch (regionId) {
+    case "recent-events": return renderRecentEventsSection(snapshot);
+    case "colony-production": return colonies(snapshot);
+    case "market-quotes": return markets(snapshot);
+    case "war-chronology": return military(snapshot);
+    default: return "";
+  }
+}
+
 export function renderWorld(snapshot, activeTab = "overview", notice = "") {
   const tabs = [
     ["overview", "星域总览"], ["colonies", "殖民地与生产"],
@@ -150,6 +167,9 @@ export function renderWorld(snapshot, activeTab = "overview", notice = "") {
   const content = activeTab === "colonies" ? colonies(snapshot)
     : activeTab === "markets" ? markets(snapshot)
       : activeTab === "military" ? military(snapshot) : overview(snapshot);
+  const weeklyFraction = getCampaignWeekFraction(snapshot.world.clock.day, snapshot.world.clock.dayFraction || 0);
+  const weeklyPercentage = (weeklyFraction * 100).toFixed(1);
+  const dayInWeek = snapshot.world.clock.day % 7 + 1;
   return `
     <main class="world-screen">
       <header class="world-header">
@@ -157,8 +177,11 @@ export function renderWorld(snapshot, activeTab = "overview", notice = "") {
         <div class="world-date">
           <small>GALACTIC DATE</small>
           <b data-world-date>${escapeHtml(snapshot.world.clock.date)}</b>
-          <div class="world-day-summary"><span data-world-day>第 ${snapshot.world.clock.day} 天 · 第 ${Math.floor(snapshot.world.clock.day / 7) + 1} 周</span><strong data-world-percent>${((snapshot.world.clock.dayFraction || 0) * 100).toFixed(1)}%</strong></div>
-          <div class="campaign-day-track" data-world-progress-track role="progressbar" aria-label="当前游戏日进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${((snapshot.world.clock.dayFraction || 0) * 100).toFixed(1)}"><span data-world-progress style="width:${((snapshot.world.clock.dayFraction || 0) * 100).toFixed(1)}%"></span></div>
+          <div class="world-day-summary"><span data-world-day>第 ${snapshot.world.clock.day} 天 · 第 ${Math.floor(snapshot.world.clock.day / 7) + 1} 周 · 本周第 ${dayInWeek} 天</span><strong data-world-percent>${weeklyPercentage}%</strong></div>
+          <div class="campaign-week-track" data-world-progress-track role="progressbar" aria-label="当前游戏周进度，划分为七个日刻度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${weeklyPercentage}">
+            <span class="campaign-week-fill" data-world-progress style="width:${weeklyPercentage}%"></span>
+            <span class="campaign-week-ticks" aria-hidden="true"><i></i><i></i><i></i><i></i><i></i><i></i><i></i></span>
+          </div>
         </div>
       </header>
       <div class="world-toolbar">

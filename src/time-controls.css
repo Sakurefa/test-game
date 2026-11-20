@@ -10,5 +10,8 @@
 .world-day-summary{display:flex!important;align-items:center;justify-content:flex-end;gap:9px;margin-top:5px!important}
 .world-day-summary span{display:inline!important;margin:0!important;color:#879bb5;font-size:9px}
 .world-day-summary strong{color:#c9d9ec;font-size:10px;font-variant-numeric:tabular-nums;font-weight:600}
-.campaign-day-track{width:100%;height:3px;margin-top:6px;overflow:hidden;border-radius:3px;background:rgba(129,157,193,.18)}
-.campaign-day-track>span{display:block;width:0;height:100%;border-radius:inherit;background:linear-gradient(90deg,#668fbe,#b4d3f2);will-change:width}
+.campaign-week-track{position:relative;width:100%;height:7px;margin-top:7px;overflow:hidden;border-radius:4px;background:rgba(129,157,193,.18)}
+.campaign-week-fill{position:absolute;inset:0 auto 0 0;display:block;width:0;border-radius:inherit;background:linear-gradient(90deg,#668fbe,#b4d3f2);will-change:width}
+.campaign-week-ticks{position:absolute;inset:0;display:grid;grid-template-columns:repeat(7,minmax(0,1fr));pointer-events:none}
+.campaign-week-ticks i{border-right:1px solid rgba(8,16,27,.72)}
+.campaign-week-ticks i:last-child{border-right:0}

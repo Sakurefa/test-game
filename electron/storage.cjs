@@ -64,6 +64,10 @@ function validateGroup(group, value) {
     throw new Error(`Invalid settings group: ${group}`);
   }
   const section = value[group] && typeof value[group] === "object" ? value[group] : value;
+  const schemaVersion = section.schema_version ?? 0;
+  if (!Number.isInteger(schemaVersion) || schemaVersion < 0 || schemaVersion > STORAGE_VERSION) {
+    throw new Error(`Unsupported ${group} settings schema version: ${schemaVersion}`);
+  }
   const result = { ...defaults };
   for (const [key, item] of Object.entries(section)) {
     if (key === "schema_version") continue;
@@ -126,7 +130,11 @@ async function readSettings(root) {
     const file = path.join(root, "setting", `${group}.ini`);
     try {
       const parsed = parseIni(await fs.readFile(file, "utf8"));
+      const schemaVersion = parsed[group]?.schema_version ?? 0;
       settings[group] = validateGroup(group, parsed);
+      if (schemaVersion < STORAGE_VERSION) {
+        await atomicWrite(file, serializeIni({ [group]: settings[group] }));
+      }
     } catch (error) {
       if (error.code === "ENOENT") {
         settings[group] = { ...DEFAULT_SETTINGS[group] };
@@ -171,7 +179,12 @@ async function listSaveSlots(root) {
     if (!entry.isDirectory() || !isSafeSlotId(entry.name)) continue;
     const slotPath = path.join(directory, entry.name);
     try {
-      const raw = await fs.readFile(path.join(slotPath, "metadata.ini"), "utf8");
+      const metadataPath = path.join(slotPath, "metadata.ini");
+      const stat = await fs.lstat(metadataPath);
+      if (!stat.isFile() || stat.isSymbolicLink() || stat.size > 64 * 1024) {
+        throw new Error("Save metadata is linked or too large");
+      }
+      const raw = await fs.readFile(metadataPath, "utf8");
       const metadata = parseIni(raw).save;
       if (!metadata || typeof metadata !== "object") throw new Error("Missing [save] metadata section");
       slots.push({ id: entry.name, metadata, status: metadata.schema_version === STORAGE_VERSION ? "ok" : "incompatible" });
@@ -185,6 +198,8 @@ async function listSaveSlots(root) {
 async function createSaveSlot(root, id, name = "New Save") {
   if (!isSafeSlotId(id)) throw new Error("Invalid save slot ID");
   const directory = path.join(root, "save", id);
+  await fs.mkdir(path.join(root, "save"), { recursive: true });
+  await fs.mkdir(directory);
   await fs.mkdir(path.join(directory, "data"), { recursive: true });
   const metadata = {
     schema_version: STORAGE_VERSION,
@@ -193,6 +208,7 @@ async function createSaveSlot(root, id, name = "New Save") {
     updated_at: new Date().toISOString()
   };
   await atomicWrite(path.join(directory, "metadata.ini"), serializeIni({ save: metadata }));
+  await atomicWrite(path.join(directory, "world.ini"), serializeIni({ world: { schema_version: STORAGE_VERSION } }));
   return { id, metadata, status: "ok" };
 }
 

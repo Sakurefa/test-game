@@ -124,7 +124,7 @@ test("replayed command IDs are reauthorized before returning a stored result",()
 });
 
 test("world command runtime commits state before notifying event subscribers",()=>{
- const initial=worldFixture(),state={world:initial},observed=[];
+ const initial={...worldFixture(),clock:{day:12,date:"2478-04-13"},domainEventSequence:0,domainEvents:[]},state={world:initial},observed=[];
  const dispatcher=createCommandDispatcher([{
   id:"player.counter.increment",validate:()=>true,
   execute:({world})=>{world.counter+=1;return {result:{counter:world.counter},events:[{type:"world.counter-changed",payload:{counter:world.counter}}]};}

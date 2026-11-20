@@ -43,7 +43,7 @@ test("market formula service records inputs, modifiers, steps and actual random 
   assert.ok(records.length>0);
   const commodity=records.find(x=>x.formulaId==="economy.commodity-price");
   assert.ok(commodity);
-  assert.equal(commodity.version,1);
+  assert.equal(commodity.version,2);
   assert.equal(commodity.day,1);
   assert.ok(commodity.steps.some(x=>x.id==="scarcity"));
   assert.ok(commodity.modifiers.some(x=>x.id==="market-volatility"));

@@ -3,13 +3,10 @@
 A moddable Windows desktop stock-market simulation game built with Electron,
 Vite, HTML, CSS, and JavaScript.
 
-## Requirements
-
-- Windows 10 or later for the packaged Windows build
-- Node.js 20 or later (Node.js 22 LTS recommended)
-- npm
-
 ## Development
+
+- Node.js 22 LTS (Node.js 20 or later is supported)
+- npm
 
 ```bash
 npm install
@@ -18,14 +15,32 @@ npm run dev
 
 Vite serves the renderer locally and Electron opens the desktop window.
 
-## Build
+## Build locally (optional)
 
 ```bash
 npm run build:win
 ```
 
-The portable Windows build is written to `release/`. The packaged app includes
-its own Electron/Chromium runtime; end users do not need to install Chrome.
+The portable Windows x64 executable is written to `release/`. The packaged
+app includes its own Electron/Chromium runtime; end users do not need to
+install Chrome, Node.js, or npm.
+
+## Automatic Windows builds
+
+GitHub Actions builds the portable Windows executable on pushes to `main`,
+pull requests targeting `main`, and manual workflow dispatches.
+
+- Open the repository's **Actions** tab and select **Build Windows Game**.
+- Open a completed run and download the `Market-Simulator-Windows` artifact.
+- To publish a shareable GitHub Release, push a version tag such as
+  `v0.1.0`. The workflow attaches the Windows executable to that release.
+
+Release tag example:
+
+```bash
+git tag v0.1.0
+git push origin v0.1.0
+```
 
 ## Project layout
 

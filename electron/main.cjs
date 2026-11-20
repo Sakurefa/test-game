@@ -4,10 +4,98 @@ const fs = require("node:fs/promises");
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 const SAVE_DIR = () => path.join(app.getPath("userData"), "saves");
+const MOD_API_VERSION = 1;
+const MAX_MOD_JSON_BYTES = 2 * 1024 * 1024;
+
+function getModsDirectory() {
+  return app.isPackaged
+    ? path.join(path.dirname(process.execPath), "mods")
+    : path.join(__dirname, "..", "mods");
+}
 
 function isSafeSaveKey(key) {
   return typeof key === "string" && /^[a-zA-Z0-9_-]{1,64}$/.test(key);
 }
+
+function isSafeModId(id) {
+  return typeof id === "string" && /^[a-z0-9][a-z0-9._-]{1,63}$/.test(id);
+}
+
+function isSafeDataFile(file) {
+  return typeof file === "string" && /^[a-zA-Z0-9_-]{1,64}\.json$/.test(file);
+}
+
+async function readModPackages() {
+  const root = getModsDirectory();
+  await fs.mkdir(root, { recursive: true });
+  const entries = await fs.readdir(root, { withFileTypes: true });
+  const mods = [];
+
+  for (const entry of entries) {
+    if (!entry.isDirectory() || !isSafeModId(entry.name)) continue;
+
+    const directory = path.join(root, entry.name);
+    try {
+      const manifestPath = path.join(directory, "manifest.json");
+      const manifestStat = await fs.stat(manifestPath);
+      if (!manifestStat.isFile() || manifestStat.size > 64 * 1024) {
+        throw new Error("Manifest is missing or too large");
+      }
+
+      const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
+      if (
+        manifest.id !== entry.name ||
+        typeof manifest.name !== "string" ||
+        typeof manifest.version !== "string" ||
+        typeof manifest.author !== "string" ||
+        manifest.apiVersion !== MOD_API_VERSION ||
+        !Array.isArray(manifest.dataFiles) ||
+        manifest.dataFiles.some((file) => !isSafeDataFile(file))
+      ) {
+        throw new Error("Invalid manifest or unsupported Mod API version");
+      }
+
+      const uniqueFiles = [...new Set(manifest.dataFiles)];
+      const data = {};
+      for (const file of uniqueFiles) {
+        const filePath = path.join(directory, "data", file);
+        const stat = await fs.stat(filePath);
+        if (!stat.isFile() || stat.size > MAX_MOD_JSON_BYTES) {
+          throw new Error(`Data file is missing or too large: ${file}`);
+        }
+        data[file] = JSON.parse(await fs.readFile(filePath, "utf8"));
+      }
+
+      mods.push({
+        id: manifest.id,
+        name: manifest.name,
+        version: manifest.version,
+        author: manifest.author,
+        description: typeof manifest.description === "string" ? manifest.description : "",
+        apiVersion: manifest.apiVersion,
+        data
+      });
+    } catch (error) {
+      mods.push({
+        id: entry.name,
+        name: entry.name,
+        version: "—",
+        author: "—",
+        apiVersion: null,
+        error: error.message
+      });
+    }
+  }
+
+  return mods;
+}
+
+ipcMain.handle("mods:list", async () => {
+  const mods = await readModPackages();
+  return mods.map(({ data, ...metadata }) => metadata);
+});
+
+ipcMain.handle("mods:load-all", async () => readModPackages());
 
 ipcMain.handle("save:read", async (_event, key) => {
   if (!isSafeSaveKey(key)) throw new Error("Invalid save key");

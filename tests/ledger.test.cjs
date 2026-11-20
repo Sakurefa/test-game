@@ -115,7 +115,7 @@ test("transfer command rejects forged actors, insufficient funds and cross-curre
  world.finance.accounts["euro-account"]={id:"euro-account",owner:{type:"company",id:"frontier-industries"},currency:"EUR",balanceMinor:0,overdraftLimitMinor:0,allowNegative:false,status:"open",positions:{}};
  assert.equal(validateFinancialLedger(world.finance),true);
  const cross={...transfer("cmd-transfer-0004",100),payload:{...transfer().payload,toAccountId:"euro-account"}};
- assert.throws(()=>dispatcher.dispatch({world,command:cross,context:{actor:{type:"player",id:"free-port-alliance"}}}),/different currencies/);
+ assert.throws(()=>dispatcher.dispatch({world,command:cross,context:{actor:{type:"player",id:"free-port-alliance"}}}),/Cross-currency transfers/);
  assert.equal(world.finance.sequence,1);
 });
 

@@ -140,3 +140,8 @@ Schema 1 and 2 saves migrate to schema 3 while preserving calendar, scheduler an
 The versioned calculation registry currently contains `economy.commodity-price` v1 and `economy.security-price` v1. Each execution produces a deterministic audit record with day, formula ID/version, inputs, modifiers, intermediate steps, actual random draws and result. The world save retains the latest 200 calculation records. Audit reads are observational and do not access random streams.
 
 Calculation capture is unconditional in the simulation service. A future UI visibility switch must only decide whether the renderer displays already-recorded audit data; it must not be passed into formulas, scheduler systems or random-stream services. Thus enabling/disabling the inspector cannot alter random consumption, formula order or simulation results. Formula IDs in contextual help should resolve to these registry entries rather than duplicate formula text.
+
+
+### Calculation audit inspector UI
+
+The renderer exposes a read-only calculation inspector over the latest 30 persisted audit records. It displays formula ID/version, simulation day, input parameters, intermediate steps, modifiers, actual random draws and final result. The inspector reads the current world snapshot already held by the renderer; opening, closing, expanding or scrolling the panel makes no IPC request and sends no visibility flag to the simulation engine. When a new daily snapshot arrives, the panel refreshes its displayed records while preserving its own scroll position. This UI is diagnostic, not an interactive formula editor, and it does not yet imply that every simulation subsystem has registered a formula.

@@ -1,9 +1,54 @@
 import { getCampaignWeekFraction } from "./time-display.mjs";
+import { getRecentCalculationRecords } from "./calculation-audit.mjs";
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
     "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;"
   })[char]);
+}
+
+const FORMULA_LABELS = Object.freeze({
+  "economy.commodity-price": "商品市场定价",
+  "economy.security-price": "证券价格计算"
+});
+
+function auditJson(value) {
+  return escapeHtml(JSON.stringify(value ?? null, null, 2));
+}
+
+function renderAuditRecord(record) {
+  const label = FORMULA_LABELS[record.formulaId] || record.formulaId;
+  const draws = Array.isArray(record.randomDraws) ? record.randomDraws : [];
+  return `
+    <details class="audit-record">
+      <summary>
+        <span><b>第 ${record.day ?? "—"} 天 · ${escapeHtml(label)}</b><small>${escapeHtml(record.formulaId)} · v${record.version}</small></span>
+        <em>${draws.length} 次随机抽取</em>
+      </summary>
+      <div class="audit-record-body">
+        <section><h5>输入参数</h5><pre>${auditJson(record.inputs)}</pre></section>
+        <section><h5>中间步骤</h5><pre>${auditJson(record.steps)}</pre></section>
+        <section><h5>修正项</h5><pre>${auditJson(record.modifiers)}</pre></section>
+        <section><h5>实际随机抽取</h5><pre>${auditJson(draws)}</pre></section>
+        <section><h5>最终结果</h5><pre>${auditJson(record.result)}</pre></section>
+      </div>
+    </details>`;
+}
+
+export function renderCalculationAuditPanel(snapshot) {
+  const records = getRecentCalculationRecords(snapshot.world, 30);
+  const content = records.length
+    ? records.map(renderAuditRecord).join("")
+    : `<div class="audit-empty">尚无计算记录。市场完成下一次每日结算后，相关公式记录会出现在这里。</div>`;
+  return `
+    <aside class="calculation-audit-panel" data-audit-panel aria-label="计算审计只读面板">
+      <header class="audit-panel-header">
+        <div><span class="world-eyebrow">CALCULATION TRACE / READ ONLY</span><h3>计算审计</h3><small>最近 ${records.length} 条记录 · 最多显示 30 条</small></div>
+        <button data-world-action="toggle-audit" aria-label="关闭计算审计">关闭</button>
+      </header>
+      <div class="audit-panel-body">${content}</div>
+      <footer class="audit-panel-footer">只读历史记录 · 不参与公式、时间调度或随机数生成</footer>
+    </aside>`;
 }
 
 function tr(snapshot, key) {
@@ -159,7 +204,7 @@ export function renderWorldRegion(snapshot, regionId) {
   }
 }
 
-export function renderWorld(snapshot, activeTab = "overview", notice = "") {
+export function renderWorld(snapshot, activeTab = "overview", notice = "", auditOpen = false) {
   const tabs = [
     ["overview", "星域总览"], ["colonies", "殖民地与生产"],
     ["markets", "市场与金融"], ["military", "势力与战争"]
@@ -187,6 +232,7 @@ export function renderWorld(snapshot, activeTab = "overview", notice = "") {
       <div class="world-toolbar">
         <div class="world-tabs">${tabs.map(([id, label]) => `<button data-world-tab="${id}" class="${activeTab === id ? "active" : ""}">${label}</button>`).join("")}</div>
         <div class="world-actions">
+          <button data-world-action="toggle-audit" class="${auditOpen ? "selected" : ""}" aria-expanded="${auditOpen}">计算审计</button>
           <span class="time-control-label" data-time-label>${snapshot.timeControl?.paused ? "时间已暂停" : `世界时间 · ${snapshot.timeControl?.speed || 1}x`}</span>
           <div class="time-speed-buttons">
             <button data-world-action="set-speed" data-speed="0" title="暂停世界时间" class="${snapshot.timeControl?.speed === 0 ? "selected" : ""}" aria-pressed="${snapshot.timeControl?.speed === 0}">Ⅱ</button>
@@ -202,5 +248,6 @@ export function renderWorld(snapshot, activeTab = "overview", notice = "") {
       ${notice ? `<div class="world-notice">${escapeHtml(notice)}</div>` : ""}
       <div class="world-content">${content}</div>
       <footer class="world-footer"><span data-save-status>存档：${escapeHtml(snapshot.saveId || "未命名")} · ${snapshot.dirty ? "有未保存更改" : "已保存"}</span><span>世界版本 ${snapshot.world.schemaVersion} · 内容指纹 ${snapshot.world.contentHash.slice(0, 10)}</span></footer>
+      ${auditOpen ? renderCalculationAuditPanel(snapshot) : ""}
     </main>`;
 }

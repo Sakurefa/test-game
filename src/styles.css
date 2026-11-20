@@ -27,3 +27,27 @@
 .route-list b{display:block;color:#b9cce3;font-size:9px;font-weight:500}
 .route-list small{display:block;margin-top:5px;color:#7187a1;font-size:8px;line-height:1.4}
 @media(max-width:700px){.route-list{grid-template-columns:1fr}.route-heading{flex-direction:column}}
+
+/* Read-only calculation audit inspector */
+.world-screen{position:relative}
+.world-actions button.selected[data-world-action="toggle-audit"]{border-color:rgba(130,175,230,.62);color:#e4effe;background:rgba(55,83,117,.72)}
+.calculation-audit-panel{position:absolute;z-index:20;top:118px;right:4.2%;bottom:52px;display:flex;flex-direction:column;width:min(500px,calc(100vw - 36px));max-height:calc(100% - 170px);border:1px solid rgba(139,174,218,.3);border-radius:9px;background:rgba(10,18,29,.97);box-shadow:0 18px 60px rgba(0,0,0,.48);backdrop-filter:blur(16px)}
+.audit-panel-header{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-shrink:0;padding:15px 17px;border-bottom:1px solid rgba(147,174,211,.16)}
+.audit-panel-header h3{margin:5px 0;color:#e4edf9;font-size:17px;font-weight:500}
+.audit-panel-header small{color:#778ba5;font-size:9px}
+.audit-panel-header button{padding:6px 10px;border:1px solid rgba(147,174,211,.22);border-radius:5px;color:#b7c9df;background:rgba(24,39,58,.8);font-size:10px}
+.audit-panel-body{flex:1;min-height:0;overflow:auto;padding:10px 13px}
+.audit-record{margin:0 0 7px;border:1px solid rgba(147,174,211,.13);border-radius:6px;background:rgba(24,39,58,.48)}
+.audit-record summary{display:flex;align-items:center;justify-content:space-between;gap:10px;padding:10px;cursor:pointer;list-style:none}
+.audit-record summary::-webkit-details-marker{display:none}
+.audit-record summary b,.audit-record summary small{display:block}
+.audit-record summary b{color:#dce8f7;font-size:10px;font-weight:500}
+.audit-record summary small{margin-top:4px;color:#758ba8;font-size:8px}
+.audit-record summary em{flex-shrink:0;color:#91a9c8;font-size:8px;font-style:normal}
+.audit-record-body{display:grid;gap:8px;padding:0 10px 10px}
+.audit-record-body section{min-width:0;padding-top:8px;border-top:1px solid rgba(147,174,211,.1)}
+.audit-record-body h5{margin:0 0 5px;color:#92aac8;font-size:9px;font-weight:500}
+.audit-record-body pre{max-height:150px;margin:0;overflow:auto;white-space:pre-wrap;overflow-wrap:anywhere;color:#aabbd0;font:8px/1.55 ui-monospace,Consolas,monospace}
+.audit-empty{padding:20px 12px;color:#8b9db4;font-size:10px;line-height:1.7}
+.audit-panel-footer{flex-shrink:0;padding:9px 14px;border-top:1px solid rgba(147,174,211,.13);color:#7287a1;font-size:8px}
+@media(max-width:700px){.calculation-audit-panel{top:145px;right:12px;bottom:50px;width:calc(100vw - 24px);max-height:calc(100% - 195px)}}

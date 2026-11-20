@@ -47,12 +47,14 @@ Content sections use `[type.stable-id]`; the singleton universe uses `[universe]
 
 Mods are data-only: they cannot execute scripts, ship native code or provide runtime hooks.
 
-## Determinism
+## Determinism and domain events
 
-A world stores both the original seed and the current PRNG state. Advancing the same catalog and state produces the same results. Random state is part of the save format; loading a save does not restart its random sequence. Scheduler execution markers and campaign-day fractions are saved too, so loading cannot accidentally duplicate a daily or weekly update.
+A world stores its original seed and each named PRNG stream state. Stream IDs are stable simulation identifiers, and independent market-instrument streams prevent unrelated systems from perturbing one another. Formula calculations are synchronous and versioned; each execution records inputs, modifiers, intermediate steps, actual random draws and its result. Audit history is bounded and saved, and reading it does not consume randomness.
 
-The current engine still uses one seeded random stream. Stable named streams and formula audit records are the next simulation-foundation phase; they are not yet implemented.
- 
+The engine appends typed domain events with monotonic sequence IDs, campaign day/date, scope, subject and JSON-safe payload. The retained history is bounded independently from the localized narrative event feed. Production, market settlement and active-war chronology emit events. Presentation, audio and future analytics can consume these recorded facts without mutating world state. Event records and sequence numbers survive save/load, and schema migrations start a fresh typed history for legacy saves.
+
+Save validation rejects non-finite or negative stockpiles, invalid stability/population values, non-positive or non-finite quotes, malformed player account state and inconsistent domain-event history. This catches corrupted or impossible economic state at the world boundary instead of allowing invalid values to propagate through later settlements.
+
 ## Current prototype boundary
 
 The campaign world now runs continuously under pause and 1x–4x controls. Market repricing and war chronology are daily systems; colony production is weekly. Fleets, ship classes and war state remain static registered data. Tactical combat, fleet movement, logistics between colonies, diplomacy and player financial orders are not implemented. Tactical combat is explicitly deferred and will require its own independent real-time simulation rather than being added to the campaign scheduler.
@@ -87,7 +89,7 @@ This separation is essential for pause, speed controls, AI battles, save/load an
 
 ## Simulation ordering and system contracts
 
-New simulation systems should be registered with stable IDs, explicit cadence, deterministic priority and declared dependencies. A system may optionally provide initialization, update, save, restore and disposal hooks. Systems must not depend on renderer timing, Electron APIs, audio playback or direct DOM state. Cross-system changes should be expressed through well-defined inputs and outputs; the future event/command layer will formalize this boundary.
+New simulation systems should be registered with stable IDs, explicit cadence, deterministic priority and declared dependencies. A system may optionally provide initialization, update, save, restore and disposal hooks. Systems must not depend on renderer timing, Electron APIs, audio playback or direct DOM state. Cross-system state changes remain inside authoritative system updates, while completed production, market settlement and active-war chronology emit typed domain events. Validated player/AI command dispatch remains a separate next step: commands must be checked before they mutate state, and UI controls must not gain direct access to world objects.
 
 The current registry supports daily, weekly and manual cadences. Weekly scheduling is anchored to the campaign start: it runs after every seven elapsed days (day 7, 14, 21…). The scheduler records the last day each system ran, and its registry order ensures weekly production executes before market repricing on a shared boundary day.
  
@@ -114,7 +116,7 @@ The authoritative engine remains plain Node.js and must not import Electron or b
 - **Audio:** sound playback and mixing belong to a presentation service. Simulation events may request sound cues by ID; the engine must remain testable without an audio device.
 - **Mod safety:** Mods remain data-only INI packages. Future image/audio/font assets may be declared by data manifests and validated against safe path, size, type and namespace rules. Assets do not grant script execution, runtime hooks or native-code access.
 
-These are architectural seams, not claims that the asset manager, event bus, renderer or audio engine already exist. They should be introduced in small independently tested increments. Tactical combat is a later isolated subsystem and is not part of this foundation phase.
+The typed domain-event record is now implemented for production, market settlement and war chronology. This is a bounded persisted event history; no subscriber framework, asset manager, renderer or audio engine is claimed to exist yet. Validated player/AI command dispatch, event subscriptions and presentation adapters remain future increments. Tactical combat is a later isolated subsystem and is not part of this foundation phase.
 
 
 ## UI refresh and campaign-time visualization
@@ -137,7 +139,7 @@ World schema version 3 replaces the single shared PRNG state with named streams.
 
 Schema 1 and 2 saves migrate to schema 3 while preserving calendar, scheduler and entity state. The legacy shared PRNG position cannot be mapped to independent streams without coupling them again, so migrated saves begin their new named streams from the original world seed. Their future random outcomes intentionally differ from the old shared-stream sequence; after migration, save/load remains deterministic.
 
-The versioned calculation registry currently contains `economy.commodity-price` v1 and `economy.security-price` v1. Each execution produces a deterministic audit record with day, formula ID/version, inputs, modifiers, intermediate steps, actual random draws and result. The world save retains the latest 200 calculation records. Audit reads are observational and do not access random streams.
+The versioned calculation registry currently contains `economy.colony-production` v1, `economy.commodity-price` v2 and `economy.security-price` v2. Production traces expose stability efficiency, requested throughput, stock-limiting inputs, consumed quantities and produced quantities without consuming randomness. Commodity quotes remain inside a 0.1×–10× base-price corridor; securities are limited to ±12% daily movement and a 0.1×–10× initial-price corridor. These guardrails do not affect ordinary Core volatility values but prevent corrupted or extreme inputs from generating runaway quotes. The world save retains the latest 200 calculation records.
 
 Calculation capture is unconditional in the simulation service. A future UI visibility switch must only decide whether the renderer displays already-recorded audit data; it must not be passed into formulas, scheduler systems or random-stream services. Thus enabling/disabling the inspector cannot alter random consumption, formula order or simulation results. Formula IDs in contextual help should resolve to these registry entries rather than duplicate formula text.
 

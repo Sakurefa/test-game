@@ -59,6 +59,7 @@ test("creates, lists and removes versioned save slots", async (t) => {
   const [slot] = await listSaveSlots(root);
   assert.equal(slot.id, "slot_001");
   assert.equal(slot.metadata.name, "Test World");
+  assert.equal(slot.hasWorld, false);
   await removeSaveSlot(root, "slot_001");
   assert.deepEqual(await listSaveSlots(root), []);
 });
@@ -100,6 +101,7 @@ test("writes and restores a versioned game world inside its save slot", async (t
   assert.deepEqual(await readGameState(root, "slot_world"), state);
   const [slot] = await listSaveSlots(root);
   assert.equal(slot.metadata.name, "Frontier Test");
+  assert.equal(slot.hasWorld, true);
   assert.ok(slot.metadata.updated_at);
 });
 

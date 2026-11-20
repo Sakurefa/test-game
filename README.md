@@ -8,6 +8,7 @@ A moddable desktop simulation about a connected frontier of star systems, coloni
 - Run `npm install`.
 - Run `npm run dev` for development.
 - Run `npm test` for automated tests.
+- Run `npm run check:syntax` to parse-check Electron and engine CommonJS modules.
 - Run `npm run build:web` to build the renderer.
 
 ## Portable game layout
@@ -30,7 +31,7 @@ The world simulation is the center of the project. Markets and securities are on
 
 The authoritative simulation is plain Node.js under `engine/`, separate from Electron and the renderer. The initial daily simulation runs colony production, adjusts local commodity prices from stock levels, updates seeded random state and advances the chronology of active wars.
 
-See [docs/ENGINE_ARCHITECTURE.md](docs/ENGINE_ARCHITECTURE.md) for subsystem boundaries and the current prototype limits.
+See [docs/ENGINE_ARCHITECTURE.md](docs/ENGINE_ARCHITECTURE.md) for subsystem boundaries and the current prototype limits. The hands-on [playtest guide](docs/PLAYTEST_GUIDE.md) lists the exact checks to perform after downloading the updated source.
 
 ## Modding
 

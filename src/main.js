@@ -102,8 +102,8 @@ async function showSaves() {
     state.slots = await window.gameHost.save.listSlots();
     const cards = state.slots.map(slot => `
       <article class="data-card">
-        <div class="card-main"><span class="card-kicker">${escapeHtml(slot.id)}</span><h3>${escapeHtml(slot.metadata?.name || "无法读取的存档")}</h3><p>${slot.status === "ok" ? "存档元数据正常 · 世界存档载入时会校验内容版本" : slot.status === "incompatible" ? "存档版本不兼容" : "存档元数据损坏：" + escapeHtml(slot.error)}</p><small>${escapeHtml(slot.metadata?.updated_at || slot.metadata?.created_at || "无时间信息")}</small></div>
-        <div class="card-actions"><span class="status-pill ${slot.status}">${slot.status === "ok" ? "正常" : slot.status === "incompatible" ? "不兼容" : "损坏"}</span>${slot.status === "ok" ? `<button class="small-button" data-action="load-save" data-id="${escapeHtml(slot.id)}">载入</button>` : ""}<button class="small-button danger" data-action="delete-save" data-id="${escapeHtml(slot.id)}">删除</button></div>
+        <div class="card-main"><span class="card-kicker">${escapeHtml(slot.id)}</span><h3>${escapeHtml(slot.metadata?.name || "无法读取的存档")}</h3><p>${slot.status === "ok" ? (slot.hasWorld ? "世界存档正常 · 载入时会校验 Mod 内容版本" : "旧版本空数据槽 · 尚无可载入的世界") : slot.status === "incompatible" ? "存档版本不兼容" : "存档数据或元数据有问题：" + escapeHtml(slot.error)}</p><small>${escapeHtml(slot.metadata?.updated_at || slot.metadata?.created_at || "无时间信息")}</small></div>
+        <div class="card-actions"><span class="status-pill ${slot.status}">${slot.status === "ok" ? "正常" : slot.status === "incompatible" ? "不兼容" : "损坏"}</span>${slot.status === "ok" && slot.hasWorld ? `<button class="small-button" data-action="load-save" data-id="${escapeHtml(slot.id)}">载入</button>` : ""}<button class="small-button danger" data-action="delete-save" data-id="${escapeHtml(slot.id)}">删除</button></div>
       </article>`).join("");
     subPage("读取存档", "世界状态保存在游戏根目录 save/ 对应槽位的 data/world.json 中。", cards || '<p class="empty-state">还没有存档。开始一段新航程即可创建第一个世界。</p>');
   } catch (error) {

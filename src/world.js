@@ -40,6 +40,14 @@ function overview(snapshot) {
             <div class="system-locations">${system.locations.map((loc) => escapeHtml(loc.name)).join(" / ")}</div>
           </article>`).join("")}
       </div>
+      <div class="route-strip">
+        <div class="route-heading"><b>已知贸易航线</b><small>航行时间为静态内容参数，当前尚未生成实际货物流</small></div>
+        <div class="route-list">${snapshot.tradeRoutes.map((route) => {
+          const from = snapshot.systems.find((system) => system.id === route.fromSystemId)?.name || route.fromSystemId;
+          const to = snapshot.systems.find((system) => system.id === route.toSystemId)?.name || route.toSystemId;
+          return `<span><b>${escapeHtml(route.name)}</b><small>${escapeHtml(from)} → ${escapeHtml(to)} · ${route.travelDays} 天 · 风险 ${Math.round(route.risk * 100)}% · 容量 ${number(route.capacity)}</small></span>`;
+        }).join("")}</div>
+      </div>
     </section>
     <section class="world-section">
       <div class="world-section-head"><div><span class="world-eyebrow">RECENT LOG</span><h3>最近动态</h3></div></div>
@@ -105,7 +113,7 @@ function military(snapshot) {
           <article class="faction-row"><i style="background:${/^#[0-9a-fA-F]{6}$/.test(faction.color) ? faction.color : "#8ca8c8"}"></i><div><b>${escapeHtml(faction.name)}</b><small>${escapeHtml(faction.government)} · ${escapeHtml(faction.description)}</small></div></article>
         `).join("")}</div>
         <div class="military-panel"><h4>舰队</h4>${snapshot.fleets.map((fleet) => `
-          <article class="fleet-row"><div><b>${escapeHtml(fleet.name)}</b><small>${escapeHtml(fleet.faction.name)} · ${escapeHtml(fleet.locationId)}</small><p>${fleet.ships.map((ship) => `${escapeHtml(snapshot.shipClasses.find((item) => item.id === ship.shipClassId)?.name || ship.shipClassId)} × ${ship.quantity}`).join("　")}</p></div><span>${fleet.state.readiness}%<small>战备</small></span></article>
+          <article class="fleet-row"><div><b>${escapeHtml(fleet.name)}</b><small>${escapeHtml(fleet.faction.name)} · ${escapeHtml(snapshot.systems.flatMap((system) => system.locations).find((location) => location.id === fleet.locationId)?.name || fleet.locationId)}</small><p>${fleet.ships.map((ship) => `${escapeHtml(snapshot.shipClasses.find((item) => item.id === ship.shipClassId)?.name || ship.shipClassId)} × ${ship.quantity}`).join("　")}</p></div><span>${fleet.state.readiness}%<small>战备</small></span></article>
         `).join("")}</div>
       </div>
       <div class="war-list">${snapshot.wars.map((war) => `

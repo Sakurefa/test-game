@@ -40,6 +40,10 @@ async function atomicWrite(file, content) {
 
 async function ensureWritableDirectory(directory) {
   await fs.mkdir(directory, { recursive: true });
+  const directoryStat = await fs.lstat(directory);
+  if (!directoryStat.isDirectory() || directoryStat.isSymbolicLink()) {
+    throw new Error(`Game storage directory is linked or invalid: ${directory}`);
+  }
   const probe = path.join(directory, `.write-test-${process.pid}-${Date.now()}`);
   try {
     await fs.writeFile(probe, "ok", { flag: "wx" });
@@ -190,7 +194,25 @@ async function listSaveSlots(root) {
       const raw = await fs.readFile(metadataPath, "utf8");
       const metadata = parseIni(raw).save;
       if (!metadata || typeof metadata !== "object") throw new Error("Missing [save] metadata section");
-      slots.push({ id: entry.name, metadata, status: metadata.schema_version === STORAGE_VERSION ? "ok" : "incompatible" });
+      let hasWorld = false;
+      try {
+        const dataDirectory = path.join(slotPath, "data");
+        const dataStat = await fs.lstat(dataDirectory);
+        if (!dataStat.isDirectory() || dataStat.isSymbolicLink()) throw new Error("Save data directory is linked or invalid");
+        const worldPath = path.join(dataDirectory, "world.json");
+        const worldStat = await fs.lstat(worldPath);
+        if (!worldStat.isFile() || worldStat.isSymbolicLink() || worldStat.size > MAX_GAME_STATE_BYTES) {
+          throw new Error("World save is linked, invalid or too large");
+        }
+        hasWorld = true;
+      } catch (error) {
+        if (error.code !== "ENOENT") throw error;
+      }
+      slots.push({
+        id: entry.name, metadata,
+        status: metadata.schema_version === STORAGE_VERSION ? "ok" : "incompatible",
+        hasWorld
+      });
     } catch (error) {
       slots.push({ id: entry.name, metadata: null, status: "damaged", error: error.message });
     }
@@ -200,8 +222,11 @@ async function listSaveSlots(root) {
 
 async function createSaveSlot(root, id, name = "New Save") {
   if (!isSafeSlotId(id)) throw new Error("Invalid save slot ID");
-  const directory = path.join(root, "save", id);
-  await fs.mkdir(path.join(root, "save"), { recursive: true });
+  const saveDirectory = path.join(root, "save");
+  await fs.mkdir(saveDirectory, { recursive: true });
+  const saveRootStat = await fs.lstat(saveDirectory);
+  if (!saveRootStat.isDirectory() || saveRootStat.isSymbolicLink()) throw new Error("Save root is linked or invalid");
+  const directory = path.join(saveDirectory, id);
   await fs.mkdir(directory);
   await fs.mkdir(path.join(directory, "data"), { recursive: true });
   const metadata = {
@@ -257,7 +282,17 @@ async function readGameState(root, id) {
 
 async function removeSaveSlot(root, id) {
   if (!isSafeSlotId(id)) throw new Error("Invalid save slot ID");
-  const directory = path.join(root, "save", id);
+  const saveDirectory = path.join(root, "save");
+  const saveRootStat = await fs.lstat(saveDirectory);
+  if (!saveRootStat.isDirectory() || saveRootStat.isSymbolicLink()) throw new Error("Save root is linked or invalid");
+  const directory = path.join(saveDirectory, id);
+  try {
+    const slotStat = await fs.lstat(directory);
+    if (!slotStat.isDirectory() || slotStat.isSymbolicLink()) throw new Error("Save slot is linked or invalid");
+  } catch (error) {
+    if (error.code === "ENOENT") return;
+    throw error;
+  }
   await fs.rm(directory, { recursive: true, force: true });
 }
 

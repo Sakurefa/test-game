@@ -48,3 +48,50 @@ A world stores both the original seed and the current PRNG state. Advancing the 
 ## Current prototype boundary
 
 The first prototype advances in daily steps. Colony production and market pricing are live. Fleets, ship classes and war state are registered, validated and displayed, but tactical combat, fleet movement, logistics between colonies, diplomacy and player financial orders are not implemented yet.
+
+
+## World model and future subsystem seams
+
+### Spatial and political layer
+
+The universe is a graph, not a flat list. Star systems declare coordinates and neighboring systems; locations belong to one system; colonies attach to locations; factions can control systems, locations and colonies. Trade routes are explicit edges with travel time, risk and capacity. The current scenario validates these relationships but does not yet simulate ships or cargo moving along them.
+
+Future ownership changes should be represented as world-state commands and logged events, rather than editing Mod definitions. Mod data defines the initial world and available content; player and AI actions change the running world.
+
+### Colony and production layer
+
+A colony owns its population, stability, stockpiles and industry instances. An industry selects a data-defined recipe and level. A recipe declares commodity inputs, outputs and optional workforce requirements. Production consumes inputs before adding outputs, preventing a single batch from using its own output as an input.
+
+The current prototype models industry throughput from level and stability and consumes available input stock. Population, workforce allocation, facility upkeep, pollution, service demand, construction queues and local logistics are not simulated yet. These are separate features that can be introduced without changing the identity of a colony or commodity.
+
+### Commerce and finance layer
+
+Commodities are physical goods; securities are financial instruments issued by companies. A market belongs to a colony and quotes only the instruments it lists. Current commodity prices react to local inventories, while company securities receive a small seeded operational signal and market noise.
+
+The next financial foundation should be an append-only transaction ledger: cash movements, trades, fees, debt, interest, dividends and company operating results should be traceable entries. Portfolio values should be derived from ledger positions and current quotes, not maintained as unrelated counters. The current player account is only a starting-state placeholder; no player trade or financial contract is enabled yet.
+
+### Strategic military and tactical battles
+
+The strategic layer owns factions, fleets, locations, readiness, morale, war declarations, fronts, objectives, supply and campaign outcomes. A fleet is a strategic entity even when it is assigned to a tactical encounter.
+
+A tactical battle should be its own bounded simulation instance with participating fleets, ship instances, formations, orders, combat state and outcome. It should not be implemented by advancing the entire universe once per animation frame. Campaign time and battle time are separate domains: a battle uses a fixed simulation timestep, while the strategic world advances only according to an explicit campaign-time policy. Battle results return to the world through a validated outcome transaction.
+
+This separation is essential for pause, speed controls, AI battles, save/load and future multiplayer possibilities. No tactical damage model or command model is assumed in the current prototype.
+
+## Simulation ordering and determinism
+
+The daily campaign step currently follows a fixed order: colony production, local market repricing, war chronology, clock commit and daily report. New systems should be assigned explicit phases and stable ordering. Systems should not mutate unrelated subsystems' state without a clear contract.
+
+The current PRNG is deterministic and its state is saved. As more systems are added, random streams should be separated by stable subsystem keys (for example economy, events and military). Otherwise adding one random event could change every later market quote, making balance tests and save replays harder to compare.
+
+## Development roadmap
+
+1. **World kernel (current):** validated universe graph, locations, factions, colonies, recipes, commodities, markets, fleet definitions, seeded time and save/load.
+2. **Colony simulation:** workforce, population needs, facility upkeep, storage limits, stability modifiers, construction and colony development.
+3. **Logistics:** ships and convoys travel through route graphs, use travel time and capacity, face route risk, and move physical stock between locations.
+4. **Economic agency:** company accounting, operating costs/revenue, player orders, ownership, fees, debt and financial reporting.
+5. **Strategic warfare:** fleet movement and orders, supply, fronts, objectives, faction AI, war weariness and territorial change.
+6. **Tactical combat:** separate real-time battle instances, ship behavior and orders, damage, retreat, casualties and campaign outcome application.
+7. **Living world:** event scheduling, diplomacy, policies, missions, additional content and community scenarios.
+
+Each phase should be playable and testable before the next adds complexity. The goal is not to finish seven disconnected subsystems; it is to make each one read and change the same persistent world.

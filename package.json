@@ -2,7 +2,7 @@
   "name": "stock-market-simulator",
   "version": "0.1.0",
   "private": true,
-  "description": "A moddable desktop stock-market simulation game.",
+  "description": "A moddable multi-system frontier simulation with colonies, production, markets and warfare.",
   "main": "electron/main.cjs",
   "scripts": {
     "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
@@ -10,7 +10,8 @@
     "build:win": "vite build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-electron-app.ps1 && electron-builder --win dir --publish never && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1",
     "preview": "vite preview",
     "test": "node --test",
-    "build:runtime": "vite build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-electron-app.ps1 && electron-builder --win dir --publish never && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync-electron-runtime.ps1"
+    "build:runtime": "vite build && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/prepare-electron-app.ps1 && electron-builder --win dir --publish never && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/sync-electron-runtime.ps1",
+    "check:syntax": "node --check electron/main.cjs && node --check electron/preload.cjs && node --check electron/storage.cjs && node --check electron/mod-loader.cjs && node --check electron/ini-parser.cjs && node --check electron/logger.cjs && node --check engine/index.cjs && node --check engine/catalog.cjs && node --check engine/simulation.cjs && node --check engine/clock.cjs && node --check engine/random.cjs"
   },
   "engines": {
     "node": ">=20"

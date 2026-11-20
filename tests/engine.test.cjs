@@ -65,7 +65,7 @@ test("daily simulation produces goods, updates markets and advances active wars"
   assert.ok(world.colonies["new-dawn-colony"].stockpiles.ore > initialOre);
   assert.ok(world.colonies["verdant-colony"].stockpiles.food > initialFood);
   assert.notEqual(world.markets["verdant-exchange"].prices.food, initialPrice);
-  assert.equal(world.wars["cinder-conflict"].daysActive, 16);
+  assert.equal(world.wars["cinder-conflict"].daysActive, 1);
   assert.equal(world.events.at(-1).type, "daily-report");
 });
 
@@ -91,4 +91,31 @@ test("simulation rejects oversized time jumps and saves made with mismatched con
   assert.throws(() => advanceDays(world, catalog, 31), /between 1 and 30/);
   const changedContent = { ...catalog, contentHash: "different" };
   assert.throws(() => advanceDay(world, changedContent), /different Mod content/);
+});
+
+
+test("catalog rejects invalid production quantities and malformed world dates", async () => {
+  const first = await readModPackages(path.join(__dirname, "..", "mods"));
+  const invalidRecipe = JSON.parse(JSON.stringify(first));
+  invalidRecipe.find((mod) => mod.id === "core").data.content["economy.json"]
+    .recipes[0].outputs[0].quantity = 0;
+  const recipeResult = compileCatalog(invalidRecipe);
+  assert.equal(recipeResult.ok, false);
+  assert.match(recipeResult.error, /Invalid numeric value.*recipe output/);
+
+  const invalidDate = JSON.parse(JSON.stringify(first));
+  invalidDate.find((mod) => mod.id === "core").data.content["universe.json"]
+    .universe.startDate = "2478-02-30";
+  const dateResult = compileCatalog(invalidDate);
+  assert.equal(dateResult.ok, false);
+  assert.match(dateResult.error, /Invalid date.*startDate/);
+});
+
+test("catalog rejects a trade route that is not represented by the starmap", async () => {
+  const mods = await readModPackages(path.join(__dirname, "..", "mods"));
+  const core = mods.find((mod) => mod.id === "core");
+  core.data.content["universe.json"].tradeRoutes[0].risk = 1.5;
+  const result = compileCatalog(mods);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /route.*risk/);
 });

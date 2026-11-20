@@ -18,3 +18,12 @@
 .military-grid{display:grid;grid-template-columns:1fr 1fr;gap:10px}.military-panel{padding:15px}.military-panel>h4{margin:0 0 11px;color:#dce8f7;font-size:13px;font-weight:500}.faction-row,.fleet-row{display:flex;align-items:center;gap:10px;padding:10px 0;border-top:1px solid rgba(147,174,211,.1)}.faction-row i{width:8px;height:27px;flex-shrink:0;border-radius:3px}.faction-row b,.fleet-row b{display:block;color:#d9e6f7;font-size:10px;font-weight:500}.faction-row small,.fleet-row small{display:block;margin-top:4px;color:#7c91aa;font-size:8px;line-height:1.5}.fleet-row{justify-content:space-between;align-items:flex-start}.fleet-row p{margin:7px 0 0;color:#a5b6cb;font-size:8px}.fleet-row>span{color:#a9cbb8;font-size:11px;text-align:right}.fleet-row>span small{font-size:8px}.war-list{display:grid;gap:9px;margin-top:12px}.war-card{padding:15px}.war-card h4{margin:6px 0;color:#e2eaf5;font-size:14px;font-weight:500}.war-card p{color:#8498b1;font-size:9px;line-height:1.6}.war-card>div{display:flex;flex-wrap:wrap;gap:15px;margin-top:12px;color:#a6b8ce;font-size:9px}.war-card>div b{color:#d69d88;font-weight:500}
 @media(max-width:1050px){.system-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.colony-grid,.market-grid{grid-template-columns:repeat(2,minmax(0,1fr))}.world-toolbar{align-items:flex-start;flex-direction:column}}
 @media(max-width:700px){.world-screen{padding:0 18px}.world-metrics{grid-template-columns:repeat(2,minmax(0,1fr))}.world-intro{flex-direction:column}.world-faction{border-left:0;border-top:1px solid rgba(183,203,232,.13);padding:10px 0 0}.colony-grid,.market-grid,.military-grid{grid-template-columns:1fr}.system-grid{grid-template-columns:1fr 1fr}.world-section-head{align-items:flex-start;flex-direction:column}.world-footer{font-size:7px}}
+
+.route-strip{margin-top:12px;padding:13px 14px;border:1px solid rgba(147,174,211,.13);border-radius:7px;background:rgba(17,29,44,.52)}
+.route-heading{display:flex;justify-content:space-between;gap:12px;color:#aabbd0;font-size:9px}
+.route-heading small{color:#71869f;font-size:8px}
+.route-list{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:8px;margin-top:10px}
+.route-list span{padding:8px 10px;background:rgba(8,16,26,.35)}
+.route-list b{display:block;color:#b9cce3;font-size:9px;font-weight:500}
+.route-list small{display:block;margin-top:5px;color:#7187a1;font-size:8px;line-height:1.4}
+@media(max-width:700px){.route-list{grid-template-columns:1fr}.route-heading{flex-direction:column}}

@@ -177,7 +177,6 @@ function installWorldCommandGateway() {
     getWorld: () => activeWorld,
     getCatalog: () => activeCatalog,
     getActor: (world) => ({ type: "player", id: world.player.factionId }),
-    validateWorld: (world, catalog) => validateWorldState(world, catalog),
     onWorldCommit: (world) => {
       activeWorld = world;
       activeWorldDirty = true;

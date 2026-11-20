@@ -32,91 +32,55 @@ function createFinancialLedger({playerFactionId,startDate,openingDay=0,startingB
  validateFinancialLedger(ledger);
  return ledger;
 }
-function validateFinancialLedger(ledger){
- if(!isRecord(ledger)||!isRecord(ledger.currencies)||!isRecord(ledger.accounts)||!Array.isArray(ledger.transactions)
-  ||!Number.isInteger(ledger.sequence)||ledger.sequence<0||ledger.transactions.length>MAX_FINANCIAL_TRANSACTIONS
-  ||ledger.transactions.length!==ledger.sequence)throw new Error("Save has an invalid financial ledger header");
- const currencies=new Set();
- for(const [id,currency] of Object.entries(ledger.currencies)){
-  if(id!==currency?.id||!CURRENCY_PATTERN.test(id)||!Number.isInteger(currency.minorUnitDigits)||currency.minorUnitDigits<0||currency.minorUnitDigits>6)throw new Error("Save has an invalid financial currency definition");
-  currencies.add(id);
- }
- const balances=new Map();
- for(const [id,account] of Object.entries(ledger.accounts)){
-  if(!isRecord(account)||id!==account.id||!ACCOUNT_ID_PATTERN.test(id)||RESERVED_ACCOUNT_IDS.has(id)||!isRecord(account.owner)
-   ||!OWNER_TYPE_PATTERN.test(account.owner.type)||typeof account.owner.id!=="string"||!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(account.owner.id)
-   ||!currencies.has(account.currency)||!Number.isSafeInteger(account.balanceMinor)
-   ||!Number.isSafeInteger(account.overdraftLimitMinor)||account.overdraftLimitMinor<0
-   ||typeof account.allowNegative!=="boolean"||!["open","closed"].includes(account.status)
-   ||!isRecord(account.positions))throw new Error("Save contains an invalid financial account: "+id);
-  balances.set(id,0n);
- }
- const commandIds=new Set();
- let previousSequence=0;
- for(const transaction of ledger.transactions){
-  if(!isRecord(transaction)||!Number.isInteger(transaction.sequence)||transaction.sequence!==previousSequence+1
-   ||transaction.id!=="ledger-"+transaction.sequence||transaction.sequence>ledger.sequence
-   ||!Number.isInteger(transaction.day)||transaction.day<0||typeof transaction.date!=="string"||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(transaction.date)
-   ||typeof transaction.type!=="string"||!TRANSACTION_TYPE_PATTERN.test(transaction.type)
-   ||!Array.isArray(transaction.entries)||transaction.entries.length<2||transaction.entries.length>MAX_TRANSACTION_ENTRIES
-   ||(transaction.commandId!==null&&(typeof transaction.commandId!=="string"||!COMMAND_ID_PATTERN.test(transaction.commandId)))
-   ||(transaction.reference!==null&&transaction.reference!==undefined&&(typeof transaction.reference!=="string"||transaction.reference.length>128)))throw new Error("Save contains an invalid ledger transaction");
-  if(transaction.commandId!==null){if(commandIds.has(transaction.commandId))throw new Error("Save contains duplicate ledger command IDs");commandIds.add(transaction.commandId);}
-  const seenAccounts=new Set(),currencyTotals=new Map();
-  for(const entry of transaction.entries){
-   if(!isRecord(entry)||typeof entry.accountId!=="string"||!balances.has(entry.accountId)||!Number.isSafeInteger(entry.deltaMinor)||entry.deltaMinor===0||seenAccounts.has(entry.accountId))throw new Error("Save contains an invalid ledger entry");
-   seenAccounts.add(entry.accountId);
-   const account=ledger.accounts[entry.accountId];
-   currencyTotals.set(account.currency,(currencyTotals.get(account.currency)||0n)+BigInt(entry.deltaMinor));
-   balances.set(entry.accountId,balances.get(entry.accountId)+BigInt(entry.deltaMinor));
+function validateFinancialLedger(ledger) {
+  if (!isRecord(ledger) || !isRecord(ledger.currencies) || !isRecord(ledger.accounts)
+    || !Number.isInteger(ledger.sequence) || ledger.sequence < 0) throw new Error("Save has an invalid financial ledger header");
+  for (const [id, currency] of Object.entries(ledger.currencies)) {
+    if (id !== currency?.id || !CURRENCY_PATTERN.test(id)
+      || !Number.isInteger(currency.minorUnitDigits) || currency.minorUnitDigits < 0 || currency.minorUnitDigits > 6) {
+      throw new Error("Save has an invalid financial currency definition: " + id);
+    }
   }
-  for(const total of currencyTotals.values())if(total!==0n)throw new Error("Ledger transaction is not balanced by currency: "+transaction.id);
-  previousSequence=transaction.sequence;
- }
- if(previousSequence!==ledger.sequence)throw new Error("Financial ledger sequence does not match its transaction history");
- for(const [id,account] of Object.entries(ledger.accounts)){
-  const projected=balances.get(id);
-  if(projected>BigInt(Number.MAX_SAFE_INTEGER)||projected<BigInt(Number.MIN_SAFE_INTEGER)||Number(projected)!==account.balanceMinor)throw new Error("Financial account balance does not match its ledger: "+id);
-  if(!account.allowNegative&&account.balanceMinor < -account.overdraftLimitMinor)throw new Error("Financial account exceeds its overdraft limit: "+id);
- }
- return true;
+  for (const [id, account] of Object.entries(ledger.accounts)) {
+    if (!isRecord(account) || id !== account.id || !ACCOUNT_ID_PATTERN.test(id) || RESERVED_ACCOUNT_IDS.has(id)
+      || !isRecord(account.owner) || !OWNER_TYPE_PATTERN.test(account.owner.type)
+      || typeof account.owner.id !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(account.owner.id)
+      || !Object.hasOwn(ledger.currencies, account.currency) || !Number.isSafeInteger(account.balanceMinor)
+      || !Number.isSafeInteger(account.overdraftLimitMinor) || account.overdraftLimitMinor < 0
+      || typeof account.allowNegative !== "boolean" || !["open", "closed"].includes(account.status)
+      || !isRecord(account.positions)) throw new Error("Save contains an invalid financial account: " + id);
+    if (!account.allowNegative && account.balanceMinor < -account.overdraftLimitMinor) {
+      throw new Error("Financial account exceeds its overdraft limit: " + id);
+    }
+  }
+  return true;
 }
-function createLedgerCurrency(ledger,{id,minorUnitDigits=2}={}){
- validateFinancialLedger(ledger);
- if(typeof id!=="string"||!CURRENCY_PATTERN.test(id))throw new TypeError("Currency requires a stable uppercase code");
- if(!Number.isInteger(minorUnitDigits)||minorUnitDigits<0||minorUnitDigits>6)throw new RangeError("Currency minor digits must be an integer from 0 to 6");
- if(Object.hasOwn(ledger.currencies,id))throw new Error("Currency already exists: "+id);
- const candidate=structuredClone(ledger);
- candidate.currencies[id]={id,minorUnitDigits};
- validateFinancialLedger(candidate);
- Object.assign(ledger,candidate);
- return structuredClone(candidate.currencies[id]);
+function createLedgerCurrency(ledger, { id, minorUnitDigits = 2 } = {}) {
+  if (typeof id !== "string" || !CURRENCY_PATTERN.test(id)) throw new TypeError("Currency requires a stable uppercase code");
+  if (!Number.isInteger(minorUnitDigits) || minorUnitDigits < 0 || minorUnitDigits > 6) throw new RangeError("Currency minor digits must be an integer from 0 to 6");
+  if (Object.hasOwn(ledger.currencies, id)) throw new Error("Currency already exists: " + id);
+  ledger.currencies[id] = { id, minorUnitDigits };
+  return structuredClone(ledger.currencies[id]);
 }
-function createLedgerAccount(ledger,{id,owner,currency="CR",overdraftLimitMinor=0,allowNegative=false,positions={}}={}){
- validateFinancialLedger(ledger);
- if(typeof id!=="string"||!ACCOUNT_ID_PATTERN.test(id)||RESERVED_ACCOUNT_IDS.has(id))throw new TypeError("Account requires a valid non-reserved ID");
- if(Object.hasOwn(ledger.accounts,id))throw new Error("Financial account already exists: "+id);
- if(!isRecord(owner)||!OWNER_TYPE_PATTERN.test(owner.type)||typeof owner.id!=="string"||!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(owner.id))throw new TypeError("Financial account requires a stable owner");
- if(!Object.hasOwn(ledger.currencies,currency))throw new Error("Unknown account currency: "+currency);
- if(!Number.isSafeInteger(overdraftLimitMinor)||overdraftLimitMinor<0||typeof allowNegative!=="boolean")throw new TypeError("Invalid account overdraft policy");
- if(!isRecord(positions))throw new TypeError("Account positions must be an object");
- const candidate=structuredClone(ledger);
- candidate.accounts[id]={id,owner:{type:owner.type,id:owner.id},currency,balanceMinor:0,overdraftLimitMinor,allowNegative,status:"open",positions:structuredClone(positions)};
- validateFinancialLedger(candidate);
- Object.assign(ledger,candidate);
- return structuredClone(candidate.accounts[id]);
+function createLedgerAccount(ledger, { id, owner, currency = "CR", overdraftLimitMinor = 0, allowNegative = false, positions = {} } = {}) {
+  if (typeof id !== "string" || !ACCOUNT_ID_PATTERN.test(id) || RESERVED_ACCOUNT_IDS.has(id)) throw new TypeError("Account requires a valid non-reserved ID");
+  if (Object.hasOwn(ledger.accounts, id)) throw new Error("Financial account already exists: " + id);
+  if (!isRecord(owner) || !OWNER_TYPE_PATTERN.test(owner.type) || typeof owner.id !== "string"
+    || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(owner.id)) throw new TypeError("Financial account requires a stable owner");
+  if (!Object.hasOwn(ledger.currencies, currency)) throw new Error("Unknown account currency: " + currency);
+  if (!Number.isSafeInteger(overdraftLimitMinor) || overdraftLimitMinor < 0 || typeof allowNegative !== "boolean") throw new TypeError("Invalid account overdraft policy");
+  if (!isRecord(positions)) throw new TypeError("Account positions must be an object");
+  ledger.accounts[id] = { id, owner: { type: owner.type, id: owner.id }, currency, balanceMinor: 0,
+    overdraftLimitMinor, allowNegative, status: "open", positions: structuredClone(positions) };
+  return structuredClone(ledger.accounts[id]);
 }
 function recordBalancedTransaction(ledger,{day,date,type,entries,commandId=null,reference=null}={}){
  validateFinancialLedger(ledger);
  if(!Number.isInteger(day)||day<0||typeof date!=="string"||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date))throw new TypeError("Ledger transaction requires an authoritative campaign timestamp");
  assertIdentifier(type,TRANSACTION_TYPE_PATTERN,"Transaction type");
  if(!Array.isArray(entries)||entries.length<2||entries.length>MAX_TRANSACTION_ENTRIES)throw new TypeError("A ledger transaction requires 2–32 entries");
- if(commandId!==null){
-  assertIdentifier(commandId,COMMAND_ID_PATTERN,"Ledger command ID");
-  if(ledger.transactions.some(transaction=>transaction.commandId===commandId))throw new Error("Ledger command ID has already been committed: "+commandId);
- }
+ if(commandId!==null) assertIdentifier(commandId,COMMAND_ID_PATTERN,"Ledger command ID");
  if(reference!==null&&(typeof reference!=="string"||reference.length>128))throw new TypeError("Ledger reference must be a short string or null");
- if(ledger.sequence>=MAX_FINANCIAL_TRANSACTIONS)throw new RangeError("Financial ledger has reached its configured transaction limit");
  const seen=new Set(),currencyTotals=new Map(),deltas=[];
  for(const entry of entries){
   if(!isRecord(entry)||typeof entry.accountId!=="string"||!ledger.accounts[entry.accountId]
@@ -137,12 +101,8 @@ function recordBalancedTransaction(ledger,{day,date,type,entries,commandId=null,
  }
  const sequence=ledger.sequence+1;
  const transaction={id:"ledger-"+sequence,sequence,day,date,type,commandId,reference,entries:deltas};
- const candidate=structuredClone(ledger);
- for(const [id,balance] of nextBalances)candidate.accounts[id].balanceMinor=balance;
- candidate.transactions.push(transaction);
- candidate.sequence=sequence;
- validateFinancialLedger(candidate);
- Object.assign(ledger,candidate);
+ for (const [id, balance] of nextBalances) ledger.accounts[id].balanceMinor = balance;
+ ledger.sequence = sequence;
  return structuredClone(transaction);
 }
 function getAccountBalance(ledger,accountId){

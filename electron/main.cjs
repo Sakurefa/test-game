@@ -293,9 +293,16 @@ handleIpc("world:set-speed", async (_event, speed) => {
 handleIpc("world:dispatch-command", async (_event, command) => {
   if (worldSaveInProgress || worldTransitionInProgress) throw new Error("World commands are temporarily unavailable during a save or world transition");
   if (!activeCommandGateway) throw new Error("No active world command gateway is available");
-  campaignTime.tick();
-  const outcome = activeCommandGateway.dispatch(command);
-  return { ...outcome, snapshot: getActiveWorldSnapshot() };
+  try {
+    campaignTime.tick();
+    const outcome = activeCommandGateway.dispatch(command);
+    return { ...outcome, snapshot: getActiveWorldSnapshot() };
+  } catch (error) {
+    if (error.code === "WORLD_COMMAND_EXECUTION_FAILURE" || error.code === "SIMULATION_SYSTEM_FAILURE") {
+      void failActiveWorld(error, "world.command");
+    }
+    throw error;
+  }
 });
 
 handleIpc("world:clock-status", async () => {

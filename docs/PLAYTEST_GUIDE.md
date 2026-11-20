@@ -75,8 +75,8 @@ These are deliberate future systems, not hidden features:
 - No player buy/sell orders, share ownership changes, loans, dividends or full financial ledger yet. Company securities currently have simulated quotes only.
 - No population growth, consumer demand, taxes, facility construction or colony expansion yet.
 - No fleet movement, player fleet commands, fronts, casualties, tactical battle instances or real-time RTS combat yet. Tactical combat is explicitly deferred from the current foundation phase.
-- No full typed domain-event/command framework, shared asset manager, 2D scene renderer or audio playback service yet. The current architecture work is establishing their boundaries first.
-- Calculation audit display, named random streams, contextual help, font selection and actual dynamic 2D scenes are later foundation steps.
+- A typed, bounded domain-event history now records colony production, market settlement and active-war chronology. A general command dispatcher/subscription framework, shared asset manager, 2D scene renderer and audio playback service are not implemented yet.
+- Calculation and domain-event inspectors are read-only diagnostics. Contextual help, font selection and actual dynamic 2D scenes remain future foundation steps.
 
 ## 7. If something goes wrong
 
@@ -103,3 +103,11 @@ This prototype is designed to be inspected and broken safely. A damaged save sho
 - Continue advancing for several weeks. Commodity quotes must remain within 0.1×–10× their base price; security quotes must move no more than 12% in one daily settlement and remain within 0.1×–10× their initial price.
 - Save and reload after several settlements, then resume the simulation. Daily and weekly schedules must continue without duplicating the previous settlement. Typed domain events are persisted alongside the world state for future subscribers and diagnostics.
 - The calculation inspector and these new engine features have automated coverage, but this revision still needs one combined Windows desktop test. Distinguish that GUI check from the CI test results.
+
+
+## Domain event inspector
+
+- Open 「世界事件」 from the world toolbar. Confirm it opens as a read-only floating panel and closes cleanly.
+- Expand recent records. Each should show a monotonically increasing event number, campaign day/date, event type, scope, subject and JSON payload.
+- Advance time at 1x–4x. The panel should refresh when the authoritative day changes without resetting its own scroll position. The panel and 「计算审计」 are mutually exclusive and should never overlap.
+- On day 7, confirm that colony production events appear alongside the daily market and war chronology events. Save, leave, reload and resume; the event sequence should continue without duplicate IDs.

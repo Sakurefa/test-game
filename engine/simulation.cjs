@@ -72,7 +72,7 @@ function createWorld(catalog, options = {}) {
     schemaVersion: GAME_STATE_SCHEMA_VERSION,
     contentHash: catalog.contentHash,
     metadata: {
-      name: options.name || `${catalog.universe.name} — 新航程`,
+      name: options.name || `${catalog.localizations?.[catalog.defaultLocale]?.[catalog.universe.nameKey] || catalog.universe.id} — 新航程`,
       seed,
       createdAt: options.createdAt || new Date().toISOString()
     },
@@ -272,7 +272,7 @@ function createSnapshot(world, catalog) {
   }));
   return {
     world,
-    universe: catalog.universe,
+    universe: catalog.universe,\n    localization: catalog.localizations?.[catalog.defaultLocale] || {},\n    locale: catalog.defaultLocale || "zh-CN",
     systems,
     factions: [...catalog.factions.values()],
     colonies,

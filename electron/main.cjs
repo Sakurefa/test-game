@@ -23,6 +23,7 @@ let activeCatalog = null;
 let activeSaveId = null;
 let activeWorldDirty = false;
 let activeCommandGateway = null;
+let worldSaveInProgress = false;
 const cleanupTasks = new Set();
 const campaignTime = new CampaignTimeController({
   baseDayDurationMs: 60000,
@@ -155,7 +156,12 @@ function getActiveWorldClockStatus() {
 }
 
 handleIpc("world:start-new", async () => {
-  activeCatalog = await loadWorldCatalog();
+  if (worldSaveInProgress) throw new Error("Cannot replace the active world while a save is being written");
+  const nextCatalog = await loadWorldCatalog();
+  campaignTime.tick();
+  campaignTime.pause();
+  disposeWorldCommandGateway();
+  activeCatalog = nextCatalog;
   activeWorld = createWorld(activeCatalog, { seed: Date.now() });
   campaignTime.reset();
   activeSaveId = `slot_demo_${Date.now().toString(36)}`;
@@ -169,9 +175,15 @@ handleIpc("world:start-new", async () => {
 
 handleIpc("world:load-save", async (_event, saveId) => {
   if (!isSafeSlotId(saveId)) throw new Error("Invalid save slot ID");
-  activeCatalog = await loadWorldCatalog();
-  activeWorld = migrateWorldState(await readGameState(GAME_ROOT, saveId));
-  validateWorldState(activeWorld, activeCatalog);
+  if (worldSaveInProgress) throw new Error("Cannot load another world while a save is being written");
+  const nextCatalog = await loadWorldCatalog();
+  const nextWorld = migrateWorldState(await readGameState(GAME_ROOT, saveId));
+  validateWorldState(nextWorld, nextCatalog);
+  campaignTime.tick();
+  campaignTime.pause();
+  disposeWorldCommandGateway();
+  activeCatalog = nextCatalog;
+  activeWorld = nextWorld;
   campaignTime.reset();
   activeSaveId = saveId;
   activeWorldDirty = false;
@@ -188,6 +200,7 @@ handleIpc("world:set-speed", async (_event, speed) => {
 });
 
 handleIpc("world:dispatch-command", async (_event, command) => {
+  if (worldSaveInProgress) throw new Error("World commands are temporarily unavailable while saving");
   if (!activeCommandGateway) throw new Error("No active world command gateway is available");
   campaignTime.tick();
   const outcome = activeCommandGateway.dispatch(command);
@@ -208,6 +221,8 @@ handleIpc("world:advance-day", async () => {
 
 handleIpc("world:save", async () => {
   if (!activeWorld || !activeSaveId) throw new Error("No active world is loaded");
+  if (worldSaveInProgress) throw new Error("A world save is already in progress");
+  worldSaveInProgress = true;
   campaignTime.tick();
   const worldBeingSaved = activeWorld;
   const saveId = activeSaveId;
@@ -220,6 +235,7 @@ handleIpc("world:save", async () => {
     logger.info("world", `Saved world to ${saveId}`);
     return { saveId, savedAt: new Date().toISOString() };
   } finally {
+    worldSaveInProgress = false;
     if (activeWorld === worldBeingSaved && activeSaveId === saveId && previousSpeed > 0) {
       campaignTime.setSpeed(previousSpeed);
     }
@@ -227,6 +243,7 @@ handleIpc("world:save", async () => {
 });
 
 handleIpc("world:leave", async () => {
+  if (worldSaveInProgress) throw new Error("Cannot leave while a world save is in progress");
   campaignTime.pause();
   disposeWorldCommandGateway();
   logger.info("world", `Leaving active world ${activeSaveId || "unknown"}`);

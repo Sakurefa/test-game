@@ -125,7 +125,7 @@ function overview(snapshot) {
       <article><small>殖民地</small><b>${snapshot.colonies.length}</b></article>
       <article><small>总人口</small><b>${number(population)}</b></article>
       <article><small>活跃战争</small><b>${activeWars}</b></article>
-      <article><small>可用资金</small><b>${number(snapshot.world.player.account.cash)} CR</b></article>
+      <article><small>可用资金</small><b>${number(snapshot.world.finance.accounts[snapshot.world.player.accountId].balanceMinor / 100)} CR</b></article>
     </section>
     <section class="world-section">
       <div class="world-section-head"><div><span class="world-eyebrow">STARMAP</span><h3>星系网络</h3></div><small>星系间的连接代表已知航道，不代表即时移动</small></div>

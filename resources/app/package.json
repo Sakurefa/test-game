@@ -1,8 +1,8 @@
 {
-  "description": "External launcher for the Market Simulator repository",
-  "main": "bootstrap.cjs",
-  "name": "market-simulator-launcher",
-  "version": "0.1.0",
   "author": "Sakurefa",
-  "private": true
+  "version": "0.1.0",
+  "description": "External launcher for the Market Simulator repository",
+  "private": true,
+  "name": "market-simulator-launcher",
+  "main": "bootstrap.cjs"
 }

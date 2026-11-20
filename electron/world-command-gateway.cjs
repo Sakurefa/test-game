@@ -14,7 +14,7 @@ function createWorldCommandGateway({
  const dispatcher=createCommandDispatcher([createTransferCommand()],{
   validateWorld:(draft)=>validateWorld(draft,getCatalog())
  });
- const runtime=createWorldCommandRuntime({dispatcher,eventBus});
+ const runtime=createWorldCommandRuntime({dispatcher,eventBus,onCommit:onWorldCommit});
  let disposed=false;
  function dispatch(command){
   if(disposed)throw new Error("World command gateway has been disposed");
@@ -23,7 +23,6 @@ function createWorldCommandGateway({
   const actor=getActor(world);
   if(!actor||typeof actor.type!=="string"||typeof actor.id!=="string")throw new Error("No trusted command actor is available");
   const outcome=runtime.dispatch({world,command,context:{actor}});
-  if(!outcome.duplicate)onWorldCommit(outcome.world);
   return {
    duplicate:outcome.duplicate,
    result:outcome.result,

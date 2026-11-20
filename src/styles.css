@@ -51,3 +51,9 @@
 .audit-empty{padding:20px 12px;color:#8b9db4;font-size:10px;line-height:1.7}
 .audit-panel-footer{flex-shrink:0;padding:9px 14px;border-top:1px solid rgba(147,174,211,.13);color:#7287a1;font-size:8px}
 @media(max-width:700px){.calculation-audit-panel{top:145px;right:12px;bottom:50px;width:calc(100vw - 24px);max-height:calc(100% - 195px)}}
+
+/* Read-only typed domain event stream shares the calculation inspector surface. */
+.world-actions button.selected[data-world-action="toggle-domain-events"]{border-color:rgba(130,175,230,.62);color:#e4effe;background:rgba(55,83,117,.72)}
+.domain-event-record{border-color:rgba(112,159,202,.18)}
+.domain-event-record summary em{color:#9cb5d1}
+.domain-event-panel .audit-panel-body{scrollbar-gutter:stable}

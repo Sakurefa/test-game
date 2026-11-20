@@ -94,7 +94,7 @@ const campaignTime = new CampaignTimeController({
   onAdvance: (elapsedGameDays) => {
     if (!activeWorld || !activeCatalog) return;
     const eventBus = activeCommandGateway ? { publish: (event) => activeCommandGateway.publishEvent(event) } : null;
-    const result = advanceCampaignTime(activeWorld, activeCatalog, elapsedGameDays, {
+    const result = advanceCampaignTime(activeWorld, activeCatalog, {
       ...(eventBus ? { eventBus } : {}), onDaySettled
     });
     if (result.daysAdvanced > 0 || result.dayFraction !== 0) activeWorldDirty = true;
@@ -228,6 +228,244 @@ function getActiveWorldClockStatus() {
     throw error;
   }
 }
+
+handleIpc("world:start-new", async () => {
+  if (worldSaveInProgress || worldTransitionInProgress) throw new Error("A world transition or save is already in progress");
+  worldTransitionInProgress = true;
+  try {
+    const nextCatalog = await loadWorldCatalog();
+    const nextWorld = createWorld(nextCatalog, { seed: Date.now() });
+    const nextSaveId = `slot_demo_${Date.now().toString(36)}`;
+    await createSaveSlot(GAME_ROOT, nextSaveId, nextWorld.metadata.name);
+    try {
+      await writeGameState(GAME_ROOT, nextSaveId, nextWorld);
+    } catch (error) {
+      await removeSaveSlot(GAME_ROOT, nextSaveId).catch(() => {});
+      throw error;
+    }
+    campaignTime.tick();
+    campaignTime.pause();
+    disposeWorldCommandGateway();
+    activeCatalog = nextCatalog;
+    activeWorld = nextWorld;
+    fatalHandling = false;
+    pendingFatalReport = null;
+    campaignTime.reset();
+    activeSaveId = nextSaveId;
+    activeWorldDirty = false;
+    installWorldCommandGateway();
+    logger.info("world", `Started world ${activeWorld.universeId} in ${activeSaveId}`);
+    return getActiveWorldSnapshot();
+  } finally {
+    worldTransitionInProgress = false;
+  }
+});
+
+handleIpc("world:load-save", async (_event, saveId) => {
+  if (!isSafeSlotId(saveId)) throw new Error("Invalid save slot ID");
+  if (worldSaveInProgress || worldTransitionInProgress) throw new Error("A world transition or save is already in progress");
+  worldTransitionInProgress = true;
+  try {
+    const nextCatalog = await loadWorldCatalog();
+    const nextWorld = migrateWorldState(await readGameState(GAME_ROOT, saveId));
+    validateWorldState(nextWorld, nextCatalog);
+    campaignTime.tick();
+    campaignTime.pause();
+    disposeWorldCommandGateway();
+    activeCatalog = nextCatalog;
+    activeWorld = nextWorld;
+    campaignTime.reset();
+    activeSaveId = saveId;
+    activeWorldDirty = false;
+    installWorldCommandGateway();
+    logger.info("world", `Loaded world from ${saveId}`);
+    return getActiveWorldSnapshot();
+  } finally {
+    worldTransitionInProgress = false;
+  }
+});
+
+handleIpc("world:set-speed", async (_event, speed) => {
+  if (worldSaveInProgress || worldTransitionInProgress) throw new Error("Time controls are temporarily unavailable during a save or world transition");
+  if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
+  const state = campaignTime.setSpeed(speed);
+  logger.info("world.clock", state.paused ? "Campaign time paused" : `Campaign time set to ${state.speed}x`);
+  return getActiveWorldSnapshot();
+});
+
+handleIpc("world:dispatch-command", async (_event, command) => {
+  if (worldSaveInProgress || worldTransitionInProgress) throw new Error("World commands are temporarily unavailable during a save or world transition");
+  if (!activeCommandGateway) throw new Error("No active world command gateway is available");
+  try {
+    campaignTime.tick();
+    const outcome = activeCommandGateway.dispatch(command);
+    return { ...outcome, snapshot: getActiveWorldSnapshot() };
+  } catch (error) {
+    if (error.code === "WORLD_COMMAND_EXECUTION_FAILURE" || error.code === "WORLD_COMMAND_COMMIT_FAILURE" || error.code === "SIMULATION_SYSTEM_FAILURE") {
+      void failActiveWorld(error, "world.command");
+    }
+    throw error;
+  }
+});
+
+handleIpc("world:clock-status", async () => {
+  if (worldTransitionInProgress) throw new Error("World status is temporarily unavailable during a world transition");
+  return getActiveWorldClockStatus();
+});
+handleIpc("world:time-status", async () => {
+  if (worldTransitionInProgress) throw new Error("World status is temporarily unavailable during a world transition");
+  return getActiveWorldSnapshot();
+});
+
+handleIpc("world:advance-day", async () => {
+  if (worldSaveInProgress || worldTransitionInProgress) throw new Error("World progression is temporarily unavailable during a save or world transition");
+  if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
+  campaignTime.pause();
+  const eventBus = activeCommandGateway ? { publish: (event) => activeCommandGateway.publishEvent(event) } : null;
+  try {
+    advanceDay(activeWorld, activeCatalog, { ...(eventBus ? { eventBus } : {}), onDaySettled });
+  } catch (error) {
+    void failActiveWorld(error, "manual-day-advance");
+    throw error;
+  }
+  activeWorldDirty = true;
+  logger.info("world", `Advanced to day ${activeWorld.clock.day} (${activeWorld.clock.date})`);
+  return getActiveWorldSnapshot();
+});
+
+handleIpc("world:save", async () => {
+  if (!activeWorld) throw new Error("No active world is loaded");
+  if (!activeSaveId || activeSaveId.startsWith("slot_auto_")) {
+    const manualSaveId = "slot_manual_" + Date.now().toString(36);
+    await createSaveSlot(GAME_ROOT, manualSaveId, activeWorld.metadata.name + "（手动存档）");
+    activeSaveId = manualSaveId;
+    activeWorldDirty = true;
+  }
+  if (worldSaveInProgress || worldTransitionInProgress) throw new Error("A world save or transition is already in progress");
+  worldSaveInProgress = true;
+  let worldBeingSaved = null;
+  let saveId = null;
+  let previousSpeed = 0;
+  try {
+    try {
+      campaignTime.tick();
+    } catch (error) {
+      void failActiveWorld(error, "world.save-clock");
+      throw error;
+    }
+    worldBeingSaved = activeWorld;
+    saveId = activeSaveId;
+    previousSpeed = campaignTime.getState().speed;
+    campaignTime.pause();
+    const consistentSnapshot = structuredClone(worldBeingSaved);
+    await writeGameState(GAME_ROOT, saveId, consistentSnapshot);
+    if (activeWorld === worldBeingSaved && activeSaveId === saveId) activeWorldDirty = false;
+    logger.info("world", `Saved world to ${saveId}`);
+    return { saveId, savedAt: new Date().toISOString() };
+  } finally {
+    worldSaveInProgress = false;
+    if (worldBeingSaved && activeWorld === worldBeingSaved && activeSaveId === saveId && previousSpeed > 0) {
+      campaignTime.setSpeed(previousSpeed);
+    }
+  }
+});
+
+handleIpc("world:leave", async () => {
+  if (worldSaveInProgress || worldTransitionInProgress) throw new Error("Cannot leave while a world save or transition is in progress");
+  campaignTime.pause();
+  disposeWorldCommandGateway();
+  logger.info("world", `Leaving active world ${activeSaveId || "unknown"}`);
+  activeWorld = null;
+  activeCatalog = null;
+  activeSaveId = null;
+  activeWorldDirty = false;
+  return true;
+});
+
+handleIpc("app:quit", async () => {
+  logger.info("shutdown", "Quit requested from title menu");
+  app.quit();
+  return true;
+});
+
+handleIpc("settings:read", async () => {
+  await ensureStorage();
+  return readSettings(GAME_ROOT);
+});
+handleIpc("settings:write", async (_event, patch) => {
+  await ensureStorage();
+  const result = await writeSettings(GAME_ROOT, patch);
+  campaignTime.setBaseDayDurationMs(result.settings.simulation.base_day_seconds * 1000);
+  logger.info("settings", `Updated settings groups: ${result.changed.join(", ")}`);
+  const window = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
+  if (window && result.settings.graphics) {
+    window.webContents.setZoomFactor(result.settings.graphics.ui_scale / 100);
+  }
+  if (window && result.settings.general) {
+    const mode = result.settings.general.window_mode;
+    if (mode === "windowed") {
+      window.setFullScreen(false);
+      window.setMenuBarVisibility(false);
+      window.setBounds({ width: 1240, height: 820 });
+    } else {
+      window.setMenuBarVisibility(false);
+      window.setFullScreen(true);
+    }
+  }
+  return result.settings;
+});
+
+handleIpc("save:list-slots", async () => {
+  await ensureStorage();
+  return listSaveSlots(GAME_ROOT);
+});
+handleIpc("save:create-slot", async (_event, id, name) => {
+  await ensureStorage();
+  const slot = await createSaveSlot(GAME_ROOT, id, name);
+  logger.info("save", `Created save slot ${id}`);
+  return slot;
+});
+handleIpc("save:remove-slot", async (_event, id) => {
+  await ensureStorage();
+  await removeSaveSlot(GAME_ROOT, id);
+  logger.info("save", `Removed save slot ${id}`);
+  return true;
+});
+
+// Transitional JSON save methods remain rooted in ./save, never Electron userData.
+handleIpc("save:read", async (_event, key) => {
+  if (!isSafeSaveKey(key)) throw new Error("Invalid save key");
+  await ensureStorage();
+  try {
+    return JSON.parse(await fs.readFile(path.join(GAME_ROOT, "save", key + ".json"), "utf8"));
+  } catch (error) {
+    if (error.code === "ENOENT") return null;
+    logger.error("save", error);
+    throw error;
+  }
+});
+handleIpc("save:write", async (_event, key, value) => {
+  if (!isSafeSaveKey(key)) throw new Error("Invalid save key");
+  await ensureStorage();
+  const file = path.join(GAME_ROOT, "save", key + ".json");
+  const temporary = file + ".tmp";
+  await fs.writeFile(temporary, JSON.stringify(value, null, 2), "utf8");
+  await fs.rename(temporary, file);
+  logger.info("save", `Wrote legacy save ${key}`);
+  return true;
+});
+handleIpc("save:remove", async (_event, key) => {
+  if (!isSafeSaveKey(key)) throw new Error("Invalid save key");
+  await ensureStorage();
+  try {
+    await fs.unlink(path.join(GAME_ROOT, "save", key + ".json"));
+    logger.info("save", `Removed legacy save ${key}`);
+    return true;
+  } catch (error) {
+    if (error.code === "ENOENT") return false;
+    throw error;
+  }
+});
 
 function createWindow(settings) {
   const mode = settings?.general?.window_mode || "windowed";

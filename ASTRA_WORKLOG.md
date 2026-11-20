@@ -1,6 +1,6 @@
 # Astra project work log
 
-> **Mandatory:** Read this entire file before every work session. Update it before ending every work session. The root `AGENTS.md` repeats this requirement so future coding agents are directed here first.
+> **Mandatory:** Read this entire file before every work session. Update it before ending every work session. Root `AGENTS.md` repeats this requirement and defines the project-specific hard rules.
 
 ## Project identity
 
@@ -12,7 +12,7 @@
 
 ## Non-negotiable decisions
 
-1. **Mod data is INI-only.** Game definitions, registry declarations, Mod manifests and localization data must use INI. JSON is not an acceptable Mod data format. The root `package.json`, lockfile and internal save/runtime serialization are tooling/runtime concerns, not Mod package data.
+1. **Mod data is INI-only.** Game definitions, registry declarations, Mod manifests and localization data must use INI. JSON is not an acceptable Mod data format. The root npm `package.json`, lockfile and internal save/runtime serialization are tooling/runtime concerns, not Mod package data.
 2. **Localization is separate.** Names, descriptions, government labels, commodity units and other player-visible text live in locale INI files. Content refers to stable localization keys; do not embed translated display text in definitions.
 3. **Stable IDs are language-independent.** IDs are machine-facing and must not be translated.
 4. **Mods are data-only.** No JavaScript, scripts, native code, runtime hooks or executable patches in Mods.
@@ -37,66 +37,59 @@ Long-term direction:
 5. Separate real-time tactical combat from strategic world time.
 6. Add dynamic events, diplomacy and systemic world changes.
 
-## Latest known repository state (2026-11-20)
+## Latest verified repository state — 2026-11-20
 
-- Previously known localization work was committed around `e082e3433750aa7e498043d6010f8739b9d2f403`.
-- Content definitions were moved to localization keys (`nameKey`, `descriptionKey`, `governmentKey`, `unitKey`) and Chinese strings were added to `mods/core/localization/zh-CN.ini`.
-- **Important defect:** the content definitions and registry still use JSON, despite the project's explicit INI-only Mod data requirement. This must be migrated; do not treat the localization change as sufficient.
-- **Important CI failure:** workflow run [44766621802](https://github.com/Sakurefa/test-game/actions/runs/44766621802) completed with failure. The failing test reports: `Event example-positive-news requires a localization nameKey`. The optional example Mod still embeds display text in JSON and has no localization key. The renderer build was skipped because tests failed.
-- CI syntax check passed; npm install completed; simulation/Mod tests failed; renderer build was skipped. Do not describe this commit as green.
-- The user has successfully launched a previous Windows build and observed that advancing one day changes values. They have not confirmed the correctness of the economic simulation, nor tested the current localization changes on Windows.
+- Latest branch commit: `57cd1c68d12e5348157f1f0abaabc60b4698b0f9`.
+- Source commit tested by CI: `d3647c9043cd948c083fcc674edfc8153672471b`.
+- GitHub Actions run [44769774977](https://github.com/Sakurefa/test-game/actions/runs/44769774977) completed successfully:
+  - Node syntax checks: passed.
+  - Simulation and Mod loader tests: passed.
+  - Vite renderer build: passed.
+  - Generated renderer files were committed by the workflow as `57cd1c68d12e5348157f1f0abaabc60b4698b0f9`.
+- The Mod tree contains only INI package files; there are no tracked JSON files under `mods/`.
+- Core uses `manifest.ini`, `registry/definitions.ini`, `content/*.ini` and `localization/zh-CN.ini`.
+- The example Mod also uses INI manifest, registry, content and localization files. Its event text is referenced by localization keys.
+- Mod loader accepts only declared `.ini` files and parses them in strict mode, rejecting inline JSON arrays/objects. The generic INI parser still supports inline JSON values by default for unrelated existing game settings such as `setting/mods.ini`; this compatibility is intentional and must not be removed without migrating those settings too.
+- `MOD_API.md`, `README.md`, `mods/README.md` and `docs/ENGINE_ARCHITECTURE.md` document the INI-only contract.
+- Root `AGENTS.md` and this work log establish the mandatory start/end session protocol.
+- **No Windows desktop test has been performed for this exact revision.** The user previously launched an earlier build and observed a day advance, but has not validated the correctness of the simulation numbers.
 
 ## Current work queue
 
-### Priority 0 — enforce INI-only Mod packages
-- Migrate Core content definitions from JSON to INI.
-- Migrate registry declarations to INI.
-- Migrate Mod manifests to INI.
-- Keep locale files in INI.
-- Remove JSON parsing support from Mod package loading (do not confuse the root npm `package.json` with Mod data).
-- Design a readable INI convention for repeated entities, lists, maps, nested recipe inputs/outputs, colony stockpiles/industries and fleet ship composition.
-- Update Core and example Mod manifests/file declarations.
-- Update MOD_API.md and architecture docs so examples are INI-only and unambiguous.
-- Add tests proving JSON Mod files are rejected/not loaded and INI definitions compile correctly.
+### Priority 1 — simulation correctness and transparency
+- Add deterministic expected-value tests for production inputs/outputs, price movement, market stock coupling and war-day progression.
+- Ensure the UI explains daily changes so the user can see why values changed.
+- Check for production exploits, stockpile underflow, unbounded prices, and markets whose quotes are disconnected from actual supply/demand.
+- Do not assume a changed value is a correct value.
 
-### Priority 1 — fix current failing CI
-- Add localization keys for every example Mod event.
-- Update example Mod content to the same INI-only contract.
-- Ensure the catalog compiler validates all enabled Mods' localization references.
-- Re-run syntax, tests and renderer build in GitHub Actions; inspect the exact failing step/logs.
-
-### Priority 2 — audit localization completeness
-- Verify no player-facing text remains embedded in Mod content.
-- Verify every entity display name and optional description/government/unit reference resolves.
-- Ensure renderer displays resolved localization values rather than raw keys or IDs.
+### Priority 2 — localization completeness
+- Audit all player-visible text in the renderer and ensure it resolves through localization.
+- Check government labels and commodity units as well as names/descriptions.
 - Language selection UI is not yet implemented; default locale remains zh-CN.
 
-### Priority 3 — simulation correctness
-- Add deterministic expected-value tests for production inputs/outputs, price movement, market stock coupling and war-day progression.
-- Explain daily simulation effects in UI so the user can tell what changed.
-- Do not assume a changed value is a correct value.
+### Priority 3 — content and engine growth
+1. Colony simulation: workforce, population needs, facility upkeep, stability, construction and colony development.
+2. Logistics: freighters and convoys travel through route graphs, consume time/capacity/risk and move physical stock.
+3. Economic agency: company accounting, operating costs/revenue, player orders, ownership, fees, debt and reporting.
+4. Strategic warfare: fleet movement/orders, supply, fronts, objectives, faction AI and territorial change.
+5. Tactical combat: separate real-time battle instances, ship behavior/orders, damage and campaign outcome application.
+6. Living world: events, diplomacy, policies and additional community scenarios.
 
 ## Session log
 
-### 2026-11-20 — INI contract correction and workflow log setup
+### 2026-11-20 — INI contract correction, migration and verification
 
-- User identified that the previous implementation used JSON for Mod content despite the explicit INI requirement.
-- User requested a root-level work log that Astra must read at the start and update at the end of every work session.
-- Inspected repository root, recursive file tree, current catalog compiler, Mod loader, INI parser, Core Mod data, example Mod and GitHub Actions run 44766621802.
-- Confirmed Core uses `universe.json`, `economy.json`, `factions.json`, `military.json`, `events.json`; registry uses `definitions.json`; both Core and example Mod use `manifest.json`.
-- Confirmed the current INI parser still permits inline JSON arrays/objects. This is not suitable as the final INI-only contract and must be corrected or explicitly removed.
-- Confirmed CI run 44766621802 failed during `npm test`: example event `example-positive-news` has no localization `nameKey`. Renderer build was skipped.
-- No Windows runtime test was performed in this session.
-- Next: implement an actual INI-only Mod schema, migrate all Mod package data and fixtures, update docs/tests, then verify CI. Keep this log updated as work proceeds.
-
-
-### 2026-11-20 — INI migration implementation checkpoint
-
-- Added `AGENTS.md` and the root `ASTRA_WORKLOG.md`; future work sessions must read and update the log.
-- Replaced the Mod INI parser so inline JSON arrays/objects are rejected.
-- Replaced Mod loading with INI-only manifests, registry and content normalization. Mod data file declarations now accept only `.ini`.
-- Migrated Core universe/economy/factions/military/events definitions, Core registry and both Mod manifests to INI.
-- Migrated the example event to localization keys and added `mods/example-market/localization/zh-CN.ini`.
-- Removed all currently tracked JSON files from the `mods/` tree.
-- Updated catalog registry filename to `definitions.ini`; updating tests and docs in this checkpoint.
-- Verification is pending CI. No Windows desktop test performed.
+- User identified that the prior implementation used JSON for Mod content despite the explicit INI requirement.
+- User requested a root-level work log that Astra must read before work and update after work.
+- Added root `AGENTS.md` and `ASTRA_WORKLOG.md`; the former mandates reading and updating the latter for every work session.
+- Migrated Core universe, economy, factions, military and events definitions from JSON to INI.
+- Migrated registry declarations to `definitions.ini` and both Mod manifests to `manifest.ini`.
+- Migrated the example Mod event to `name_key` and `description_key`, and added its own `zh-CN.ini` localization.
+- Removed all JSON files from `mods/`.
+- Updated the Mod loader to accept only INI package files and normalize section-based definitions into engine objects. Mod parsing rejects inline JSON values.
+- Preserved generic INI parser compatibility for the existing settings system; strict rejection is scoped to Mod package files.
+- Updated catalog registry loading, engine and loader tests, Mod API docs, architecture docs, Mod README and root README.
+- Initial CI attempt exposed that generic settings INI also uses inline JSON arrays. The parser was corrected to support the legacy generic mode while enforcing strict Mod mode.
+- Final CI run 44769774977 passed syntax checks, all tests and renderer build. Workflow generated and committed updated `dist/` output.
+- No local Windows runtime test was performed.
+- Next: begin a correctness audit of daily simulation, starting with production input/output arithmetic and market repricing. Ask the user to test the updated ZIP + separately distributed launcher only when a Windows check becomes necessary.

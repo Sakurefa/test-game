@@ -33,7 +33,8 @@ test("seeded random generator can be resumed from a snapshot", () => {
 
 test("core and optional Mod content compile into a registered multi-system catalog", async () => {
   const catalog = await loadCatalog();
-  assert.equal(catalog.universe.name, undefined);\n  assert.equal(catalog.localizations["zh-CN"][catalog.universe.nameKey], "赫利俄斯边境");
+  assert.equal(catalog.universe.name, undefined);
+  assert.equal(catalog.localizations["zh-CN"][catalog.universe.nameKey], "赫利俄斯边境");
   assert.equal(catalog.systems.size, 4);
   assert.equal(catalog.colonies.size, 3);
   assert.equal(catalog.fleets.size, 2);
@@ -119,7 +120,8 @@ test("catalog rejects a trade route that is not represented by the starmap", asy
   assert.equal(result.ok, false);
   assert.match(result.error, /route.*risk/);
 });
-\ntest("all world content names and descriptions are resolved from Core localization", async () => {
+
+test("all world content names and descriptions are resolved from Core localization", async () => {
   const catalog = await loadCatalog();
   for (const collectionName of [
     "universes", "systems", "locations", "tradeRoutes", "factions", "colonies",

@@ -1,6 +1,6 @@
 const test=require("node:test"),assert=require("node:assert/strict");
 const {
- createFinancialLedger,validateFinancialLedger,recordBalancedTransaction,getAccountBalance,createTransferCommand,
+ createFinancialLedger,validateFinancialLedger,createLedgerCurrency,createLedgerAccount,recordBalancedTransaction,getAccountBalance,createTransferCommand,
  validateWorldFinancialState
 }=require("../engine/ledger.cjs");
 const {createCommandDispatcher}=require("../engine/commands.cjs");
@@ -124,4 +124,29 @@ test("player finance validation binds the canonical account to the player's fact
  assert.equal(validateWorldFinancialState(world),true);
  world.player.factionId="different-faction";
  assert.throws(()=>validateWorldFinancialState(world),/does not match player ownership/);
+});
+
+test("ledger can register owned accounts and currencies without bypassing balanced funding",()=>{
+ const ledger=createFinancialLedger({playerFactionId:"free-port-alliance",startDate:"2478-04-01"});
+ const company=createLedgerAccount(ledger,{id:"frontier-industries-main",owner:{type:"company",id:"frontier-industries"}});
+ assert.equal(company.balanceMinor,0);
+ assert.throws(()=>createLedgerAccount(ledger,{id:"frontier-industries-main",owner:{type:"company",id:"frontier-industries"}}),/already exists/);
+ assert.throws(()=>createLedgerAccount(ledger,{id:"constructor",owner:{type:"company",id:"frontier-industries"}}),/non-reserved/);
+ assert.equal(validateFinancialLedger(ledger),true);
+ recordBalancedTransaction(ledger,{day:0,date:"2478-04-01",type:"finance.company-capitalized",entries:[
+  {accountId:"system-treasury",deltaMinor:-500000},
+  {accountId:"frontier-industries-main",deltaMinor:500000}
+ ]});
+ assert.equal(getAccountBalance(ledger,"frontier-industries-main"),500000);
+ const eur=createLedgerCurrency(ledger,{id:"EUR",minorUnitDigits:2});
+ assert.equal(eur.minorUnitDigits,2);
+ assert.throws(()=>createLedgerCurrency(ledger,{id:"EUR"}),/already exists/);
+ createLedgerAccount(ledger,{id:"eur-clearing",owner:{type:"system",id:"eur-clearing"},currency:"EUR",allowNegative:true});
+ createLedgerAccount(ledger,{id:"eur-company",owner:{type:"company",id:"frontier-industries"},currency:"EUR"});
+ recordBalancedTransaction(ledger,{day:0,date:"2478-04-01",type:"finance.foreign-capitalized",entries:[
+  {accountId:"eur-clearing",deltaMinor:-2500},
+  {accountId:"eur-company",deltaMinor:2500}
+ ]});
+ assert.equal(getAccountBalance(ledger,"eur-company"),2500);
+ assert.equal(validateFinancialLedger(ledger),true);
 });

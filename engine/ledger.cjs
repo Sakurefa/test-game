@@ -146,7 +146,7 @@ function recordBalancedTransaction(ledger,{day,date,type,entries,commandId=null,
  return structuredClone(transaction);
 }
 function getAccountBalance(ledger,accountId){
- if(!ledger?.accounts?.[accountId])throw new Error("Unknown financial account: "+accountId);
+ if(!ledger?.accounts||!Object.hasOwn(ledger.accounts,accountId))throw new Error("Unknown financial account: "+accountId);
  return ledger.accounts[accountId].balanceMinor;
 }
 function createTransferCommand(){

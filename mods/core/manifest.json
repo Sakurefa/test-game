@@ -3,9 +3,9 @@
   "name": "Core Game Content",
   "version": "0.1.0",
   "author": "Market Simulator",
-  "description": "Required first-party game content package. Gameplay content will be populated separately.",
-  "apiVersion": 2,
-  "iniFiles": [
-    "core.ini"
-  ]
+  "description": "Required first-party data package. It contains no executable code.",
+  "apiVersion": 3,
+  "registryFiles": ["registry.ini"],
+  "contentFiles": ["core.ini"],
+  "localizationFiles": ["zh-CN.ini"]
 }

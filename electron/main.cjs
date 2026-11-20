@@ -63,9 +63,18 @@ async function failActiveWorld(error, source) {
   await new Promise((resolve) => setTimeout(resolve, 150));
   let logContext = errorStack || errorMessage;
   try {
-    const lines = (await fs.readFile(path.join(logger.directory, "runtime.log"), "utf8")).split(/\r?\n/).filter(Boolean);
+    const logFiles = ["runtime.4.log", "runtime.3.log", "runtime.2.log", "runtime.1.log", "runtime.log"];
+    const lines = [];
+    for (const fileName of logFiles) {
+      try {
+        const content = await fs.readFile(path.join(logger.directory, fileName), "utf8");
+        lines.push(...content.split(/\\r?\\n/).filter(Boolean));
+      } catch (readError) {
+        if (readError.code !== "ENOENT") throw readError;
+      }
+    }
     const index = lines.findIndex((line) => line.includes(failureId));
-    if (index >= 0) logContext = lines.slice(Math.max(0, index - 5), index + 6).join("\n");
+    if (index >= 0) logContext = lines.slice(Math.max(0, index - 5), index + 6).join("\\n");
   } catch (readError) {
     logger.error("world.fatal-log-read", readError);
   }

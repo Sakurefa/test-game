@@ -4,8 +4,9 @@ const { createClock, advanceClock, advanceClockTime } = require("./clock.cjs");
 const { createSystemRegistry } = require("./system-registry.cjs");
 const { createDomainEventEmitter, validateDomainEventState } = require("./domain-events.cjs");
 const { validateCommandReceiptState } = require("./commands.cjs");
+const { createFinancialLedger, validateWorldFinancialState } = require("./ledger.cjs");
 
-const GAME_STATE_SCHEMA_VERSION = 5;
+const GAME_STATE_SCHEMA_VERSION = 6;
 const MAX_ADVANCE_DAYS = 30;
 const MAX_CAMPAIGN_CATCH_UP_DAYS = 3650;
 const LOG_LIMIT = 100;
@@ -77,6 +78,9 @@ function createWorld(catalog, options = {}) {
     };
   }
 
+  const playerFactionId = options.playerFactionId || catalog.universe.defaultPlayerFactionId;
+  const finance = createFinancialLedger({ playerFactionId, startDate: catalog.universe.startDate });
+
   return {
     schemaVersion: GAME_STATE_SCHEMA_VERSION,
     contentHash: catalog.contentHash,
@@ -93,10 +97,8 @@ function createWorld(catalog, options = {}) {
     domainEventSequence: 0,
     domainEvents: [],
     commandReceipts: [],
-    player: {
-      factionId: options.playerFactionId || catalog.universe.defaultPlayerFactionId,
-      account: { cash: 250000, holdings: {} }
-    },
+    player: { factionId: playerFactionId, accountId: "player-main" },
+    finance,
     colonies,
     markets,
     fleets,
@@ -282,7 +284,7 @@ function validateWorldState(world, catalog) {
     if (!war || !Number.isInteger(war.daysActive) || war.daysActive < 0 || !war.warWeariness) throw new Error(`Save has invalid war state: ${id}`);
     for (const factionId of definition.participants) if (!Number.isFinite(war.warWeariness[factionId]) || war.warWeariness[factionId] < 0) throw new Error(`Save has invalid war weariness: ${id}.${factionId}`);
   }
-  if (!world.player?.account || !Number.isFinite(world.player.account.cash) || !world.player.account.holdings || typeof world.player.account.holdings !== "object") throw new Error("Save has an invalid player account");
+  validateWorldFinancialState(world);
   return true;
 }
 
@@ -342,7 +344,7 @@ function advanceCampaignTime(world, catalog, elapsedGameDays, options = {}) {
 
 function migrateWorldState(world) {
   if (!world || typeof world !== "object" || Array.isArray(world)) throw new TypeError("Invalid saved world");
-  if (![1, 2, 3, 4, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
+  if (![1, 2, 3, 4, 5, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
     throw new Error("Unsupported or invalid game-state schema: " + world.schemaVersion);
   }
   if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)) {
@@ -366,6 +368,15 @@ function migrateWorldState(world) {
   if (world.schemaVersion < 4) { world.domainEventSequence = 0; world.domainEvents = []; world.schemaVersion = 4; }
   if (world.schemaVersion < 5) { world.commandReceipts = []; world.schemaVersion = 5; }
   if (!Array.isArray(world.commandReceipts)) world.commandReceipts = [];
+  if (world.schemaVersion < 6) {
+    const legacyAccount = world.player?.account || { cash: 0, holdings: {} };
+    if (!Number.isFinite(legacyAccount.cash) || legacyAccount.cash < 0 || legacyAccount.cash * 100 > Number.MAX_SAFE_INTEGER) throw new Error("Legacy player cash cannot be migrated safely");
+    const positions = legacyAccount.holdings && typeof legacyAccount.holdings === "object" && !Array.isArray(legacyAccount.holdings) ? legacyAccount.holdings : {};
+    world.finance = createFinancialLedger({ playerFactionId: world.player.factionId, startDate: world.clock.date, startingBalanceMinor: Math.round(legacyAccount.cash * 100), positions });
+    world.player.accountId = "player-main";
+    delete world.player.account;
+    world.schemaVersion = 6;
+  }
   return world;
 }
 

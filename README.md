@@ -1,55 +1,35 @@
 # Market Simulator
 
-A moddable Windows desktop stock-market simulation game built with Electron, Vite, HTML, CSS, and JavaScript.
+A moddable desktop stock-market simulation project built with Electron, Vite and plain web technologies.
 
-## Play
+## Run from source
 
-The repository contains the editable game source and the Electron runtime files required to run it. The large launcher executable is distributed separately.
+- Install Node.js 20 or newer.
+- Run `npm install`.
+- Run `npm run dev` for development.
+- Run `npm test` for automated tests.
+- Run `npm run build:web` to build the renderer.
 
-1. Download the repository using **Code → Download ZIP** and extract it.
-2. Obtain the matching `Market Simulator.exe` launcher from the project maintainer.
-3. Put that EXE in the extracted repository root, beside `electron/`, `src/`, `mods/`, `resources/`, and `locales/`.
-4. Run `Market Simulator.exe`.
+## Portable game layout
 
-Do not move the EXE away from the repository folder. The launcher uses the Electron runtime beside it and loads the game from this repository. The launcher and checked-in Electron runtime must come from the same Electron version.
+The GitHub repository contains the editable game source and the Electron runtime files. The standalone Windows launcher is distributed separately and is not committed to this repository.
 
-## Development
+For portable play, extract the repository ZIP, place the separately distributed `Market Simulator.exe` beside the repository files, and launch it. The executable supplies Electron/Chromium; the game itself is loaded from the adjacent repository directory.
 
-- Node.js 22
-- npm
+The game creates and uses these directories beside the executable:
 
-```bash
-npm install
-npm run dev
-```
+- `Logs/`: startup log plus four rotating runtime log files.
+- `setting/`: editable INI settings (`general.ini`, `graphics.ini`, `audio.ini`, `mods.ini`).
+- `save/`: save slots and save data.
 
-## Tests and renderer build
+The game directory must be writable. The application will show an error rather than silently moving these files into an unrelated user profile directory.
 
-```bash
-npm test
-npm run build:web
-```
+## Modding
 
-The generated `dist/` directory is committed by GitHub Actions so the fixed launcher can load the latest renderer without bundling game data into the EXE.
+Mods are data-only packages. The required `mods/core/` package contains registry, content and localization data. Community packages use the same structure. Mod packages cannot execute scripts or alter engine code.
 
-## Project layout
+See [MOD_API.md](MOD_API.md) for the API v3 format and safety limits.
 
-- `electron/` — desktop host, preload bridge, Mod discovery and INI parser
-- `src/` — renderer UI and engine-side frontend modules
-- `dist/` — generated renderer output used at runtime
-- `mods/core/` — required first-party game-content package; future gameplay content belongs here
-- `mods/<mod-id>/` — optional community content packages
-- `resources/`, `locales/`, root DLL/Pak files — Electron runtime dependencies
-- `MOD_API.md` — Mod API v2 and INI format specification
+## Project status
 
-## Content architecture
-
-The project separates engine code from game content. Engine code handles execution and infrastructure; game definitions, balance, scenarios, events, items, characters and other non-engine content are intended to live in `mods/core/`, primarily as editable INI files. The core package is currently only a validated structural placeholder; existing game content has not yet been migrated.
-
-## Local saves
-
-Save data is stored under Electron's per-user application data directory, inside a `saves/` folder.
-
-## Mods
-
-The required `mods/core/` package supplies the first-party content base. Optional Mods are installed as sibling folders under `mods/`. API v2 supports data-only INI and JSON files; it does not execute JavaScript. See [MOD_API.md](MOD_API.md).
+The project currently has its portable runtime architecture, data-only Mod loader, root-level storage services, logging foundation and title menu. Actual world simulation and gameplay systems are still under construction.

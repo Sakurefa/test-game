@@ -193,6 +193,7 @@ handleIpc("world:load-save", async (_event, saveId) => {
 });
 
 handleIpc("world:set-speed", async (_event, speed) => {
+  if (worldSaveInProgress) throw new Error("Time controls are temporarily unavailable while saving");
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
   const state = campaignTime.setSpeed(speed);
   logger.info("world.clock", state.paused ? "Campaign time paused" : `Campaign time set to ${state.speed}x`);
@@ -211,6 +212,7 @@ handleIpc("world:clock-status", async () => getActiveWorldClockStatus());
 handleIpc("world:time-status", async () => getActiveWorldSnapshot());
 
 handleIpc("world:advance-day", async () => {
+  if (worldSaveInProgress) throw new Error("World progression is temporarily unavailable while saving");
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
   campaignTime.pause();
   advanceDay(activeWorld, activeCatalog);

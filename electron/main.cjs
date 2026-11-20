@@ -30,7 +30,8 @@ const campaignTime = new CampaignTimeController({
   baseDayDurationMs: 60000,
   onAdvance: (elapsedGameDays) => {
     if (!activeWorld || !activeCatalog) return;
-    const result = advanceCampaignTime(activeWorld, activeCatalog, elapsedGameDays);
+    const eventBus = activeCommandGateway ? { publish: (event) => activeCommandGateway.publishEvent(event) } : null;
+    const result = advanceCampaignTime(activeWorld, activeCatalog, elapsedGameDays, eventBus ? { eventBus } : {});
     if (result.daysAdvanced > 0 || result.dayFraction !== 0) activeWorldDirty = true;
   }
 });
@@ -239,7 +240,8 @@ handleIpc("world:advance-day", async () => {
   if (worldSaveInProgress || worldTransitionInProgress) throw new Error("World progression is temporarily unavailable during a save or world transition");
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
   campaignTime.pause();
-  advanceDay(activeWorld, activeCatalog);
+  const eventBus = activeCommandGateway ? { publish: (event) => activeCommandGateway.publishEvent(event) } : null;
+  advanceDay(activeWorld, activeCatalog, eventBus ? { eventBus } : {});
   activeWorldDirty = true;
   logger.info("world", `Advanced to day ${activeWorld.clock.day} (${activeWorld.clock.date})`);
   return getActiveWorldSnapshot();

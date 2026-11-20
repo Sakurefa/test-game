@@ -20,7 +20,8 @@ test("logger writes separate JSONL records and rotates runtime logs", async (t) 
   const logger = createLogger(root, { maxBytes: 4096 });
   logger.startup("INFO", "bootstrap", "initialization");
   for (let i = 0; i < 100; i += 1) logger.info("test", "x".repeat(30));
-  logger.error("failure-test", { error: new Error("sample diagnostic failure") });
+  const rootCause = new Error("root diagnostic cause");
+  logger.error("failure-test", { error: new Error("sample diagnostic failure", { cause: rootCause }) });
   const files = await fs.readdir(path.join(root, "Logs"));
   assert.ok(files.includes("startup.log"));
   assert.ok(files.includes("runtime.log"));
@@ -34,6 +35,7 @@ test("logger writes separate JSONL records and rotates runtime logs", async (t) 
   assert.ok(records.every((record) => record.timestamp && record.level));
   const failure = records.find((record) => record.scope === "failure-test");
   assert.match(failure.message.error.stack, /sample diagnostic failure/);
+  assert.match(failure.message.error.cause.stack, /root diagnostic cause/);
 });
 
 test("initializes root setting, save and Logs directories with default INI files", async (t) => {

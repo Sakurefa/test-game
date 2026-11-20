@@ -1,5 +1,13 @@
 name: Prepare Electron Runtime and Launcher
 on:
+  push:
+    branches: [main]
+    paths:
+      - package.json
+      - electron/bootstrap.cjs
+      - scripts/prepare-electron-app.ps1
+      - scripts/sync-electron-runtime.ps1
+      - .github/workflows/runtime.yml
   workflow_dispatch:
 permissions:
   contents: write

@@ -10,9 +10,10 @@ function isRecord(value){return Boolean(value)&&typeof value==="object"&&!Array.
 function assertIdentifier(value,pattern,label){
  if(typeof value!=="string"||!pattern.test(value))throw new TypeError(label+" must be a stable identifier");
 }
-function createFinancialLedger({playerFactionId,startDate,startingBalanceMinor=25000000,positions={}}={}){
+function createFinancialLedger({playerFactionId,startDate,openingDay=0,startingBalanceMinor=25000000,positions={}}={}){
  assertIdentifier(playerFactionId,/^[a-z0-9][a-z0-9._-]{1,63}$/,"Player faction ID");
  if(typeof startDate!=="string"||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(startDate))throw new TypeError("A valid ledger start date is required");
+ if(!Number.isInteger(openingDay)||openingDay<0)throw new RangeError("Opening ledger day must be a non-negative integer");
  if(!Number.isSafeInteger(startingBalanceMinor)||startingBalanceMinor<0)throw new RangeError("Starting balance must be a non-negative safe integer in minor units");
  if(!isRecord(positions))throw new TypeError("Legacy positions must be an object");
  const ledger={
@@ -23,7 +24,7 @@ function createFinancialLedger({playerFactionId,startDate,startingBalanceMinor=2
   },
   sequence:startingBalanceMinor>0?1:0,
   transactions:startingBalanceMinor>0?[{
-   id:"ledger-1",sequence:1,day:0,date:startDate,type:"finance.opening-capital",commandId:null,reference:"world-genesis",
+   id:"ledger-1",sequence:1,day:openingDay,date:startDate,type:"finance.opening-capital",commandId:null,reference:"world-genesis",
    entries:[{accountId:"player-main",deltaMinor:startingBalanceMinor},{accountId:"system-treasury",deltaMinor:-startingBalanceMinor}]
   }]:[]
  };

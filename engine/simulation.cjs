@@ -383,7 +383,7 @@ function advanceDay(world, catalog, { eventBus = null, onDaySettled = null } = {
   if (eventBus !== null && (!eventBus || typeof eventBus.publish !== "function")) {
     throw new TypeError("A domain event bus must provide publish(event)");
   }
-  validateWorldState(world, catalog);
+  validateDayInputs(world, catalog);
   const previousEventSequence = world.domainEventSequence;
   const candidate = structuredClone(world);
   const detail = settleDay(candidate, catalog);

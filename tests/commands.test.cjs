@@ -51,7 +51,7 @@ test("handler and post-transition validation failures cannot partially mutate th
  }]);
  assert.throws(()=>failing.dispatch({world:original,command:command(),context:{}}),/handler failed/);
  const invalidWorld=createDispatcher({validateWorld:()=>false});
- assert.throws(()=>invalidWorld.dispatch({world:original,command:command(),context:{canControlWorld:true}}),/invalid world state/);
+ assert.throws(()=>invalidWorld.dispatch({world:original,command:command(),context:{canControlWorld:true}}),/world validation rejected/);
  assert.equal(original.counter,5);assert.deepEqual(original.commandReceipts,[]);
 });
 

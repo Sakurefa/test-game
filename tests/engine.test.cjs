@@ -68,3 +68,26 @@ test("calculation audit history is bounded and reading it does not consume rando
   assert.equal(service.size,2);
   assert.equal(beforeRead.length,1);
 });
+
+test("a failed system discards the candidate day instead of partially mutating the live world", async () => {
+  const c = await catalog();
+  const world = createWorld(c, { seed: "atomic-day" });
+  const before = structuredClone(world);
+  const brokenMarkets = new Map(c.markets);
+  brokenMarkets.get = () => undefined;
+  const brokenCatalog = { ...c, markets: brokenMarkets };
+  assert.throws(() => advanceDay(world, brokenCatalog), /colonyId|undefined/);
+  assert.deepEqual(world, before);
+});
+
+test("day boundary reports a missing required market price before settlement", async () => {
+  const c = await catalog();
+  const world = createWorld(c, { seed: "missing-price" });
+  const before = structuredClone(world);
+  const marketId = c.markets.keys().next().value;
+  const instrumentId = c.markets.get(marketId).commodityIds[0];
+  world.markets[marketId].prices[instrumentId] = 0;
+  const corrupted = structuredClone(world);
+  assert.throws(() => advanceDay(world, c), new RegExp("DAY_INPUT required market price.*" + marketId));
+  assert.deepEqual(world, corrupted);
+});

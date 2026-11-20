@@ -1,15 +1,35 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const MAX_LOG_BYTES = 25 * 1024 * 1024;
-const MAX_RUNTIME_ARCHIVES = 3;
+const MAX_LOG_BYTES = 100 * 1024 * 1024;
+const MAX_RUNTIME_ARCHIVES = 4;
+const MAX_RECORD_BYTES = 16 * 1024 * 1024;
 const LEVELS = new Set(["DEBUG", "INFO", "WARN", "ERROR"]);
 const instances = new Map();
+
+function safeValue(value, seen = new WeakSet()) {
+  if (value instanceof Error) {
+    if (seen.has(value)) return "[Circular]";
+    seen.add(value);
+    return {
+      name: value.name, message: value.message, stack: value.stack || value.message,
+      ...(value.cause !== undefined ? { cause: safeValue(value.cause, seen) } : {})
+    };
+  }
+  if (typeof value === "bigint") return value.toString() + "n";
+  if (!value || typeof value !== "object") return value;
+  if (seen.has(value)) return "[Circular]";
+  seen.add(value);
+  if (Array.isArray(value)) return value.map((item) => safeValue(item, seen));
+  const result = {};
+  for (const [key, item] of Object.entries(value)) result[key] = safeValue(item, seen);
+  return result;
+}
 
 function safeText(value) {
   if (value instanceof Error) return value.stack || value.message;
   if (typeof value === "string") return value;
-  try { return JSON.stringify(value); } catch { return String(value); }
+  try { return JSON.stringify(safeValue(value)); } catch { return String(value); }
 }
 
 function createLogger(root, options = {}) {
@@ -33,7 +53,6 @@ function createLogger(root, options = {}) {
       if (error.code !== "ENOENT") throw error;
     }
     if (currentSize + incomingBytes <= maxBytes) return;
-
     const oldest = path.join(logDirectory, `runtime.${MAX_RUNTIME_ARCHIVES}.log`);
     try { fs.rmSync(oldest, { force: true }); } catch {}
     for (let index = MAX_RUNTIME_ARCHIVES - 1; index >= 1; index -= 1) {
@@ -46,10 +65,16 @@ function createLogger(root, options = {}) {
 
   function write(level, scope, message, startup = false) {
     if (!LEVELS.has(level)) level = "INFO";
-    const timestamp = new Date().toISOString();
-    let line = `[${timestamp}] [${level}] [${String(scope || "general").slice(0, 80)}] ${safeText(message)}\\n`;
-    if (Buffer.byteLength(line, "utf8") > Math.min(maxBytes, 64 * 1024)) {
-      line = Buffer.from(line, "utf8").subarray(0, Math.min(maxBytes, 64 * 1024) - 20).toString("utf8") + " [truncated]\\n";
+    const record = {
+      timestamp: new Date().toISOString(),
+      level,
+      scope: String(scope || "general").slice(0, 120),
+      message: safeValue(message)
+    };
+    let line = JSON.stringify(record) + "\n";
+    if (Buffer.byteLength(line, "utf8") > Math.min(maxBytes, MAX_RECORD_BYTES)) {
+      record.message = "[record exceeds the configured 16 MiB diagnostic line limit]";
+      line = JSON.stringify(record) + "\n";
     }
     const bytes = Buffer.byteLength(line, "utf8");
     try {
@@ -65,7 +90,6 @@ function createLogger(root, options = {}) {
       rotateRuntime(bytes);
       fs.appendFileSync(runtimeFile, line, "utf8");
     } catch (error) {
-      // Logging must never recursively crash the application.
       try { process.stderr.write(`[logger failure] ${error.message}\n`); } catch {}
     }
   }

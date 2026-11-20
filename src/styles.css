@@ -57,3 +57,15 @@
 .domain-event-record{border-color:rgba(112,159,202,.18)}
 .domain-event-record summary em{color:#9cb5d1}
 .domain-event-panel .audit-panel-body{scrollbar-gutter:stable}
+
+/* Fatal simulation report: stop in-world execution and expose copyable diagnostics. */
+.fatal-error-backdrop{position:fixed;z-index:1000;inset:0;display:grid;place-items:center;padding:24px;background:rgba(3,7,13,.88);backdrop-filter:blur(8px)}
+.fatal-error-panel{display:flex;flex-direction:column;gap:13px;width:min(900px,96vw);max-height:92vh;padding:24px;border:1px solid rgba(205,119,119,.5);border-radius:9px;background:#111c2b;box-shadow:0 24px 90px rgba(0,0,0,.65)}
+.fatal-error-heading h2{margin:7px 0;color:#f0dede;font-size:22px;font-weight:500}
+.fatal-error-heading p{margin:0;color:#a8b5c7;font-size:11px;line-height:1.6}
+.fatal-error-message{display:grid;gap:5px;padding:11px 13px;border-left:3px solid #c36f6f;background:rgba(112,45,48,.2);color:#e3b6b6;font-size:11px;overflow-wrap:anywhere}
+.fatal-error-message b{color:#c98f8f;font-size:9px;text-transform:uppercase}
+.fatal-error-panel label{color:#b9c9dd;font-size:10px}
+.fatal-error-panel textarea{width:100%;min-height:240px;flex:1;resize:vertical;padding:12px;border:1px solid rgba(147,174,211,.25);border-radius:5px;color:#c5d3e4;background:#080f19;font:10px/1.55 ui-monospace,Consolas,monospace;white-space:pre;overflow:auto;user-select:text}
+.fatal-error-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap}
+@media(max-width:650px){.fatal-error-backdrop{padding:10px}.fatal-error-panel{padding:15px}.fatal-error-panel textarea{min-height:180px}}

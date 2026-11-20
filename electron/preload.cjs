@@ -2,7 +2,15 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("gameHost", {
   platform: process.platform,
-  app: { quit: () => ipcRenderer.invoke("app:quit") },
+  app: {
+    quit: () => ipcRenderer.invoke("app:quit"),
+    onWorldFatalError: (callback) => {
+      if (typeof callback !== "function") return () => {};
+      const listener = (_event, report) => callback(report);
+      ipcRenderer.on("app:world-fatal-error", listener);
+      return () => ipcRenderer.removeListener("app:world-fatal-error", listener);
+    }
+  },
   mods: {
     list: () => ipcRenderer.invoke("mods:list"),
     loadAll: () => ipcRenderer.invoke("mods:load-all")

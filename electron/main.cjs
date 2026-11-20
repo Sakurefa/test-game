@@ -6,6 +6,7 @@ const {
   initializeStorage, readSettings, writeSettings, listSaveSlots,
   createSaveSlot, readGameState, writeGameState, removeSaveSlot, isSafeSlotId
 } = require("./storage.cjs");
+const { createAutomaticSaveManager } = require("./autosave.cjs");
 const { compileCatalog } = require("../engine/catalog.cjs");
 const { createWorld, advanceDay, advanceCampaignTime, migrateWorldState, createSnapshot, validateWorldState } = require("../engine/simulation.cjs");
 const { CampaignTimeController } = require("../engine/campaign-time.cjs");
@@ -20,18 +21,92 @@ let storageReady = false;
 let quitting = false;
 let activeWorld = null;
 let activeCatalog = null;
+let mainWindow = null;
+let pendingFatalReport = null;
+let fatalHandling = false;
 let activeSaveId = null;
 let activeWorldDirty = false;
 let activeCommandGateway = null;
 let worldSaveInProgress = false;
 let worldTransitionInProgress = false;
 const cleanupTasks = new Set();
+const automaticSaves = createAutomaticSaveManager({
+  root: GAME_ROOT, listSaveSlots, createSaveSlot, readGameState, writeGameState
+});
+function queueAutomaticSave(kind, world) {
+  try {
+    const task = automaticSaves.save(kind, world).then((result) => {
+      logger.info("autosave.complete", result);
+    }).catch((error) => {
+      logger.error("autosave.failed", { kind, day: world.clock.day, date: world.clock.date, error });
+    });
+    const untrack = trackCleanup(task);
+    task.finally(untrack);
+  } catch (error) {
+    logger.error("autosave.failed", { kind, day: world.clock.day, date: world.clock.date, error });
+  }
+}
+function onDaySettled(world, detail) {
+  logger.info("simulation.day-settled", detail);
+  queueAutomaticSave("daily", world);
+  if (detail.day % 7 === 0) queueAutomaticSave("weekly", world);
+}
+function formatErrorChain(error) {
+  const parts = [];
+  const seen = new Set();
+  for (let current = error; current && !seen.has(current); current = current.cause) {
+    seen.add(current);
+    parts.push(current.stack || `${current.name || "Error"}: ${current.message || String(current)}`);
+  }
+  return parts.join("\nCaused by:\n");
+}
+
+async function failActiveWorld(error, source) {
+  if (fatalHandling) return;
+  fatalHandling = true;
+  campaignTime.pause();
+  const failureId = require("node:crypto").randomUUID();
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorStack = error instanceof Error ? formatErrorChain(error) : String(error);
+  logger.error("world.fatal", { failureId, source, message: errorMessage, stack: errorStack });
+  disposeWorldCommandGateway();
+  activeWorld = null;
+  activeCatalog = null;
+  activeSaveId = null;
+  activeWorldDirty = false;
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  let logContext = errorStack || errorMessage;
+  try {
+    const logFiles = ["runtime.4.log", "runtime.3.log", "runtime.2.log", "runtime.1.log", "runtime.log"];
+    const lines = [];
+    for (const fileName of logFiles) {
+      try {
+        const content = await fs.readFile(path.join(logger.directory, fileName), "utf8");
+        lines.push(...content.split(/\r?\n/).filter(Boolean));
+      } catch (readError) {
+        if (readError.code !== "ENOENT") throw readError;
+      }
+    }
+    const index = lines.findIndex((line) => line.includes(failureId));
+    if (index >= 0) logContext = lines.slice(Math.max(0, index - 5), index + 6).join("\n");
+  } catch (readError) {
+    logger.error("world.fatal-log-read", readError);
+  }
+  pendingFatalReport = { failureId, source, message: errorMessage, stack: errorStack, logContext };
+  if (mainWindow && !mainWindow.isDestroyed()) {
+    mainWindow.webContents.send("app:world-fatal-error", pendingFatalReport);
+    pendingFatalReport = null;
+  }
+  logger.error("world.fatal", { failureId, status: "returned-to-title-screen" });
+}
 const campaignTime = new CampaignTimeController({
   baseDayDurationMs: 60000,
   onAdvance: (elapsedGameDays) => {
     if (!activeWorld || !activeCatalog) return;
     const eventBus = activeCommandGateway ? { publish: (event) => activeCommandGateway.publishEvent(event) } : null;
-    const result = advanceCampaignTime(activeWorld, activeCatalog, elapsedGameDays, eventBus ? { eventBus } : {});
+    const result = advanceCampaignTime(activeWorld, activeCatalog, {
+      ...(eventBus ? { eventBus } : {}), onDaySettled
+    });
     if (result.daysAdvanced > 0 || result.dayFraction !== 0) activeWorldDirty = true;
   }
 });
@@ -40,7 +115,7 @@ const campaignTimer = setInterval(() => {
     campaignTime.tick();
   } catch (error) {
     campaignTime.pause();
-    logger.error("world.clock", error);
+    void failActiveWorld(error, "campaign-clock");
   }
 }, 100);
 campaignTimer.unref?.();
@@ -127,34 +202,41 @@ function installWorldCommandGateway() {
     getWorld: () => activeWorld,
     getCatalog: () => activeCatalog,
     getActor: (world) => ({ type: "player", id: world.player.factionId }),
-    validateWorld: (world, catalog) => validateWorldState(world, catalog),
     onWorldCommit: (world) => {
       activeWorld = world;
       activeWorldDirty = true;
     },
     onEvent: (event) => {
-      logger.debug("world.domain-event", {
-        id: event.id, type: event.type, day: event.day, subjectId: event.subjectId
-      });
+      logger.info("world.domain-event", event);
     }
   });
 }
 
 function getActiveWorldSnapshot() {
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
-  campaignTime.tick();
-  return { ...createSnapshot(activeWorld, activeCatalog), saveId: activeSaveId, dirty: activeWorldDirty, timeControl: campaignTime.getState() };
+  try {
+    campaignTime.tick();
+    return { ...createSnapshot(activeWorld, activeCatalog), saveId: activeSaveId, dirty: activeWorldDirty, timeControl: campaignTime.getState() };
+  } catch (error) {
+    void failActiveWorld(error, "world.snapshot");
+    throw error;
+  }
 }
 
 function getActiveWorldClockStatus() {
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
-  campaignTime.tick();
-  return {
-    clock: { ...activeWorld.clock },
-    saveId: activeSaveId,
-    dirty: activeWorldDirty,
-    timeControl: campaignTime.getState()
-  };
+  try {
+    campaignTime.tick();
+    return {
+      clock: { ...activeWorld.clock },
+      saveId: activeSaveId,
+      dirty: activeWorldDirty,
+      timeControl: campaignTime.getState()
+    };
+  } catch (error) {
+    void failActiveWorld(error, "world.clock-status");
+    throw error;
+  }
 }
 
 handleIpc("world:start-new", async () => {
@@ -176,6 +258,8 @@ handleIpc("world:start-new", async () => {
     disposeWorldCommandGateway();
     activeCatalog = nextCatalog;
     activeWorld = nextWorld;
+    fatalHandling = false;
+    pendingFatalReport = null;
     campaignTime.reset();
     activeSaveId = nextSaveId;
     activeWorldDirty = false;
@@ -200,6 +284,8 @@ handleIpc("world:load-save", async (_event, saveId) => {
     disposeWorldCommandGateway();
     activeCatalog = nextCatalog;
     activeWorld = nextWorld;
+    fatalHandling = false;
+    pendingFatalReport = null;
     campaignTime.reset();
     activeSaveId = saveId;
     activeWorldDirty = false;
@@ -222,9 +308,16 @@ handleIpc("world:set-speed", async (_event, speed) => {
 handleIpc("world:dispatch-command", async (_event, command) => {
   if (worldSaveInProgress || worldTransitionInProgress) throw new Error("World commands are temporarily unavailable during a save or world transition");
   if (!activeCommandGateway) throw new Error("No active world command gateway is available");
-  campaignTime.tick();
-  const outcome = activeCommandGateway.dispatch(command);
-  return { ...outcome, snapshot: getActiveWorldSnapshot() };
+  try {
+    campaignTime.tick();
+    const outcome = activeCommandGateway.dispatch(command);
+    return { ...outcome, snapshot: getActiveWorldSnapshot() };
+  } catch (error) {
+    if (error.code === "WORLD_COMMAND_EXECUTION_FAILURE" || error.code === "WORLD_COMMAND_COMMIT_FAILURE" || error.code === "SIMULATION_SYSTEM_FAILURE") {
+      void failActiveWorld(error, "world.command");
+    }
+    throw error;
+  }
 });
 
 handleIpc("world:clock-status", async () => {
@@ -241,21 +334,37 @@ handleIpc("world:advance-day", async () => {
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
   campaignTime.pause();
   const eventBus = activeCommandGateway ? { publish: (event) => activeCommandGateway.publishEvent(event) } : null;
-  advanceDay(activeWorld, activeCatalog, eventBus ? { eventBus } : {});
+  try {
+    advanceDay(activeWorld, activeCatalog, { ...(eventBus ? { eventBus } : {}), onDaySettled });
+  } catch (error) {
+    void failActiveWorld(error, "manual-day-advance");
+    throw error;
+  }
   activeWorldDirty = true;
   logger.info("world", `Advanced to day ${activeWorld.clock.day} (${activeWorld.clock.date})`);
   return getActiveWorldSnapshot();
 });
 
 handleIpc("world:save", async () => {
-  if (!activeWorld || !activeSaveId) throw new Error("No active world is loaded");
+  if (!activeWorld) throw new Error("No active world is loaded");
   if (worldSaveInProgress || worldTransitionInProgress) throw new Error("A world save or transition is already in progress");
+  if (!activeSaveId || activeSaveId.startsWith("slot_auto_")) {
+    const manualSaveId = "slot_manual_" + Date.now().toString(36) + "_" + Math.random().toString(36).slice(2, 6);
+    await createSaveSlot(GAME_ROOT, manualSaveId, activeWorld.metadata.name + "（手动存档）");
+    activeSaveId = manualSaveId;
+    activeWorldDirty = true;
+  }
   worldSaveInProgress = true;
   let worldBeingSaved = null;
   let saveId = null;
   let previousSpeed = 0;
   try {
-    campaignTime.tick();
+    try {
+      campaignTime.tick();
+    } catch (error) {
+      void failActiveWorld(error, "world.save-clock");
+      throw error;
+    }
     worldBeingSaved = activeWorld;
     saveId = activeSaveId;
     previousSpeed = campaignTime.getState().speed;
@@ -388,6 +497,7 @@ function createWindow(settings) {
       sandbox: true
     }
   });
+  mainWindow = window;
   window.setMenuBarVisibility(false);
   if (fullscreen) window.setFullScreen(true);
   window.webContents.setZoomFactor((settings?.graphics?.ui_scale || 100) / 100);
@@ -409,7 +519,16 @@ function createWindow(settings) {
   window.on("unresponsive", () => logger.error("window", "Renderer became unresponsive"));
   window.on("close", () => logger.info("window", "Main window close requested"));
   window.on("responsive", () => logger.info("window", "Renderer became responsive"));
-  window.on("closed", () => logger.info("window", "Main window closed"));
+  window.on("closed", () => {
+    logger.info("window", "Main window closed");
+    if (mainWindow === window) mainWindow = null;
+  });
+  window.webContents.on("did-finish-load", () => {
+    if (pendingFatalReport) {
+      window.webContents.send("app:world-fatal-error", pendingFatalReport);
+      pendingFatalReport = null;
+    }
+  });
 
   if (DEV_URL) window.loadURL(DEV_URL);
   else window.loadFile(path.join(GAME_ROOT, "dist", "index.html"));
@@ -438,6 +557,8 @@ app.whenReady().then(async () => {
 app.on("before-quit", (event) => {
   if (quitting) return;
   quitting = true;
+  campaignTime.pause();
+  clearInterval(campaignTimer);
   logger.info("shutdown", "Shutdown requested; stopping tracked cleanup tasks");
   if (cleanupTasks.size > 0) {
     event.preventDefault();

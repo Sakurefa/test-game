@@ -87,3 +87,18 @@ test("manual systems run only through their explicit manual trigger", () => {
   assert.deepEqual(calls, [{ day: 9, manual: true }, { day: 9, manual: true }]);
   assert.throws(() => registry.runManual({ world, id: "missing.system" }), /Unknown simulation system/);
 });
+
+test("runtime update failures identify the exact simulation system node", () => {
+  const registry = createSystemRegistry([{
+    id: "economy.market-pricing",
+    cadence: "daily",
+    update: () => { throw new Error("required quote was missing"); }
+  }]);
+  const world = { scheduler: { lastRunDayBySystem: {} } };
+  assert.throws(
+    () => registry.runDue({ world, day: 1 }),
+    (error) => error.code === "SIMULATION_SYSTEM_FAILURE"
+      && error.message.includes("economy.market-pricing.update failed")
+      && /required quote was missing/.test(error.message)
+  );
+});

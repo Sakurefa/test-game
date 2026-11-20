@@ -4,16 +4,14 @@ const {createDomainEventBus}=require("../engine/event-bus.cjs");
 const {createTransferCommand}=require("../engine/ledger.cjs");
 
 function createWorldCommandGateway({
- getWorld,getCatalog,getActor,onWorldCommit,validateWorld,onEvent=()=>{}
+ getWorld,getCatalog,getActor,onWorldCommit,onEvent=()=>{}
 }={}){
- for(const [name,fn] of Object.entries({getWorld,getCatalog,getActor,onWorldCommit,validateWorld,onEvent})){
+ for(const [name,fn] of Object.entries({getWorld,getCatalog,getActor,onWorldCommit,onEvent})){
   if(typeof fn!=="function")throw new TypeError("World command gateway requires "+name+"()");
  }
  const eventBus=createDomainEventBus();
  eventBus.subscribe("*",event=>onEvent(event));
- const dispatcher=createCommandDispatcher([createTransferCommand()],{
-  validateWorld:(draft)=>validateWorld(draft,getCatalog())
- });
+ const dispatcher=createCommandDispatcher([createTransferCommand()]);
  const runtime=createWorldCommandRuntime({dispatcher,eventBus,onCommit:onWorldCommit});
  let disposed=false;
  function dispatch(command){

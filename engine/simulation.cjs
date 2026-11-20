@@ -288,50 +288,126 @@ function validateWorldState(world, catalog) {
   return true;
 }
 
-function advanceDay(world, catalog, { eventBus = null } = {}) {
-  if (eventBus !== null && (!eventBus || typeof eventBus.publish !== "function")) throw new TypeError("A domain event bus must provide publish(event)");
-  validateWorldState(world, catalog);
-  const previousEventSequence = world.domainEventSequence;
+function settleDay(world, catalog) {
   const randomStreams = new NamedRandomStreams(world.rng.seed, world.rng.streams);
   const calculations = createCalculationService();
   world.clock = advanceClock(world.clock, 1);
   const summary = { production: {}, market: {} };
   const emitDomainEvent = createDomainEventEmitter(world, world.clock);
-  const systemsRun = simulationSystems.runDue({ world, day: world.clock.day,
-    context: { catalog, randomStreams, calculations, summary, emitDomainEvent } });
+  const systemsRun = simulationSystems.runDue({
+    world, day: world.clock.day,
+    context: { catalog, randomStreams, calculations, summary, emitDomainEvent }
+  });
 
   world.rng = randomStreams.snapshot();
   if (!world.audit || typeof world.audit !== "object") world.audit = { calculations: [] };
   if (!Array.isArray(world.audit.calculations)) world.audit.calculations = [];
-  world.audit.calculations.push(...calculations.getRecords());
+  const calculationRecords = calculations.getRecords();
+  world.audit.calculations.push(...calculationRecords);
   if (world.audit.calculations.length > CALCULATION_AUDIT_LIMIT) {
     world.audit.calculations.splice(0, world.audit.calculations.length - CALCULATION_AUDIT_LIMIT);
   }
+
   const productionCount = Object.keys(summary.production).length;
   const marketCount = Object.keys(summary.market).length;
   const report = productionCount > 0
     ? `第 ${world.clock.day} 天结束：${productionCount} 个殖民地完成每周生产，${marketCount} 个市场更新报价。`
     : `第 ${world.clock.day} 天结束：${marketCount} 个市场更新报价。`;
   appendEvent(world, {
-    id: `day-${world.clock.day}`,
-    day: world.clock.day,
-    date: world.clock.date,
-    type: "daily-report",
-    text: report,
-    production: summary.production,
-    marketChanges: summary.market,
-    systemsRun
+    id: `day-${world.clock.day}`, day: world.clock.day, date: world.clock.date,
+    type: "daily-report", text: report, production: summary.production,
+    marketChanges: summary.market, systemsRun
   });
+  return { day: world.clock.day, date: world.clock.date, summary, systemsRun, calculations: calculationRecords };
+}
+
+function validateDayInputs(world, catalog) {
+  if (!world || world.schemaVersion !== GAME_STATE_SCHEMA_VERSION) {
+    throw new Error("DAY_INPUT unsupported or invalid game-state schema");
+  }
+  if (world.contentHash !== catalog.contentHash) {
+    throw new Error("This save was created with different Mod content. Restore the matching Mods before loading.");
+  }
+  if (world.universeId !== catalog.universe.id) throw new Error("Save universe does not match the loaded content");
+  if (!world?.clock || !Number.isInteger(world.clock.day) || typeof world.clock.date !== "string") {
+    throw new Error("DAY_INPUT world.clock.day/date is missing or invalid");
+  }
+  if (!world.rng || !Number.isInteger(world.rng.seed) || !world.rng.streams || typeof world.rng.streams !== "object") {
+    throw new Error("DAY_INPUT world.rng seed/streams is missing or invalid");
+  }
+  if (!world.scheduler?.lastRunDayBySystem || typeof world.scheduler.lastRunDayBySystem !== "object") {
+    throw new Error("DAY_INPUT world.scheduler.lastRunDayBySystem is missing");
+  }
+  if (!Array.isArray(world.events) || !Array.isArray(world.domainEvents) || !Number.isInteger(world.domainEventSequence)) {
+    throw new Error("DAY_INPUT world event history state is missing or invalid");
+  }
+  for (const id of catalog.colonies.keys()) {
+    const colony = world.colonies?.[id];
+    if (!colony || !colony.stockpiles || !Array.isArray(colony.industries)) {
+      throw new Error("DAY_INPUT required colony data is missing: " + id);
+    }
+    if (!Number.isFinite(colony.population) || colony.population <= 0) {
+      throw new Error("DAY_INPUT colony population must be greater than zero: " + id);
+    }
+    if (!Number.isFinite(colony.stability) || colony.stability < 0 || colony.stability > 100) {
+      throw new Error("DAY_INPUT colony stability is invalid: " + id);
+    }
+    for (const industry of colony.industries) {
+      if (!catalog.recipes.has(industry.recipeId) || !Number.isFinite(industry.level) || industry.level <= 0) {
+        throw new Error("DAY_INPUT industry recipe/level is missing or invalid: " + id + "." + industry.recipeId);
+      }
+    }
+  }
+  for (const [id, definition] of catalog.markets) {
+    const market = world.markets?.[id];
+    if (!market?.prices || !market.lastChanges) throw new Error("DAY_INPUT market state is missing: " + id);
+    if (!world.colonies?.[definition.colonyId]) throw new Error("DAY_INPUT market references a missing colony: " + id + "." + definition.colonyId);
+    for (const instrumentId of [...(definition.commodityIds || []), ...(definition.securityIds || [])]) {
+      const price = market.prices[instrumentId];
+      if (!Number.isFinite(price) || price <= 0) {
+        throw new Error("DAY_INPUT required market price must be greater than zero: " + id + "." + instrumentId);
+      }
+    }
+  }
+  for (const id of catalog.fleets.keys()) {
+    if (!world.fleets?.[id]) throw new Error("DAY_INPUT fleet state is missing: " + id);
+  }
+  for (const [id, definition] of catalog.wars) {
+    const war = world.wars?.[id];
+    if (!war || !Number.isInteger(war.daysActive) || war.daysActive < 0 || !war.warWeariness) {
+      throw new Error("DAY_INPUT war state is missing or invalid: " + id);
+    }
+    for (const factionId of definition.participants) {
+      if (!Number.isFinite(war.warWeariness[factionId]) || war.warWeariness[factionId] < 0) {
+        throw new Error("DAY_INPUT war weariness is missing or invalid: " + id + "." + factionId);
+      }
+    }
+  }
+  validateWorldFinancialState(world);
+}
+
+function advanceDay(world, catalog, { eventBus = null, onDaySettled = null } = {}) {
+  if (eventBus !== null && (!eventBus || typeof eventBus.publish !== "function")) {
+    throw new TypeError("A domain event bus must provide publish(event)");
+  }
+  validateDayInputs(world, catalog);
+  const previousEventSequence = world.domainEventSequence;
+  const candidate = structuredClone(world);
+  const detail = settleDay(candidate, catalog);
+
+  for (const key of Object.keys(world)) delete world[key];
+  Object.assign(world, candidate);
+
   if (eventBus) {
     for (const event of world.domainEvents) {
       if (event.sequence > previousEventSequence) eventBus.publish(event);
     }
   }
+  if (typeof onDaySettled === "function") onDaySettled(world, detail);
   return world;
 }
 
 function advanceCampaignTime(world, catalog, elapsedGameDays, options = {}) {
-  validateWorldState(world, catalog);
   const targetClock = advanceClockTime(world.clock, elapsedGameDays);
   const daysToAdvance = targetClock.day - world.clock.day;
   if (daysToAdvance > MAX_CAMPAIGN_CATCH_UP_DAYS) {
@@ -389,7 +465,6 @@ function advanceDays(world, catalog, days = 1, options = {}) {
 }
 
 function createSnapshot(world, catalog) {
-  validateWorldState(world, catalog);
   const systems = [...catalog.systems.values()].map((system) => ({
     ...system,
     locations: system.locationIds.map((id) => catalog.locations.get(id))

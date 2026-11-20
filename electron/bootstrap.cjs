@@ -6,12 +6,14 @@ const logger = require(path.join(repositoryRoot, "electron", "logger.cjs")).getL
 logger.startup("INFO", "bootstrap", "Bootstrap entered");
 logger.startup("INFO", "bootstrap", `Platform=${process.platform}; Electron=${process.versions.electron}; Node=${process.versions.node}`);
 
-process.on("uncaughtException", (error) => {
-  logger.error("process.uncaughtException", error);
-});
-process.on("unhandledRejection", (reason) => {
-  logger.error("process.unhandledRejection", reason);
-});
+function terminateAfterFatal(scope, error) {
+  logger.error(scope, error);
+  try { process.stderr.write(`[fatal] ${scope}: ${error?.stack || error}\n`); } catch {}
+  process.exit(1);
+}
+
+process.on("uncaughtException", (error) => terminateAfterFatal("process.uncaughtException", error));
+process.on("unhandledRejection", (reason) => terminateAfterFatal("process.unhandledRejection", reason));
 
 try {
   require(path.join(repositoryRoot, "electron", "main.cjs"));

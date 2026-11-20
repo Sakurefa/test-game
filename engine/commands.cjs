@@ -133,9 +133,16 @@ function createCommandDispatcher(definitions=[],options={}){
   const draft=structuredClone(world);
   if(!Array.isArray(draft.commandReceipts))draft.commandReceipts=[];
   const receiptsBeforeHandler=JSON.stringify(draft.commandReceipts);
-  const rawOutcome=assertSynchronous(definition.execute({
-   world:draft,payload:structuredClone(payload.value),context,commandId:command.commandId
-  }),"Command handler "+command.type);
+  let rawOutcome;
+  try {
+   rawOutcome=assertSynchronous(definition.execute({
+    world:draft,payload:structuredClone(payload.value),context,commandId:command.commandId
+   }),"Command handler "+command.type);
+  }catch(error){
+   const failure=new Error("Command handler "+command.type+" failed: "+error.message,{cause:error});
+   failure.code="WORLD_COMMAND_EXECUTION_FAILURE";
+   throw failure;
+  }
   if(JSON.stringify(draft.commandReceipts)!==receiptsBeforeHandler)throw new Error("Command handler "+command.type+" cannot modify command receipts");
   if(!isRecord(rawOutcome)||Object.keys(rawOutcome).some(key=>!["result","events"].includes(key)))throw new TypeError("Command handler "+command.type+" must return { result, events }");
   const result=normalizeJson(rawOutcome.result===undefined?null:rawOutcome.result,"Command result",MAX_COMMAND_RESULT_BYTES).value;

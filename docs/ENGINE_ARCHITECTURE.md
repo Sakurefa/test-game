@@ -28,7 +28,7 @@ A saved game records its world schema version, content fingerprint, clock, rando
 
 ## Data-only Mod contract
 
-A Mod may add registry entries and definitions through `registry/` and `content/` JSON or INI files. The engine validates IDs and cross-references before the catalog is usable. Duplicate IDs and unresolved references stop catalog compilation with an actionable error. Mods cannot execute scripts or provide runtime hooks.
+A Mod may add registry entries and definitions through `registry/` and `content/` JSON or INI files. Player-facing names and descriptions are referenced by stable localization keys and resolved from `localization/`; translated strings do not live in content definitions. The engine validates IDs, cross-references and localization keys before the catalog is usable. Duplicate IDs, unresolved references and missing strings stop catalog compilation with an actionable error. Mods cannot execute scripts or provide runtime hooks.
 
 Core definitions currently use:
 
@@ -37,7 +37,7 @@ Core definitions currently use:
 - `factions.json`: faction definitions.
 - `military.json`: ship classes, fleet compositions and active wars.
 - `events.json`: declarative event definitions.
-- `registry/definitions.json`: stable ID/type declarations.
+- `registry/definitions.json`: stable ID/type declarations.\n- `localization/zh-CN.ini`: Chinese display strings referenced by content keys.
 
 The initial implementation intentionally does not decide the final rules for taxation, credit, debt, labor markets, interstellar shipping, tactical damage models, diplomacy, or player trading. Those systems can evolve independently without changing the world-state contract.
 

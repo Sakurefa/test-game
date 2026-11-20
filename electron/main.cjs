@@ -1,7 +1,7 @@
 const { app, BrowserWindow, ipcMain, shell } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs/promises");
-const { readModPackages } = require("./mod-loader.cjs");
+const { readModPackages, loadCoreContent } = require("./mod-loader.cjs");
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
 const SAVE_DIR = () => path.join(app.getPath("userData"), "saves");
@@ -23,6 +23,7 @@ ipcMain.handle("mods:list", async () => {
 });
 
 ipcMain.handle("mods:load-all", async () => readModPackages(getModsDirectory()));
+ipcMain.handle("content:load-core", async () => loadCoreContent(getModsDirectory()));
 
 ipcMain.handle("save:read", async (_event, key) => {
   if (!isSafeSaveKey(key)) throw new Error("Invalid save key");

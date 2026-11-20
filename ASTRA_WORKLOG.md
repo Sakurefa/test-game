@@ -68,6 +68,16 @@ Long-term direction:
   - CI generated updated `dist/index.html` and hashed JS/CSS assets in `f096593`.
 - The user confirmed the previous clock interpolation is now smooth. The new incremental rendering and weekly progress changes have CI coverage, but have not yet received a Windows desktop GUI test.
 
+## Latest verified repository update — Phase B calculation foundation — 2026-11-21
+
+- Phase B source commit: `e494e401bbbea8dff3d08b009480439a85e46823`.
+- Latest `main` head after verification: `e494e401bbbea8dff3d08b009480439a85e46823`.
+- GitHub Actions run [44796660751](https://github.com/Sakurefa/test-game/actions/runs/44796660751) completed successfully:
+  - Electron/engine syntax checks passed.
+  - Full automated suite: 57 passed, 0 failed.
+  - Vite renderer production build passed.
+- User confirmed the incremental view refresh, preserved scroll position and seven-segment weekly progress behavior on Windows. This is user-side confirmation of the prior UI revision, not a GUI test of the new Phase B engine changes.
+
 ## Current work queue
 
 ### Priority 1 — deterministic calculations and simulation correctness
@@ -228,3 +238,18 @@ Long-term direction:
 - Updated `src/main.js` so live clock metadata consistently displays total elapsed day, week number and day-within-week.
 - Follow-up source commit: `c8bbe13d19a3bd7b6f3caed90deac8d625d2f05b`. Windows GitHub Actions run [44791557695](https://github.com/Sakurefa/test-game/actions/runs/44791557695) completed successfully: syntax checks passed, all 52 tests passed (0 failed), and Vite production build passed. Generated renderer output commit: `73a2387a14f8f7946c9cf4ef6400513646fddc14`.
 - No Windows desktop GUI test has yet been performed for this revision; user-side verification remains required.
+
+
+### 2026-11-21 — Phase B: named random streams and formula audit foundation
+
+- Re-read the complete root `AGENTS.md` and complete `ASTRA_WORKLOG.md`; checked current `main` and latest Actions run before editing. Starting head: `eba38a456c1eabb8c01999350605d1a88e3d1166`; its log-only CI run 44791824471 was green.
+- User confirmed the previous continuous clock, incremental view refresh, scroll retention and weekly progress bar work correctly on Windows. Proceeded to the next planned foundation phase.
+- Replaced the single shared world PRNG state with `NamedRandomStreams` in `engine/random.cjs`. Each stable stream ID derives an independent seed from the saved world seed; stream states are serialized in stable key order and restored exactly. Market noise now uses a separate stream per market/instrument (`economy.market.<market-id>.<instrument-id>`), so adding draws in another instrument does not shift this instrument's sequence.
+- Added `engine/formulas.cjs` with a versioned calculation registry and bounded audit capture. Implemented `economy.commodity-price` v1 and `economy.security-price` v1, preserving the existing pricing equations and rounding behavior. Each execution records day, formula ID/version, inputs, modifiers, intermediate steps, actual random draws and result.
+- Calculation audit capture is unconditional in the engine and the most recent 200 records are persisted in the world save. Reading audit records is observational and does not touch PRNG state. A future visibility toggle must remain a renderer-only filter over recorded data; no display toggle currently enters the simulation engine.
+- Bumped world save schema from 2 to 3. Schema 1 and 2 saves migrate their date, day fraction and scheduler markers; their original world seed is retained while the legacy single shared RNG state is intentionally replaced with fresh independently derived named streams. This means future random outcomes after migration differ from the legacy shared-stream sequence, but new schema-3 saves resume deterministically. No existing colony, market, fleet, war or event state is intentionally reset.
+- Updated storage to accept legacy schema 1/2 reads and write schema 3. Added tests for named-stream isolation, snapshot/restore, stable serialization, invalid IDs/seeds, formula trace contents, audit history bounds, observational audit reads, schema migration and schema-3 storage.
+- Exact files changed: `engine/random.cjs`, new `engine/formulas.cjs`, `engine/simulation.cjs`, `engine/index.cjs`, `electron/storage.cjs`, `tests/engine.test.cjs`, `tests/storage.test.cjs`, and `docs/ENGINE_ARCHITECTURE.md`.
+- Source commit: `e494e401bbbea8dff3d08b009480439a85e46823`. GitHub Actions run [44796660751](https://github.com/Sakurefa/test-game/actions/runs/44796660751) passed syntax checks, all 57 automated tests (0 failed), and the Vite production build. No generated renderer diff was required for this engine-only phase.
+- No local full test suite/build was run. The CI run is the verified automated result. No assistant-run Windows GUI test was performed for Phase B; the user-side Windows confirmation above applies to the previous UI revision only.
+- Known next tasks: add a read-only renderer-facing calculation inspector/visibility control that only filters existing audit records; extend formula registration as production, colony, logistics and finance systems are implemented; add deterministic expected-value tests and domain-level simulation correctness audits. Do not expose a visibility flag to engine formulas or RNG services. Preserve Mod INI-only/data-only constraints. Tactical combat remains deferred.

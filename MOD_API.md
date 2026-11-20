@@ -1,6 +1,6 @@
 # Mod API v1
 
-Market Simulator currently supports **data-only Mods**. A Mod is a folder inside the external `mods/` directory next to the game executable.
+Market Simulator currently supports **data-only Mods**. A Mod is a folder inside the repository's root `mods/` directory.
 
 ## Install
 

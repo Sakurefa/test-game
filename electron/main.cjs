@@ -22,7 +22,7 @@ ipcMain.handle("mods:list", async () => {
   return mods.map(({ data, ...metadata }) => metadata);
 });
 
-ipcMain.handle("mods:load-all", async () => readModPackages());
+ipcMain.handle("mods:load-all", async () => readModPackages(getModsDirectory()));
 
 ipcMain.handle("save:read", async (_event, key) => {
   if (!isSafeSaveKey(key)) throw new Error("Invalid save key");

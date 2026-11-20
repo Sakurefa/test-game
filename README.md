@@ -1,22 +1,21 @@
 # Market Simulator
 
-A moddable Windows desktop stock-market simulation game built with Electron,
-Vite, HTML, CSS, and JavaScript.
+A moddable Windows desktop stock-market simulation game built with Electron, Vite, HTML, CSS, and JavaScript.
 
-## Play the Windows build
+## Play
 
-Download the Windows ZIP from GitHub Actions or the Releases page, extract the
-whole folder, then run `Market Simulator.exe`. Keep the `mods/` directory
-beside the executable. The app includes its own Electron/Chromium runtime;
-players do not need to install Chrome, Node.js, or npm.
+The repository contains the editable game source and the Electron runtime files required to run it. The large launcher executable is distributed separately.
 
-The extracted folder also includes a `source/` snapshot for people who want to
-inspect the renderer and Electron host code. The canonical development source
-and contribution history live in this GitHub repository.
+1. Download the repository using **Code → Download ZIP** and extract it.
+2. Obtain the matching `Market Simulator.exe` launcher from the project maintainer.
+3. Put that EXE in the extracted repository root, beside `electron/`, `src/`, `resources/`, and `locales/`.
+4. Run `Market Simulator.exe`.
+
+Do not move the EXE away from the repository folder. The launcher uses the Electron runtime beside it and loads the game from this repository. The launcher and checked-in Electron runtime must come from the same Electron version.
 
 ## Development
 
-- Node.js 22 LTS (Node.js 20 or later is supported)
+- Node.js 22
 - npm
 
 ```bash
@@ -24,47 +23,35 @@ npm install
 npm run dev
 ```
 
-Vite serves the renderer locally and Electron opens the desktop window.
-
-## Build locally (optional)
+## Tests and renderer build
 
 ```bash
-npm run build:win
+npm test
+npm run build:web
 ```
 
-The build creates an unpacked Windows x64 application in `release/win-unpacked/`
-and a shareable ZIP in `release/Market-Simulator-<version>-Windows-x64.zip`.
+The generated `dist/` directory is committed by GitHub Actions so the fixed launcher can load the latest renderer without bundling game data into the EXE.
 
-## Automatic Windows builds
+## Electron runtime maintenance
 
-GitHub Actions builds the Windows ZIP on pushes to `main`, pull requests
-targeting `main`, and manual workflow dispatches.
+The Electron runtime files in the repository are generated from the pinned Electron version in `package.json`. Run the **Prepare Electron Runtime and Launcher** workflow only when initially preparing the runtime or intentionally upgrading Electron.
 
-- Open the repository's **Actions** tab and select **Build Windows Game**.
-- Open a completed run and download the `Market-Simulator-Windows` artifact.
-- To publish a shareable GitHub Release, push a version tag such as `v0.1.0`.
-  The workflow attaches the Windows ZIP to that release.
+That workflow synchronizes all required runtime files into the repository, deliberately excludes the large launcher EXE from Git, and provides the EXE as a temporary Actions artifact. Download it and distribute it separately (for example, through the project QQ group).
 
 ## Project layout
 
-- `electron/` — Electron main process and restricted preload bridge
+- `electron/` — Electron main process, preload bridge and minimal bootstrap
 - `src/` — renderer UI and game modules
-- `src/core/` — reusable engine services
+- `dist/` — generated renderer output used at runtime
 - `data/` — default game data and configuration
 - `mods/` — external data Mods and examples
+- `resources/`, `locales/`, root DLL/Pak files — Electron runtime dependencies
 - `MOD_API.md` — Mod API v1 specification
-- `scripts/` — build and packaging helpers
 
 ## Local saves
 
-Save data is stored under Electron's per-user application data directory,
-inside a `saves/` folder. The renderer accesses it through a narrow preload
-API; it does not receive direct Node.js or filesystem access.
+Save data is stored under Electron's per-user application data directory, inside a `saves/` folder.
 
 ## Mods
 
-Mod API v1 supports data-only JSON packages. Mods are installed by copying a
-Mod folder into the external `mods/` directory beside the executable. The host
-validates manifests and JSON files and exposes a restricted discovery/loading
-bridge to the renderer. JavaScript Mods and runtime hooks are not enabled in
-v1. See [MOD_API.md](MOD_API.md) for the full format and compatibility rules.
+Mod API v1 supports data-only JSON packages. Install Mods into the repository's root `mods/` directory. JavaScript Mods and runtime hooks are not enabled in v1. See [MOD_API.md](MOD_API.md).

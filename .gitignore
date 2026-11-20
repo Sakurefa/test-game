@@ -1,6 +1,7 @@
 node_modules/
 dist/
 release/
+electron-app/
 out/
 .DS_Store
 Thumbs.db

@@ -243,7 +243,7 @@ async function createSaveSlot(root, id, name = "New Save") {
 }
 
 async function writeGameState(root, id, state) {
-  if (!state || typeof state !== "object" || Array.isArray(state) || state.schemaVersion !== 5) {
+  if (!state || typeof state !== "object" || Array.isArray(state) || state.schemaVersion !== 6) {
     throw new Error("Invalid or unsupported game state");
   }
   const directory = await getSafeSlotDirectory(root, id);
@@ -278,7 +278,7 @@ async function readGameState(root, id) {
     throw new Error("Game-state file is missing, linked or too large");
   }
   const state = JSON.parse(await fs.readFile(file, "utf8"));
-  if (!state || typeof state !== "object" || ![1, 2, 3, 4, 5].includes(state.schemaVersion)) throw new Error("Unsupported game-state schema");
+  if (!state || typeof state !== "object" || ![1, 2, 3, 4, 5, 6].includes(state.schemaVersion)) throw new Error("Unsupported game-state schema");
   return state;
 }
 

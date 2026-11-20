@@ -93,7 +93,7 @@ test("writes and restores a versioned game world inside its save slot", async (t
   await initializeStorage(root);
   await createSaveSlot(root, "slot_world", "Frontier Test");
   const state = {
-    schemaVersion: 5,
+    schemaVersion: 6,
     contentHash: "test-content",
     universeId: "test-universe",
     clock: { date: "2478-04-01", day: 0 },
@@ -102,7 +102,9 @@ test("writes and restores a versioned game world inside its save slot", async (t
     domainEventSequence: 0,
     domainEvents: [],
     commandReceipts: [],
-    colonies: { "test-colony": { stockpiles: { ore: 10 } } }
+    colonies: { "test-colony": { stockpiles: { ore: 10 } } },
+    player: { factionId: "test-faction", accountId: "player-main" },
+    finance: { currencies: { CR: { id: "CR", minorUnitDigits: 2 } }, accounts: {}, sequence: 0, transactions: [] }
   };
   await writeGameState(root, "slot_world", state);
   assert.deepEqual(await readGameState(root, "slot_world"), state);

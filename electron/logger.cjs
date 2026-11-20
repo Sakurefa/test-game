@@ -1,8 +1,8 @@
 const fs = require("node:fs");
 const path = require("node:path");
 
-const MAX_LOG_BYTES = 25 * 1024 * 1024;
-const MAX_RUNTIME_ARCHIVES = 3;
+const MAX_LOG_BYTES = 100 * 1024 * 1024;
+const MAX_RUNTIME_ARCHIVES = 4;
 const LEVELS = new Set(["DEBUG", "INFO", "WARN", "ERROR"]);
 const instances = new Map();
 

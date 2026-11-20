@@ -191,8 +191,13 @@ function installWorldCommandGateway() {
 
 function getActiveWorldSnapshot() {
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
-  campaignTime.tick();
-  return { ...createSnapshot(activeWorld, activeCatalog), saveId: activeSaveId, dirty: activeWorldDirty, timeControl: campaignTime.getState() };
+  try {
+    campaignTime.tick();
+    return { ...createSnapshot(activeWorld, activeCatalog), saveId: activeSaveId, dirty: activeWorldDirty, timeControl: campaignTime.getState() };
+  } catch (error) {
+    void failActiveWorld(error, "world.snapshot");
+    throw error;
+  }
 }
 
 function getActiveWorldClockStatus() {

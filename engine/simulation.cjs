@@ -322,6 +322,13 @@ function settleDay(world, catalog) {
 }
 
 function validateDayInputs(world, catalog) {
+  if (!world || world.schemaVersion !== GAME_STATE_SCHEMA_VERSION) {
+    throw new Error("DAY_INPUT unsupported or invalid game-state schema");
+  }
+  if (world.contentHash !== catalog.contentHash) {
+    throw new Error("This save was created with different Mod content. Restore the matching Mods before loading.");
+  }
+  if (world.universeId !== catalog.universe.id) throw new Error("Save universe does not match the loaded content");
   if (!world?.clock || !Number.isInteger(world.clock.day) || typeof world.clock.date !== "string") {
     throw new Error("DAY_INPUT world.clock.day/date is missing or invalid");
   }

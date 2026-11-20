@@ -66,11 +66,11 @@ test("creates, lists and removes versioned save slots", async (t) => {
 test("migrates settings without schema version and rejects future schemas", async (t) => {
   const root = await fixture(t);
   await initializeStorage(root);
-  await fs.writeFile(path.join(root, "setting", "graphics.ini"), "[graphics]\\nui_scale = 120\\n");
+  await fs.writeFile(path.join(root, "setting", "graphics.ini"), "[graphics]\nui_scale = 120\n");
   const settings = await readSettings(root);
   assert.equal(settings.graphics.ui_scale, 120);
   assert.match(await fs.readFile(path.join(root, "setting", "graphics.ini"), "utf8"), /schema_version = 1/);
-  await fs.writeFile(path.join(root, "setting", "graphics.ini"), "[graphics]\\nschema_version = 999\\n");
+  await fs.writeFile(path.join(root, "setting", "graphics.ini"), "[graphics]\nschema_version = 999\n");
   await assert.rejects(() => readSettings(root), /Unsupported graphics settings schema version/);
 });
 

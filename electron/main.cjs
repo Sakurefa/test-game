@@ -298,7 +298,7 @@ handleIpc("world:dispatch-command", async (_event, command) => {
     const outcome = activeCommandGateway.dispatch(command);
     return { ...outcome, snapshot: getActiveWorldSnapshot() };
   } catch (error) {
-    if (error.code === "WORLD_COMMAND_EXECUTION_FAILURE" || error.code === "SIMULATION_SYSTEM_FAILURE") {
+    if (error.code === "WORLD_COMMAND_EXECUTION_FAILURE" || error.code === "WORLD_COMMAND_COMMIT_FAILURE" || error.code === "SIMULATION_SYSTEM_FAILURE") {
       void failActiveWorld(error, "world.command");
     }
     throw error;

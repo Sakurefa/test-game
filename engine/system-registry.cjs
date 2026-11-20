@@ -59,6 +59,18 @@ function createSystemRegistry(definitions) {
   const systems = Object.freeze(ordered);
   const getSystem = (id) => systems.find((system) => system.id === id) || null;
 
+  function executeUpdate(system, args) {
+    try {
+      const result = system.update?.(args);
+      assertSync(result, "update", system.id);
+      return result;
+    } catch (error) {
+      const failure = new Error(`Simulation system ${system.id}.update failed: ${error.message}`, { cause: error });
+      failure.code = "SIMULATION_SYSTEM_FAILURE";
+      throw failure;
+    }
+  }
+
   function initialize(context = {}) {
     for (const system of systems) {
       const result = system.initialize?.(context);
@@ -78,8 +90,7 @@ function createSystemRegistry(definitions) {
         : system.cadence === "weekly" ? day > 0 && day % 7 === 0
           : false;
       if (!due || world.scheduler.lastRunDayBySystem[system.id] === day) continue;
-      const result = system.update?.({ ...context, world, day, systemId: system.id });
-      assertSync(result, "update", system.id);
+      executeUpdate(system, { ...context, world, day, systemId: system.id });
       world.scheduler.lastRunDayBySystem[system.id] = day;
       ran.push(system.id);
     }
@@ -92,9 +103,7 @@ function createSystemRegistry(definitions) {
     if (system.cadence !== "manual") throw new Error(`Simulation system ${id} is not manually triggered`);
     if (!world || typeof world !== "object") throw new TypeError("A world is required to run a manual simulation system");
     const day = Number.isInteger(world.clock?.day) ? world.clock.day : 0;
-    const result = system.update?.({ ...context, world, day, systemId: id, manual: true });
-    assertSync(result, "update", system.id);
-    return result;
+    return executeUpdate(system, { ...context, world, day, systemId: id, manual: true });
   }
 
   function save(context = {}) {

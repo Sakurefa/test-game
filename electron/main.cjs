@@ -7,7 +7,8 @@ const {
   createSaveSlot, readGameState, writeGameState, removeSaveSlot, isSafeSlotId
 } = require("./storage.cjs");
 const { compileCatalog } = require("../engine/catalog.cjs");
-const { createWorld, advanceDay, createSnapshot, validateWorldState } = require("../engine/simulation.cjs");
+const { createWorld, advanceDay, advanceCampaignTime, migrateWorldState, createSnapshot, validateWorldState } = require("../engine/simulation.cjs");
+const { CampaignTimeController } = require("../engine/campaign-time.cjs");
 const { getLogger } = require("./logger.cjs");
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
@@ -21,6 +22,23 @@ let activeCatalog = null;
 let activeSaveId = null;
 let activeWorldDirty = false;
 const cleanupTasks = new Set();
+const campaignTime = new CampaignTimeController({
+  baseDayDurationMs: 60000,
+  onAdvance: (elapsedGameDays) => {
+    if (!activeWorld || !activeCatalog) return;
+    const result = advanceCampaignTime(activeWorld, activeCatalog, elapsedGameDays);
+    if (result.daysAdvanced > 0 || result.dayFraction !== 0) activeWorldDirty = true;
+  }
+});
+const campaignTimer = setInterval(() => {
+  try {
+    campaignTime.tick();
+  } catch (error) {
+    campaignTime.pause();
+    logger.error("world.clock", error);
+  }
+}, 100);
+campaignTimer.unref?.();
 
 function getModsDirectory() {
   return path.join(GAME_ROOT, "mods");
@@ -94,12 +112,14 @@ async function loadWorldCatalog() {
 
 function getActiveWorldSnapshot() {
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
-  return { ...createSnapshot(activeWorld, activeCatalog), saveId: activeSaveId, dirty: activeWorldDirty };
+  campaignTime.tick();
+  return { ...createSnapshot(activeWorld, activeCatalog), saveId: activeSaveId, dirty: activeWorldDirty, timeControl: campaignTime.getState() };
 }
 
 handleIpc("world:start-new", async () => {
   activeCatalog = await loadWorldCatalog();
   activeWorld = createWorld(activeCatalog, { seed: Date.now() });
+  campaignTime.reset();
   activeSaveId = `slot_demo_${Date.now().toString(36)}`;
   await createSaveSlot(GAME_ROOT, activeSaveId, activeWorld.metadata.name);
   await writeGameState(GAME_ROOT, activeSaveId, activeWorld);
@@ -111,16 +131,27 @@ handleIpc("world:start-new", async () => {
 handleIpc("world:load-save", async (_event, saveId) => {
   if (!isSafeSlotId(saveId)) throw new Error("Invalid save slot ID");
   activeCatalog = await loadWorldCatalog();
-  activeWorld = await readGameState(GAME_ROOT, saveId);
+  activeWorld = migrateWorldState(await readGameState(GAME_ROOT, saveId));
   validateWorldState(activeWorld, activeCatalog);
+  campaignTime.reset();
   activeSaveId = saveId;
   activeWorldDirty = false;
   logger.info("world", `Loaded world from ${saveId}`);
   return getActiveWorldSnapshot();
 });
 
+handleIpc("world:set-speed", async (_event, speed) => {
+  if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
+  const state = campaignTime.setSpeed(speed);
+  logger.info("world.clock", state.paused ? "Campaign time paused" : `Campaign time set to ${state.speed}x`);
+  return getActiveWorldSnapshot();
+});
+
+handleIpc("world:time-status", async () => getActiveWorldSnapshot());
+
 handleIpc("world:advance-day", async () => {
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
+  campaignTime.pause();
   advanceDay(activeWorld, activeCatalog);
   activeWorldDirty = true;
   logger.info("world", `Advanced to day ${activeWorld.clock.day} (${activeWorld.clock.date})`);
@@ -129,13 +160,26 @@ handleIpc("world:advance-day", async () => {
 
 handleIpc("world:save", async () => {
   if (!activeWorld || !activeSaveId) throw new Error("No active world is loaded");
-  await writeGameState(GAME_ROOT, activeSaveId, activeWorld);
-  activeWorldDirty = false;
-  logger.info("world", `Saved world to ${activeSaveId}`);
-  return { saveId: activeSaveId, savedAt: new Date().toISOString() };
+  campaignTime.tick();
+  const worldBeingSaved = activeWorld;
+  const saveId = activeSaveId;
+  const previousSpeed = campaignTime.getState().speed;
+  campaignTime.pause();
+  try {
+    const consistentSnapshot = structuredClone(worldBeingSaved);
+    await writeGameState(GAME_ROOT, saveId, consistentSnapshot);
+    if (activeWorld === worldBeingSaved && activeSaveId === saveId) activeWorldDirty = false;
+    logger.info("world", `Saved world to ${saveId}`);
+    return { saveId, savedAt: new Date().toISOString() };
+  } finally {
+    if (activeWorld === worldBeingSaved && activeSaveId === saveId && previousSpeed > 0) {
+      campaignTime.setSpeed(previousSpeed);
+    }
+  }
 });
 
 handleIpc("world:leave", async () => {
+  campaignTime.pause();
   logger.info("world", `Leaving active world ${activeSaveId || "unknown"}`);
   activeWorld = null;
   activeCatalog = null;
@@ -157,6 +201,7 @@ handleIpc("settings:read", async () => {
 handleIpc("settings:write", async (_event, patch) => {
   await ensureStorage();
   const result = await writeSettings(GAME_ROOT, patch);
+  campaignTime.setBaseDayDurationMs(result.settings.simulation.base_day_seconds * 1000);
   logger.info("settings", `Updated settings groups: ${result.changed.join(", ")}`);
   const window = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
   if (window && result.settings.graphics) {
@@ -279,6 +324,7 @@ app.whenReady().then(async () => {
     logger.info("startup", `Application ready; platform=${process.platform}; electron=${process.versions.electron}; node=${process.versions.node}`);
     await ensureStorage();
     const settings = await readSettings(GAME_ROOT);
+    campaignTime.setBaseDayDurationMs(settings.simulation.base_day_seconds * 1000);
     const core = await getCoreContent();
     if (!core.ok) logger.error("startup", "Core content is unavailable; title screen will still open");
     createWindow(settings);
@@ -304,7 +350,10 @@ app.on("before-quit", (event) => {
 app.on("child-process-gone", (_event, details) => {
   logger.error("process.child-gone", details);
 });
-app.on("will-quit", () => logger.info("shutdown", "Application will quit"));
+app.on("will-quit", () => {
+  clearInterval(campaignTimer);
+  logger.info("shutdown", "Application will quit");
+});
 app.on("window-all-closed", () => {
   logger.info("window", "All windows closed");
   if (process.platform !== "darwin") app.quit();

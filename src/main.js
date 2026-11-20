@@ -1,4 +1,5 @@
 import "./styles.css";
+import "./time-controls.css";
 import { renderWorld } from "./world.js";
 
 const app = document.querySelector("#app");
@@ -70,6 +71,44 @@ function renderActiveWorld() {
   app.innerHTML = renderWorld(state.world, state.worldTab, state.worldNotice);
 }
 
+function updateCampaignTimeDisplay(snapshot) {
+  const day = snapshot.world.clock.day;
+  const week = Math.floor(day / 7) + 1;
+  const progress = Math.floor((snapshot.world.clock.dayFraction || 0) * 100);
+  const dayLabel = app.querySelector("[data-world-day]");
+  if (dayLabel) dayLabel.textContent = `第 ${day} 天 · 第 ${week} 周 · ${progress}% 日进度`;
+  const dateLabel = app.querySelector("[data-world-date]");
+  if (dateLabel) dateLabel.textContent = snapshot.world.clock.date;
+  const status = app.querySelector("[data-time-label]");
+  if (status) status.textContent = snapshot.timeControl?.paused ? "时间已暂停" : `世界时间 · ${snapshot.timeControl?.speed || 1}x`;
+  for (const button of app.querySelectorAll("[data-world-action='set-speed']")) {
+    const selected = Number(button.dataset.speed) === snapshot.timeControl?.speed;
+    button.classList.toggle("selected", selected);
+    button.setAttribute("aria-pressed", String(selected));
+  }
+  const footer = app.querySelector("[data-save-status]");
+  if (footer) footer.textContent = `存档：${snapshot.saveId || "未命名"} · ${snapshot.dirty ? "有未保存更改" : "已保存"}`;
+}
+
+let worldPollInFlight = false;
+setInterval(async () => {
+  if (!hostAvailable() || state.page !== "world" || !state.world || state.busy || worldPollInFlight) return;
+  worldPollInFlight = true;
+  try {
+    const snapshot = await window.gameHost.world.getStatus();
+    if (state.page === "world" && state.world) {
+      const previousDay = state.world.clock.day;
+      state.world = snapshot;
+      if (snapshot.world.clock.day !== previousDay) renderActiveWorld();
+      else updateCampaignTimeDisplay(snapshot);
+    }
+  } catch (error) {
+    console.error("World status polling failed", error);
+  } finally {
+    worldPollInFlight = false;
+  }
+}, 500);
+
 async function enterNewWorld() {
   if (!hostAvailable()) {
     return subPage("开始新航程", "需要桌面运行环境。", '<p class="empty-state">请通过独立启动器打开游戏，浏览器预览不具备存档和模拟接口。</p>');
@@ -77,7 +116,7 @@ async function enterNewWorld() {
   try {
     state.world = await window.gameHost.world.startNew();
     state.worldTab = "overview";
-    state.worldNotice = "新航程已建立。你可以切换栏目查看世界，或推进一天观察生产与价格变化。";
+    state.worldNotice = "新航程已建立，世界时间初始暂停。使用右侧速度控制开始运行；市场每日更新，殖民地工业每七天结算一次。";
     renderActiveWorld();
   } catch (error) {
     subPage("无法启动世界", "核心内容未通过验证，或者存档目录不可写。", `<p class="error-state">${escapeHtml(error.message)}</p>`);
@@ -88,7 +127,7 @@ async function loadWorld(saveId) {
   try {
     state.world = await window.gameHost.world.loadSave(saveId);
     state.worldTab = "overview";
-    state.worldNotice = "存档载入成功。随机数状态与模拟日期已从存档恢复。";
+    state.worldNotice = "存档载入成功，世界时间默认暂停。日期、随机数与结算调度状态已从存档恢复。";
     renderActiveWorld();
   } catch (error) {
     subPage("无法载入存档", "该存档可能不是世界存档，或者所需 Mod 内容已经发生变化。", `<p class="error-state">${escapeHtml(error.message)}</p>`);
@@ -119,9 +158,11 @@ async function showSettings() {
     const general = state.settings.general;
     const graphics = state.settings.graphics;
     const audio = state.settings.audio;
+    const simulation = state.settings.simulation;
     subPage("设置", "修改后会写入游戏根目录 setting/，也可以直接编辑 INI 文件。", `
       <div class="setting-row"><div><b>窗口模式</b><small>独占全屏当前由 Electron 全屏窗口模拟，并非传统独占显示模式。</small></div><select id="window-mode"><option value="windowed" ${general.window_mode === "windowed" ? "selected" : ""}>窗口化</option><option value="borderless" ${general.window_mode === "borderless" ? "selected" : ""}>无边框全屏</option><option value="exclusive" ${general.window_mode === "exclusive" ? "selected" : ""}>独占全屏（兼容模拟）</option></select></div>
       <div class="setting-row"><div><b>UI 缩放</b><small>调整界面整体大小。</small></div><select id="ui-scale">${[80,90,100,110,120,130,140,150,160].map(v => `<option value="${v}" ${graphics.ui_scale === v ? "selected" : ""}>${v}%</option>`).join("")}</select></div>
+      <div class="setting-row"><div><b>基础时间流速</b><small>1x 下经过一个游戏日所需的现实秒数；暂停与 1x–4x 倍率独立。</small></div><select id="base-day-seconds">${[10,30,60,120,300,600].map(v => `<option value="${v}" ${simulation.base_day_seconds === v ? "selected" : ""}>${v} 秒 / 游戏日</option>`).join("")}</select></div>
       <div class="setting-row"><div><b>主音量</b><small>预留给后续音频系统。</small></div><select id="master-volume">${[0,25,50,75,100].map(v => `<option value="${v}" ${audio.master_volume === v ? "selected" : ""}>${v}%</option>`).join("")}</select></div>
       <div class="form-actions"><button class="action-button" data-action="save-settings">保存设置</button><span id="settings-result" class="inline-result"></span></div>
     `);
@@ -171,9 +212,13 @@ app.addEventListener("click", async (event) => {
     state.busy = true;
     try {
       const action = worldAction.dataset.worldAction;
-      if (action === "advance") {
+      if (action === "set-speed") {
+        const speed = Number(worldAction.dataset.speed);
+        state.world = await window.gameHost.world.setSpeed(speed);
+        state.worldNotice = speed === 0 ? "世界时间已暂停。" : `世界时间已切换为 ${speed}x。`;
+      } else if (action === "advance") {
         state.world = await window.gameHost.world.advanceDay();
-        state.worldNotice = "时间已推进一天。殖民地生产、市场报价与战争纪年均已更新。";
+        state.worldNotice = "兼容性调试操作：世界时间已推进一天。";
       } else if (action === "save") {
         const result = await window.gameHost.world.save();
         state.world.dirty = false;
@@ -210,7 +255,8 @@ app.addEventListener("click", async (event) => {
       const patch = {
         general: { window_mode: document.querySelector("#window-mode").value },
         graphics: { ui_scale: Number(document.querySelector("#ui-scale").value) },
-        audio: { master_volume: Number(document.querySelector("#master-volume").value) }
+        audio: { master_volume: Number(document.querySelector("#master-volume").value) },
+        simulation: { base_day_seconds: Number(document.querySelector("#base-day-seconds").value) }
       };
       await window.gameHost.settings.write(patch);
       result.textContent = "已保存。窗口模式已应用，部分设置可能需要重启。";

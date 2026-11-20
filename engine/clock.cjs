@@ -20,14 +20,34 @@ function addDays(dateString, days = 1) {
 
 function createClock(startDate) {
   parseDate(startDate);
-  return { date: startDate, day: 0 };
+  return { date: startDate, day: 0, dayFraction: 0 };
 }
 
 function advanceClock(clock, days = 1) {
   if (!clock || !Number.isInteger(clock.day) || clock.day < 0) {
     throw new TypeError("Invalid game clock state");
   }
-  return { date: addDays(clock.date, days), day: clock.day + days };
+  const fraction = clock.dayFraction ?? 0;
+  if (!Number.isFinite(fraction) || fraction < 0 || fraction >= 1) {
+    throw new TypeError("Invalid game clock day fraction");
+  }
+  return { date: addDays(clock.date, days), day: clock.day + days, dayFraction: fraction };
 }
 
-module.exports = { parseDate, addDays, createClock, advanceClock };
+function advanceClockTime(clock, elapsedGameDays) {
+  if (!Number.isFinite(elapsedGameDays) || elapsedGameDays < 0 || elapsedGameDays > 36500) {
+    throw new RangeError("Elapsed game time must be between 0 and 36500 days");
+  }
+  const fraction = clock?.dayFraction ?? 0;
+  if (!Number.isFinite(fraction) || fraction < 0 || fraction >= 1) {
+    throw new TypeError("Invalid game clock day fraction");
+  }
+  const total = fraction + elapsedGameDays;
+  const wholeDays = Math.floor(total + 1e-10);
+  const remainder = Math.max(0, Math.min(1 - Number.EPSILON, total - wholeDays));
+  const next = advanceClock(clock, wholeDays);
+  next.dayFraction = remainder < 1e-12 ? 0 : Number(remainder.toFixed(12));
+  return next;
+}
+
+module.exports = { parseDate, addDays, createClock, advanceClock, advanceClockTime };

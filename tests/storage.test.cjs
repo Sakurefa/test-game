@@ -33,8 +33,9 @@ test("initializes root setting, save and Logs directories with default INI files
   const settings = await readSettings(root);
   assert.equal(settings.general.window_mode, "windowed");
   assert.equal(settings.graphics.ui_scale, 100);
+  assert.equal(settings.simulation.base_day_seconds, 60);
   assert.equal(settings.mods.enabled.core, true);
-  for (const file of ["general.ini", "graphics.ini", "audio.ini", "mods.ini"]) {
+  for (const file of ["general.ini", "graphics.ini", "audio.ini", "simulation.ini", "mods.ini"]) {
     assert.ok(await fs.stat(path.join(root, "setting", file)));
   }
   for (const directory of ["save", "Logs"]) assert.ok(await fs.stat(path.join(root, directory)));
@@ -43,12 +44,14 @@ test("initializes root setting, save and Logs directories with default INI files
 test("writes validated settings atomically and prevents disabling core", async (t) => {
   const root = await fixture(t);
   await initializeStorage(root);
-  await writeSettings(root, { graphics: { ui_scale: 120 }, mods: { enabled: { core: false, example: true } } });
+  await writeSettings(root, { graphics: { ui_scale: 120 }, simulation: { base_day_seconds: 120 }, mods: { enabled: { core: false, example: true } } });
   const settings = await readSettings(root);
   assert.equal(settings.graphics.ui_scale, 120);
+  assert.equal(settings.simulation.base_day_seconds, 120);
   assert.equal(settings.mods.enabled.core, true);
   assert.equal(settings.mods.enabled.example, true);
   await assert.rejects(() => writeSettings(root, { graphics: { ui_scale: 999 } }), /Invalid setting/);
+  await assert.rejects(() => writeSettings(root, { simulation: { base_day_seconds: 5 } }), /Invalid setting/);
 });
 
 test("creates, lists and removes versioned save slots", async (t) => {
@@ -90,7 +93,7 @@ test("writes and restores a versioned game world inside its save slot", async (t
   await initializeStorage(root);
   await createSaveSlot(root, "slot_world", "Frontier Test");
   const state = {
-    schemaVersion: 1,
+    schemaVersion: 2,
     contentHash: "test-content",
     universeId: "test-universe",
     clock: { date: "2478-04-01", day: 0 },

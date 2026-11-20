@@ -154,18 +154,25 @@ export function renderWorld(snapshot, activeTab = "overview", notice = "") {
     <main class="world-screen">
       <header class="world-header">
         <div class="world-brand"><span class="world-mark">F</span><div><b>FRONTIER</b><small>STAR SYSTEMS SIMULATION</small></div></div>
-        <div class="world-date"><small>GALACTIC DATE</small><b>${escapeHtml(snapshot.world.clock.date)}</b><span>第 ${snapshot.world.clock.day} 天</span></div>
+        <div class="world-date"><small>GALACTIC DATE</small><b data-world-date>${escapeHtml(snapshot.world.clock.date)}</b><span data-world-day>第 ${snapshot.world.clock.day} 天 · 第 ${Math.floor(snapshot.world.clock.day / 7) + 1} 周 · ${Math.floor((snapshot.world.clock.dayFraction || 0) * 100)}% 日进度</span></div>
       </header>
       <div class="world-toolbar">
         <div class="world-tabs">${tabs.map(([id, label]) => `<button data-world-tab="${id}" class="${activeTab === id ? "active" : ""}">${label}</button>`).join("")}</div>
         <div class="world-actions">
-          <button data-world-action="advance" class="world-primary">推进一天</button>
+          <span class="time-control-label" data-time-label>${snapshot.timeControl?.paused ? "时间已暂停" : `世界时间 · ${snapshot.timeControl?.speed || 1}x`}</span>
+          <div class="time-speed-buttons">
+            <button data-world-action="set-speed" data-speed="0" title="暂停世界时间" class="${snapshot.timeControl?.speed === 0 ? "selected" : ""}" aria-pressed="${snapshot.timeControl?.speed === 0}">Ⅱ</button>
+            <button data-world-action="set-speed" data-speed="1" title="以 1 倍速度运行" class="${snapshot.timeControl?.speed === 1 ? "selected" : ""}" aria-pressed="${snapshot.timeControl?.speed === 1}">1x</button>
+            <button data-world-action="set-speed" data-speed="2" title="以 2 倍速度运行" class="${snapshot.timeControl?.speed === 2 ? "selected" : ""}" aria-pressed="${snapshot.timeControl?.speed === 2}">2x</button>
+            <button data-world-action="set-speed" data-speed="3" title="以 3 倍速度运行" class="${snapshot.timeControl?.speed === 3 ? "selected" : ""}" aria-pressed="${snapshot.timeControl?.speed === 3}">3x</button>
+            <button data-world-action="set-speed" data-speed="4" title="以 4 倍速度运行" class="${snapshot.timeControl?.speed === 4 ? "selected" : ""}" aria-pressed="${snapshot.timeControl?.speed === 4}">4x</button>
+          </div>
           <button data-world-action="save">保存世界</button>
           <button data-world-action="leave">返回主菜单</button>
         </div>
       </div>
       ${notice ? `<div class="world-notice">${escapeHtml(notice)}</div>` : ""}
       <div class="world-content">${content}</div>
-      <footer class="world-footer"><span>存档：${escapeHtml(snapshot.saveId || "未命名")} · ${snapshot.dirty ? "有未保存更改" : "已保存"}</span><span>世界版本 ${snapshot.world.schemaVersion} · 内容指纹 ${snapshot.world.contentHash.slice(0, 10)}</span></footer>
+      <footer class="world-footer"><span data-save-status>存档：${escapeHtml(snapshot.saveId || "未命名")} · ${snapshot.dirty ? "有未保存更改" : "已保存"}</span><span>世界版本 ${snapshot.world.schemaVersion} · 内容指纹 ${snapshot.world.contentHash.slice(0, 10)}</span></footer>
     </main>`;
 }

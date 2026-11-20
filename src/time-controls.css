@@ -1,0 +1,7 @@
+.world-actions{flex-wrap:nowrap}
+.time-control-label{color:#8298b4;font-size:9px;white-space:nowrap;margin-right:3px}
+.time-speed-buttons{display:flex;align-items:center;gap:3px;padding:3px;border:1px solid rgba(147,174,211,.17);border-radius:6px;background:rgba(7,15,25,.55)}
+.time-speed-buttons button{min-width:33px;padding:6px 8px;border-color:transparent;background:transparent;color:#8196b1}
+.time-speed-buttons button.selected{border-color:rgba(129,174,224,.48);background:rgba(65,101,145,.52);color:#e6f0ff}
+.time-speed-buttons button[aria-pressed="true"]{font-weight:700}
+@media(max-width:900px){.world-actions{flex-wrap:wrap}.time-control-label{width:100%}}

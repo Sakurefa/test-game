@@ -8,6 +8,7 @@ const DEFAULT_SETTINGS = {
   general: { schema_version: STORAGE_VERSION, language: "zh-CN", window_mode: "windowed" },
   graphics: { schema_version: STORAGE_VERSION, ui_scale: 100 },
   audio: { schema_version: STORAGE_VERSION, master_volume: 100, music_volume: 100, effects_volume: 100 },
+  simulation: { schema_version: STORAGE_VERSION, base_day_seconds: 60 },
   mods: { schema_version: STORAGE_VERSION, enabled: {} }
 };
 
@@ -60,6 +61,7 @@ function validateSetting(group, key, value) {
   if (group === "audio" && ["master_volume", "music_volume", "effects_volume"].includes(key)) {
     return Number.isInteger(value) && value >= 0 && value <= 100;
   }
+  if (group === "simulation" && key === "base_day_seconds") return Number.isInteger(value) && value >= 10 && value <= 3600;
   return false;
 }
 
@@ -241,7 +243,7 @@ async function createSaveSlot(root, id, name = "New Save") {
 }
 
 async function writeGameState(root, id, state) {
-  if (!state || typeof state !== "object" || Array.isArray(state) || state.schemaVersion !== 1) {
+  if (!state || typeof state !== "object" || Array.isArray(state) || state.schemaVersion !== 2) {
     throw new Error("Invalid or unsupported game state");
   }
   const directory = await getSafeSlotDirectory(root, id);
@@ -276,7 +278,7 @@ async function readGameState(root, id) {
     throw new Error("Game-state file is missing, linked or too large");
   }
   const state = JSON.parse(await fs.readFile(file, "utf8"));
-  if (!state || typeof state !== "object" || state.schemaVersion !== 1) throw new Error("Unsupported game-state schema");
+  if (!state || typeof state !== "object" || ![1, 2].includes(state.schemaVersion)) throw new Error("Unsupported game-state schema");
   return state;
 }
 

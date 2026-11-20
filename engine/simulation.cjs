@@ -1,8 +1,10 @@
 const { SeededRandom, hashSeed } = require("./random.cjs");
-const { createClock, advanceClock } = require("./clock.cjs");
+const { createClock, advanceClock, advanceClockTime } = require("./clock.cjs");
+const { createSystemRegistry } = require("./system-registry.cjs");
 
-const GAME_STATE_SCHEMA_VERSION = 1;
+const GAME_STATE_SCHEMA_VERSION = 2;
 const MAX_ADVANCE_DAYS = 30;
+const MAX_CAMPAIGN_CATCH_UP_DAYS = 3650;
 const LOG_LIMIT = 100;
 
 function localized(catalog, key) {
@@ -82,6 +84,7 @@ function createWorld(catalog, options = {}) {
     },
     universeId: catalog.universe.id,
     clock: createClock(catalog.universe.startDate),
+    scheduler: { lastRunDayBySystem: {} },
     rng: random.snapshot(),
     player: {
       factionId: options.playerFactionId || catalog.universe.defaultPlayerFactionId,
@@ -166,6 +169,44 @@ function updateMarket(catalog, marketState, colonyState, allColonyStates, random
   return changes;
 }
 
+
+const simulationSystems = createSystemRegistry([
+  {
+    id: "colonies.production",
+    cadence: "weekly",
+    order: 10,
+    update: ({ world, catalog, summary }) => {
+      for (const [colonyId, colonyState] of Object.entries(world.colonies)) {
+        summary.production[colonyId] = produceForColony(catalog, colonyState);
+      }
+    }
+  },
+  {
+    id: "economy.market-pricing",
+    cadence: "daily",
+    order: 20,
+    dependsOn: ["colonies.production"],
+    update: ({ world, catalog, random, summary }) => {
+      for (const marketState of Object.values(world.markets)) {
+        const definition = catalog.markets.get(marketState.id);
+        summary.market[marketState.id] = updateMarket(
+          catalog, marketState, world.colonies[definition.colonyId], world.colonies, random
+        );
+      }
+    }
+  },
+  {
+    id: "military.war-chronology",
+    cadence: "daily",
+    order: 30,
+    update: ({ world }) => {
+      for (const war of Object.values(world.wars)) {
+        if (war.status === "active") war.daysActive += 1;
+      }
+    }
+  }
+]);
+
 function appendEvent(world, event) {
   world.events.push(event);
   if (world.events.length > LOG_LIMIT) world.events.splice(0, world.events.length - LOG_LIMIT);
@@ -180,7 +221,12 @@ function validateWorldState(world, catalog) {
   }
   if (world.universeId !== catalog.universe.id) throw new Error("Save universe does not match the loaded content");
   if (!Number.isInteger(world.rng?.state) || !Number.isInteger(world.rng?.seed)) throw new Error("Save has an invalid random state");
-  if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)) throw new Error("Save has an invalid game clock");
+  if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)
+    || !Number.isFinite(world.clock.dayFraction) || world.clock.dayFraction < 0 || world.clock.dayFraction >= 1) {
+    throw new Error("Save has an invalid game clock");
+  }
+  if (!world.scheduler || typeof world.scheduler !== "object" || !world.scheduler.lastRunDayBySystem
+    || typeof world.scheduler.lastRunDayBySystem !== "object") throw new Error("Save has an invalid simulation scheduler state");
   for (const id of catalog.colonies.keys()) {
     if (!world.colonies?.[id] || !world.colonies[id].stockpiles) throw new Error(`Save is missing colony state: ${id}`);
   }
@@ -196,36 +242,62 @@ function validateWorldState(world, catalog) {
 function advanceDay(world, catalog) {
   validateWorldState(world, catalog);
   const random = new SeededRandom(world.rng.seed, world.rng.state);
-  const nextClock = advanceClock(world.clock, 1);
-  const productionSummary = {};
+  world.clock = advanceClock(world.clock, 1);
+  const summary = { production: {}, market: {} };
+  const systemsRun = simulationSystems.runDue({
+    world,
+    day: world.clock.day,
+    context: { catalog, random, summary }
+  });
 
-  for (const [colonyId, colonyState] of Object.entries(world.colonies)) {
-    productionSummary[colonyId] = produceForColony(catalog, colonyState);
-  }
-
-  const marketSummary = {};
-  for (const marketState of Object.values(world.markets)) {
-    const definition = catalog.markets.get(marketState.id);
-    marketSummary[marketState.id] = updateMarket(
-      catalog, marketState, world.colonies[definition.colonyId], world.colonies, random
-    );
-  }
-
-  for (const war of Object.values(world.wars)) {
-    if (war.status === "active") war.daysActive += 1;
-  }
-
-  world.clock = nextClock;
   world.rng = random.snapshot();
+  const productionCount = Object.keys(summary.production).length;
+  const marketCount = Object.keys(summary.market).length;
+  const report = productionCount > 0
+    ? `第 ${world.clock.day} 天结束：${productionCount} 个殖民地完成每周生产，${marketCount} 个市场更新报价。`
+    : `第 ${world.clock.day} 天结束：${marketCount} 个市场更新报价。`;
   appendEvent(world, {
     id: `day-${world.clock.day}`,
     day: world.clock.day,
     date: world.clock.date,
     type: "daily-report",
-    text: `第 ${world.clock.day} 天结束：${Object.keys(world.colonies).length} 个殖民地完成生产，${Object.keys(world.markets).length} 个市场更新报价。`,
-    production: productionSummary,
-    marketChanges: marketSummary
+    text: report,
+    production: summary.production,
+    marketChanges: summary.market,
+    systemsRun
   });
+  return world;
+}
+
+function advanceCampaignTime(world, catalog, elapsedGameDays) {
+  validateWorldState(world, catalog);
+  const targetClock = advanceClockTime(world.clock, elapsedGameDays);
+  const daysToAdvance = targetClock.day - world.clock.day;
+  if (daysToAdvance > MAX_CAMPAIGN_CATCH_UP_DAYS) {
+    throw new RangeError(`A single campaign-time update cannot exceed ${MAX_CAMPAIGN_CATCH_UP_DAYS} whole days`);
+  }
+  for (let index = 0; index < daysToAdvance; index += 1) advanceDay(world, catalog);
+  world.clock.dayFraction = targetClock.dayFraction;
+  return { daysAdvanced: daysToAdvance, dayFraction: world.clock.dayFraction, world };
+}
+
+function migrateWorldState(world) {
+  if (!world || typeof world !== "object" || Array.isArray(world)) throw new TypeError("Invalid saved world");
+  if (world.schemaVersion === 1) {
+    if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)) {
+      throw new Error("Legacy save has an invalid game clock");
+    }
+    world.clock.dayFraction = 0;
+    world.scheduler = { lastRunDayBySystem: {} };
+    world.schemaVersion = GAME_STATE_SCHEMA_VERSION;
+    return world;
+  }
+  if (world.schemaVersion !== GAME_STATE_SCHEMA_VERSION) {
+    throw new Error(`Unsupported or invalid game-state schema: ${world.schemaVersion}`);
+  }
+  if (world.clock && world.clock.dayFraction === undefined) world.clock.dayFraction = 0;
+  if (!world.scheduler) world.scheduler = { lastRunDayBySystem: {} };
+  if (!world.scheduler.lastRunDayBySystem) world.scheduler.lastRunDayBySystem = {};
   return world;
 }
 
@@ -295,6 +367,7 @@ function createSnapshot(world, catalog) {
 }
 
 module.exports = {
-  GAME_STATE_SCHEMA_VERSION, MAX_ADVANCE_DAYS, createWorld, advanceDay,
+  GAME_STATE_SCHEMA_VERSION, MAX_ADVANCE_DAYS, MAX_CAMPAIGN_CATCH_UP_DAYS,
+  createWorld, advanceDay, advanceCampaignTime, migrateWorldState,
   advanceDays, validateWorldState, createSnapshot
 };

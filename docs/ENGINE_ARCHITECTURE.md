@@ -9,23 +9,27 @@ The project is a multi-system frontier simulation. A commodity exchange is one s
 - **Production:** data-defined recipes, inputs, outputs, workforce and operating efficiency.
 - **Economy:** commodities, companies, markets, securities and later player orders/accounts.
 - **Military:** ship classes, fleets, readiness, orders, wars, fronts and later real-time battles.
-- **Simulation kernel:** deterministic clock, seeded random state, ordered daily systems, event history and save validation.
+- **Simulation kernel:** continuous campaign clock, seeded random state, ordered daily/weekly systems, event history and save validation.
 - **Presentation:** renderer only displays snapshots and sends player commands. It does not own authoritative simulation state.
 
 ## Runtime contract
 
 The simulation engine is plain Node.js CommonJS under `engine/`. It does not import Electron, browser APIs, or renderer code. The Electron main process owns the active world and exposes a narrow IPC bridge. The renderer receives snapshots and submits commands; it never edits the authoritative state directly.
 
-The order for the current daily simulation is:
+The Electron main process owns the active world and its campaign-time controller. It samples a monotonic clock, converts elapsed real time through the configured base-day duration and selected 0x–4x speed, and passes fractional game days to the engine. The renderer only requests snapshots and issues time-control commands; UI polling and frame rate do not drive the simulation.
 
-1. Advance the world clock.
-2. Run colony industries in their declared order, consuming inputs before adding outputs.
-3. Recalculate commodity quotes from colony stock levels, then apply seeded market noise.
-4. Advance active-war chronology.
-5. Store a bounded daily report and the updated random-generator state.
+The simulation registry defines stable system IDs, cadence, priority, dependencies and optional initialize/update/save/restore/dispose lifecycle hooks. Dependencies are topologically ordered, updates are synchronous and deterministic, and each system records its last execution day in the world save. A system cannot run twice on the same day after a save/load or repeated scheduler call.
 
-A saved game records its world schema version, content fingerprint, clock, random state and dynamic entities. Loading against a different content fingerprint is rejected explicitly rather than silently binding saved entities to changed Mod definitions. A future migration layer can replace this strict first version.
+The current campaign schedule is:
 
+1. **Every game day:** advance the calendar; update commodity and security quotes; advance active-war chronology; append a bounded daily report.
+2. **Every seventh elapsed game day (day 7, 14, 21…):** run colony industries once before that day’s market repricing, consuming inputs before adding outputs.
+3. **Every world tick:** persist fractional day progress without triggering daily systems before the calendar boundary is crossed.
+
+The initial base rate is one game day per 60 real seconds at 1x. The 1x–4x multiplier is independent of this rate and can be tuned through `setting/simulation.ini` (`base_day_seconds`). New games and loaded games start paused. The engine clock itself does not depend on wall-clock timestamps.
+
+A saved game records its world schema version, content fingerprint, calendar date/day/fraction, scheduler markers, random state and dynamic entities. Version-1 world saves migrate by preserving date/day and initializing the fractional time and scheduler state. Loading against a different content fingerprint is still rejected explicitly rather than silently binding saved entities to changed Mod definitions.
+ 
 ## Data-only Mod contract
 
 A Mod package is INI-only. Its manifest, registry declarations, content definitions and localization files all use INI. JSON files and inline JSON arrays/objects are rejected by the loader. The root npm `package.json` is project build metadata and is not part of the Mod format.
@@ -45,13 +49,14 @@ Mods are data-only: they cannot execute scripts, ship native code or provide run
 
 ## Determinism
 
-A world stores both the original seed and the current PRNG state. Advancing the same catalog and state produces the same results. Random state is part of the save format; loading a save does not restart its random sequence.
+A world stores both the original seed and the current PRNG state. Advancing the same catalog and state produces the same results. Random state is part of the save format; loading a save does not restart its random sequence. Scheduler execution markers and campaign-day fractions are saved too, so loading cannot accidentally duplicate a daily or weekly update.
 
+The current engine still uses one seeded random stream. Stable named streams and formula audit records are the next simulation-foundation phase; they are not yet implemented.
+ 
 ## Current prototype boundary
 
-The first prototype advances in daily steps. Colony production and market pricing are live. Fleets, ship classes and war state are registered, validated and displayed, but tactical combat, fleet movement, logistics between colonies, diplomacy and player financial orders are not implemented yet.
-
-
+The campaign world now runs continuously under pause and 1x–4x controls. Market repricing and war chronology are daily systems; colony production is weekly. Fleets, ship classes and war state remain static registered data. Tactical combat, fleet movement, logistics between colonies, diplomacy and player financial orders are not implemented. Tactical combat is explicitly deferred and will require its own independent real-time simulation rather than being added to the campaign scheduler.
+ 
 ## World model and future subsystem seams
 
 ### Spatial and political layer
@@ -80,12 +85,12 @@ A tactical battle should be its own bounded simulation instance with participati
 
 This separation is essential for pause, speed controls, AI battles, save/load and future multiplayer possibilities. No tactical damage model or command model is assumed in the current prototype.
 
-## Simulation ordering and determinism
+## Simulation ordering and system contracts
 
-The daily campaign step currently follows a fixed order: colony production, local market repricing, war chronology, clock commit and daily report. New systems should be assigned explicit phases and stable ordering. Systems should not mutate unrelated subsystems' state without a clear contract.
+New simulation systems should be registered with stable IDs, explicit cadence, deterministic priority and declared dependencies. A system may optionally provide initialization, update, save, restore and disposal hooks. Systems must not depend on renderer timing, Electron APIs, audio playback or direct DOM state. Cross-system changes should be expressed through well-defined inputs and outputs; the future event/command layer will formalize this boundary.
 
-The current PRNG is deterministic and its state is saved. As more systems are added, random streams should be separated by stable subsystem keys (for example economy, events and military). Otherwise adding one random event could change every later market quote, making balance tests and save replays harder to compare.
-
+The current registry supports daily, weekly and manual cadences. Weekly scheduling is anchored to the campaign start: it runs after every seven elapsed days (day 7, 14, 21…). The scheduler records the last day each system ran, and its registry order ensures weekly production executes before market repricing on a shared boundary day.
+ 
 ## Development roadmap
 
 1. **World kernel (current):** validated universe graph, locations, factions, colonies, recipes, commodities, markets, fleet definitions, seeded time and save/load.
@@ -97,3 +102,16 @@ The current PRNG is deterministic and its state is saved. As more systems are ad
 7. **Living world:** event scheduling, diplomacy, policies, missions, additional content and community scenarios.
 
 Each phase should be playable and testable before the next adds complexity. The goal is not to finish seven disconnected subsystems; it is to make each one read and change the same persistent world.
+
+
+## Extensible service and presentation direction
+
+The authoritative engine remains plain Node.js and must not import Electron or browser code. Future capabilities should enter through narrow adapters rather than being embedded into simulation rules:
+
+- **Commands and domain events:** validated player/AI commands enter the world; typed events describe completed world changes. UI, logs, audio and visual effects consume those events without mutating simulation state.
+- **Assets:** stable asset IDs resolve through a central catalogue/loader with validation, caching and lifecycle management. Image/texture, sprite/animation, particle, audio and font resources share identity and metadata conventions but use suitable resource-specific loaders.
+- **Presentation:** DOM remains responsible for menus, settings and accessible controls. A renderer-neutral scene interface will host the star map, colonies and other 2D spaces. A backend such as PixiJS may implement that interface, but engine rules must not depend on the selected renderer.
+- **Audio:** sound playback and mixing belong to a presentation service. Simulation events may request sound cues by ID; the engine must remain testable without an audio device.
+- **Mod safety:** Mods remain data-only INI packages. Future image/audio/font assets may be declared by data manifests and validated against safe path, size, type and namespace rules. Assets do not grant script execution, runtime hooks or native-code access.
+
+These are architectural seams, not claims that the asset manager, event bus, renderer or audio engine already exist. They should be introduced in small independently tested increments. Tactical combat is a later isolated subsystem and is not part of this foundation phase.

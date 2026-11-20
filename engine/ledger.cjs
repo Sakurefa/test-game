@@ -142,7 +142,10 @@ function createTransferCommand(){
      amountMinor:payload.amountMinor,fromBalanceMinor:world.finance.accounts[payload.fromAccountId].balanceMinor,
      toBalanceMinor:world.finance.accounts[payload.toAccountId].balanceMinor},
     events:[{type:"finance.transfer-settled",scope:"account",subjectId:payload.fromAccountId,
-     payload:{transactionId:transaction.id,toAccountId:payload.toAccountId,currency:world.finance.accounts[payload.fromAccountId].currency,amountMinor:payload.amountMinor}}]
+     payload:{commandId,transactionId:transaction.id,fromAccountId:payload.fromAccountId,toAccountId:payload.toAccountId,
+      currency:world.finance.accounts[payload.fromAccountId].currency,amountMinor:payload.amountMinor,
+      fromBalanceMinor:world.finance.accounts[payload.fromAccountId].balanceMinor,
+      toBalanceMinor:world.finance.accounts[payload.toAccountId].balanceMinor}}]
    };
   }
  };

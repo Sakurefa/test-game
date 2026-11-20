@@ -105,6 +105,7 @@ function createCommandDispatcher(definitions=[],options={}){
    ||!isRecord(command.payload))throw new TypeError("Invalid command envelope");
   if(world.commandReceipts!==undefined&&!Array.isArray(world.commandReceipts))throw new Error("World has an invalid command receipt history");
   const receipts=world.commandReceipts??[];
+  if(world.commandReceipts!==undefined)validateCommandReceiptState(world);
   const payload=normalizeJson(command.payload,"Command payload",MAX_COMMAND_PAYLOAD_BYTES);
   const signature=command.type+"\n"+payload.serialized;
   const prior=receipts.find(receipt=>receipt.commandId===command.commandId);
@@ -123,15 +124,17 @@ function createCommandDispatcher(definitions=[],options={}){
 
   const draft=structuredClone(world);
   if(!Array.isArray(draft.commandReceipts))draft.commandReceipts=[];
+  const receiptsBeforeHandler=JSON.stringify(draft.commandReceipts);
   const rawOutcome=assertSynchronous(definition.execute({
    world:draft,payload:structuredClone(payload.value),context,commandId:command.commandId
   }),"Command handler "+command.type);
+  if(JSON.stringify(draft.commandReceipts)!==receiptsBeforeHandler)throw new Error("Command handler "+command.type+" cannot modify command receipts");
   if(!isRecord(rawOutcome)||Object.keys(rawOutcome).some(key=>!["result","events"].includes(key)))throw new TypeError("Command handler "+command.type+" must return { result, events }");
   const result=normalizeJson(rawOutcome.result===undefined?null:rawOutcome.result,"Command result",MAX_COMMAND_RESULT_BYTES).value;
   const events=normalizeCommandEvents(rawOutcome.events??[],command.commandId);
   if(options.validateWorld){
    const validation=assertSynchronous(options.validateWorld(draft,context),"Command world validation");
-   if(validation===false)throw new Error("Command produced an invalid world state");
+   runGuard(()=>validation,{},"Command world validation");
   }
   const day=Number.isInteger(draft.clock?.day)?draft.clock.day:0;
   draft.commandReceipts.push({commandId:command.commandId,type:command.type,signature,day,result:structuredClone(result)});

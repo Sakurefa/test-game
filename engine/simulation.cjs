@@ -250,13 +250,13 @@ function createSnapshot(world, catalog) {
     state: world.markets[definition.id],
     instruments: [
       ...(definition.commodityIds || []).map((id) => ({
-        id, kind: "commodity", name: catalog.commodities.get(id).name,
+        id, kind: "commodity", name: catalog.localizations?.[catalog.defaultLocale]?.[catalog.commodities.get(id).nameKey] || id,
         unit: catalog.commodities.get(id).unit, price: world.markets[definition.id].prices[id],
         change: world.markets[definition.id].lastChanges[id] || 0,
         stock: world.colonies[definition.colonyId].stockpiles[id] || 0
       })),
       ...(definition.securityIds || []).map((id) => ({
-        id, kind: "equity", name: catalog.securities.get(id).name,
+        id, kind: "equity", name: catalog.localizations?.[catalog.defaultLocale]?.[catalog.securities.get(id).nameKey] || id,
         ticker: catalog.securities.get(id).ticker, unit: "股",
         price: world.markets[definition.id].prices[id],
         change: world.markets[definition.id].lastChanges[id] || 0

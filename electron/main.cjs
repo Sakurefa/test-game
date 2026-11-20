@@ -37,9 +37,9 @@ async function readModPackages() {
     const directory = path.join(root, entry.name);
     try {
       const manifestPath = path.join(directory, "manifest.json");
-      const manifestStat = await fs.stat(manifestPath);
-      if (!manifestStat.isFile() || manifestStat.size > 64 * 1024) {
-        throw new Error("Manifest is missing or too large");
+      const manifestStat = await fs.lstat(manifestPath);
+      if (!manifestStat.isFile() || manifestStat.isSymbolicLink() || manifestStat.size > 64 * 1024) {
+        throw new Error("Manifest is missing, linked or too large");
       }
 
       const manifest = JSON.parse(await fs.readFile(manifestPath, "utf8"));
@@ -55,13 +55,19 @@ async function readModPackages() {
         throw new Error("Invalid manifest or unsupported Mod API version");
       }
 
+      const dataDirectory = path.join(directory, "data");
+      const dataDirectoryStat = await fs.lstat(dataDirectory);
+      if (!dataDirectoryStat.isDirectory() || dataDirectoryStat.isSymbolicLink()) {
+        throw new Error("Mod data directory is missing or linked");
+      }
+
       const uniqueFiles = [...new Set(manifest.dataFiles)];
       const data = {};
       for (const file of uniqueFiles) {
-        const filePath = path.join(directory, "data", file);
-        const stat = await fs.stat(filePath);
-        if (!stat.isFile() || stat.size > MAX_MOD_JSON_BYTES) {
-          throw new Error(`Data file is missing or too large: ${file}`);
+        const filePath = path.join(dataDirectory, file);
+        const stat = await fs.lstat(filePath);
+        if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_MOD_JSON_BYTES) {
+          throw new Error(`Data file is missing, linked or too large: ${file}`);
         }
         data[file] = JSON.parse(await fs.readFile(filePath, "utf8"));
       }

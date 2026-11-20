@@ -1,41 +1,38 @@
-# Mod API v2
+# Mod API v3 — Data-only packages
 
-Market Simulator separates the **engine** from **game content**.
+Market Simulator separates the engine from game content. The engine owns all executable behavior. Mods provide declarative data only.
 
-- The engine lives in `electron/` and `src/core/`. It owns the desktop host, rendering, save access, Mod discovery and content parsing.
-- The required first-party content package lives in `mods/core/`. Game definitions and other non-engine content will be authored there, primarily as editable `.ini` files.
-- Optional community packages live beside it in `mods/<mod-id>/`.
+**A Mod cannot ship or execute JavaScript, scripts, native binaries, runtime hooks or code patches.** If a game mechanic needs to change, the engine itself must be changed by the project maintainers. A future extension API, if ever needed, will be designed separately with explicit capabilities and permissions.
 
-The core package is a normal data Mod with a reserved ID: `core`. It is loaded through the same validation pipeline as other packages, but the host exposes it separately as the authoritative base content source.
-
-## Folder layout
+## Package layout
 
 ```text
 mods/
   core/
     manifest.json
-    data/
+    registry/
+      registry.ini
+    content/
       core.ini
+    localization/
+      zh-CN.ini
   example-market/
     manifest.json
-    data/
+    content/
       market-events.json
 ```
 
-The current `mods/core/data/core.ini` is only a structural placeholder. Actual game content is intentionally not migrated or authored as part of this infrastructure step.
+Every package has a `manifest.json`. The three data categories have distinct responsibilities:
 
-## Install a Mod
+- `registry/`: declares IDs, types, ownership and references so the engine can discover content.
+- `content/`: stores the actual game definitions and values.
+- `localization/`: maps stable text keys to language-specific strings.
 
-1. Close the game.
-2. Copy the Mod folder into `mods/`.
-3. Ensure `manifest.json` is directly inside that folder.
-4. Restart the game.
-
-The game does not download Mods automatically. Only install packages from sources you trust.
+The reserved `core` package is required and always enabled. Its contents establish the base game data. The current files are structural placeholders; actual gameplay content will be authored separately.
 
 ## Manifest
 
-API v2 manifests are JSON metadata files. Content files are declared explicitly:
+All three category arrays are required, even when empty:
 
 ```json
 {
@@ -44,24 +41,18 @@ API v2 manifests are JSON metadata files. Content files are declared explicitly:
   "version": "1.0.0",
   "author": "Community",
   "description": "An example content package.",
-  "apiVersion": 2,
-  "iniFiles": ["market.ini"],
-  "dataFiles": []
+  "apiVersion": 3,
+  "registryFiles": [],
+  "contentFiles": ["market-events.json"],
+  "localizationFiles": []
 }
 ```
 
-- `id`: required; must match the folder name.
-- `name`, `version`, `author`: required display metadata.
-- `description`: optional.
-- `apiVersion`: must be `2`.
-- `iniFiles`: optional list of INI files in `data/`.
-- `dataFiles`: optional list of JSON files in `data/`, retained for structured legacy data and compatibility during the transition.
+File declarations are simple filenames located directly inside their matching category directory. Path separators and parent traversal are not allowed. Supported files are `.ini` and `.json`. Duplicate declarations are rejected.
 
-File names must be simple names, not paths. A file cannot be declared twice.
+## INI format
 
-## INI content format
-
-INI is the preferred format for editable game content. It supports sections, key/value pairs, comments, quoted strings, typed scalar values and inline JSON arrays/objects.
+INI is the preferred human-editable format. It supports sections, key/value pairs, full-line comments, quoted strings, typed scalar values and inline JSON arrays/objects.
 
 ```ini
 ; Full-line comments start with ; or #
@@ -73,40 +64,34 @@ description = A fictional market for a sample scenario
 tickers = ["NOVA", "ORBT", "LUMA"]
 ```
 
-Rules:
-
 - Section headers use `[section-name]`.
-- Assignments use `key = value`; spaces around the separator are ignored.
-- Blank lines and lines beginning with `; ` or `#` are ignored.
+- Assignments use `key = value`.
 - `true`, `false` and `null` become boolean/null values.
 - Finite numeric literals become numbers.
-- Double-quoted strings use JSON string escaping, e.g. `label = "Line one\\nLine two"`.
-- Values beginning with `[` or `{` are parsed as JSON arrays/objects.
-- Other unquoted values remain strings; commas are not implicitly treated as lists.
-- Duplicate sections and duplicate keys in a section are errors.
-- Keys named `__proto__`, `prototype` or `constructor` are rejected.
+- Double-quoted strings use JSON escaping.
+- Values beginning with `[` or `{` are parsed as JSON.
+- Other unquoted values remain strings.
+- Duplicate sections and duplicate keys are errors.
+- Dangerous object keys such as `__proto__`, `prototype` and `constructor` are rejected.
 
-The parser does not execute code, expand environment variables, interpolate values or interpret inline comments. This keeps content predictable and safe to parse.
+INI is a data format, not a programming language. Values are parsed, validated and passed to engine-owned systems; they are never evaluated as code.
+
+## Safety limits
+
+- Manifests: 64 KiB maximum.
+- Each INI file: 2 MiB maximum.
+- Each JSON file: 2 MiB maximum.
+- Symlinks are rejected for manifests, category directories and declared files.
+- A malformed package is reported independently and does not hide other packages.
+- Unknown API versions are rejected.
+
+API v1 and v2 packages must be migrated to the v3 category layout. No compatibility path for executable Mod code exists.
 
 ## Host API
 
-The preload bridge exposes asynchronous methods:
+The preload bridge exposes:
 
-- `window.gameHost.mods.list()`: Mod metadata and validation errors.
-- `window.gameHost.mods.loadAll()`: all discovered packages with parsed data.
-- `window.gameHost.content.loadCore()`: validates and returns the required core package plus the discovered package list.
+- `window.gameHost.mods.list()`: package metadata and validation errors.
+- `window.gameHost.mods.loadAll()`: discovered packages with parsed category data.
+- `window.gameHost.content.loadCore()`: validates and returns the required core package.
 - `window.gameHost.platform`: current operating-system platform.
-
-The core result has `ok`, `core`, `mods` and, on failure, `error` fields. The parsed INI object is available under `core.data["core.ini"]` (and likewise for each declared INI file).
-
-## Limits and compatibility
-
-- API v2 is data-only. JavaScript Mods and runtime hooks are not enabled.
-- Manifests are limited to 64 KiB.
-- INI and JSON data files are limited to 2 MiB each.
-- File names are limited to simple alphanumeric, underscore and hyphen names with the declared extension.
-- Symbolic links are rejected for manifests, data directories and declared data files.
-- A broken package is reported as an error and does not prevent other packages from being discovered.
-- INI data is parsed as values and never executed as code.
-
-API v1 manifests are not accepted by the v2 loader. Update a package's manifest to `apiVersion: 2` before using it with this engine version.

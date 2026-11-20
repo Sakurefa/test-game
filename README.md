@@ -29,7 +29,7 @@ The game directory must be writable. The application will show an error rather t
 
 The world simulation is the center of the project. Markets and securities are only one part of a larger world that also contains star systems, colonies, resources, industries, companies, fleets and wars.
 
-The authoritative simulation is plain Node.js under `engine/`, separate from Electron and the renderer. The Electron main process owns the continuous campaign clock; the renderer only displays snapshots and sends time-control commands. The initial base rate is one game day per 60 real seconds at 1x, adjustable through `setting/simulation.ini`. Market/security quotes and war chronology update daily; colony production runs every seven elapsed game days. New and loaded worlds start paused.
+The authoritative simulation is plain Node.js under `engine/`, separate from Electron and the renderer. The Electron main process owns the continuous campaign clock and trusted world-command gateway; the renderer only displays snapshots and sends bounded command envelopes or time-control commands. The engine validates command permissions, records idempotent receipts and publishes domain events after committing world state. Player funds use an append-only balanced ledger in integer CR minor units. The initial base rate is one game day per 60 real seconds at 1x, adjustable through `setting/simulation.ini`. Market/security quotes and war chronology update daily; colony production runs every seven elapsed game days. New and loaded worlds start paused.
 
 See [docs/ENGINE_ARCHITECTURE.md](docs/ENGINE_ARCHITECTURE.md) for subsystem boundaries and the current prototype limits. The hands-on [playtest guide](docs/PLAYTEST_GUIDE.md) lists the exact checks to perform after downloading the updated source.
 
@@ -41,6 +41,6 @@ See [MOD_API.md](MOD_API.md) for the API v3 format and safety limits.
 
 ## Current prototype status
 
-Implemented foundations include multi-system universe data, cross-reference validation, a pause/1x–4x continuous campaign clock, dependency-ordered daily/weekly simulation systems, versioned world-save migration, deterministic random state, colony production, market repricing, fleet/war definitions and automated engine tests.
+Implemented foundations include multi-system universe data, cross-reference validation, a pause/1x–4x continuous campaign clock, dependency-ordered daily/weekly simulation systems, versioned world-save migration through schema 6, deterministic named random state, formula audit, typed domain events, a validated command/event pipeline, a trusted main-process command gateway, a balanced player finance ledger, colony production and market repricing.
 
-This is an early simulation slice, not a finished strategy game. Real-time tactical battles, fleet movement, inter-colony logistics, diplomacy, taxation, debt, player trading orders and long-term colony development remain future systems.
+This is an early simulation slice, not a finished strategy game. Real-time tactical battles, fleet movement, inter-colony logistics, diplomacy, taxation, debt, market buy/sell orders and long-term colony development remain future systems. The finance.transfer command is currently an engine/gateway capability without a dedicated in-game transfer interface.

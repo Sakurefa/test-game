@@ -36,3 +36,20 @@ test("save validation detects event sequence and record corruption",()=>{
  valid.domainEventSequence=2;assert.throws(()=>validateDomainEventState(valid),/sequence/);
  valid.domainEventSequence=1;valid.domainEvents[0].id="domain-2";assert.throws(()=>validateDomainEventState(valid),/invalid domain event/);
 });
+
+test("event idempotency keys suppress duplicate facts and reject conflicting reuse",()=>{
+ const world=fixture(),emit=createDomainEventEmitter(world,{day:7,date:"2478-04-08"});
+ const input={type:"colony.production-settled",scope:"colony",subjectId:"new-dawn-colony",idempotencyKey:"campaign-day:7:colony.production-settled:new-dawn-colony",payload:{ore:13}};
+ const first=emit(input),duplicate=emit(structuredClone(input));
+ assert.deepEqual(duplicate,first);assert.equal(world.domainEvents.length,1);assert.equal(world.domainEventSequence,1);
+ assert.throws(()=>emit({...input,payload:{ore:99}}),/idempotency key conflict/);
+ assert.throws(()=>emit({...input,idempotencyKey:"Bad Key"}),/idempotencyKey/);
+ assert.equal(validateDomainEventState(world),true);
+});
+test("event history validation rejects duplicate idempotency keys",()=>{
+ const world=fixture(),emit=createDomainEventEmitter(world,{day:1,date:"2478-04-02"});
+ emit({type:"market.prices-settled",scope:"market",subjectId:"new-dawn-market",idempotencyKey:"campaign-day:1:market.prices-settled:new-dawn-market"});
+ world.domainEvents.push({...world.domainEvents[0],sequence:2,id:"domain-2"});
+ world.domainEventSequence=2;
+ assert.throws(()=>validateDomainEventState(world),/duplicate domain event idempotency keys/);
+});

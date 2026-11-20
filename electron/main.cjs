@@ -34,11 +34,13 @@ const automaticSaves = createAutomaticSaveManager({
   root: GAME_ROOT, listSaveSlots, createSaveSlot, readGameState, writeGameState
 });
 function queueAutomaticSave(kind, world) {
-  automaticSaves.save(kind, world).then((result) => {
+  const task = automaticSaves.save(kind, world).then((result) => {
     logger.info("autosave.complete", result);
   }).catch((error) => {
     logger.error("autosave.failed", { kind, day: world.clock.day, date: world.clock.date, error });
   });
+  const untrack = trackCleanup(task);
+  task.finally(untrack);
 }
 function onDaySettled(world, detail) {
   logger.info("simulation.day-settled", detail);

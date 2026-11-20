@@ -7,7 +7,7 @@
   "scripts": {
     "dev": "concurrently -k \"vite --host 127.0.0.1\" \"wait-on http://127.0.0.1:5173 && cross-env VITE_DEV_SERVER_URL=http://127.0.0.1:5173 electron .\"",
     "build:web": "vite build",
-    "build:win": "vite build && electron-builder --win portable",
+    "build:win": "vite build && electron-builder --win dir && powershell -NoProfile -ExecutionPolicy Bypass -File scripts/package-windows.ps1",
     "preview": "vite preview"
   },
   "engines": {
@@ -24,7 +24,7 @@
   },
   "build": {
     "appId": "com.sakurefa.stockmarketsimulator",
-    "productName": "Stock Market Simulator",
+    "productName": "Market Simulator",
     "directories": {
       "output": "release"
     },
@@ -34,14 +34,23 @@
       "electron/**/*",
       "package.json"
     ],
+    "extraFiles": [
+      { "from": "mods", "to": "mods" },
+      { "from": "src", "to": "source/src" },
+      { "from": "electron", "to": "source/electron" },
+      { "from": "data", "to": "source/data" },
+      { "from": "index.html", "to": "source/index.html" },
+      { "from": "vite.config.js", "to": "source/vite.config.js" },
+      { "from": "package.json", "to": "source/package.json" },
+      { "from": "README.md", "to": "README.md" },
+      { "from": "MOD_API.md", "to": "MOD_API.md" }
+    ],
     "asar": true,
     "win": {
       "target": [
         {
-          "target": "portable",
-          "arch": [
-            "x64"
-          ]
+          "target": "dir",
+          "arch": ["x64"]
         }
       ]
     }

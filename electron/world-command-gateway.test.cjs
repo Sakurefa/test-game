@@ -22,8 +22,10 @@ test("main-process gateway injects trusted actor and commits validated world dra
  const outcome=gateway.dispatch(makeCommand());
  assert.equal(outcome.duplicate,false);assert.equal(world.finance.accounts["player-main"].balanceMinor,24999000);
  assert.equal(world.finance.sequence,2);assert.equal(committed,1);assert.equal(delivered.length,1);
+ const simulationDelivery=gateway.publishEvent({type:"market.prices-settled",sequence:99,day:1,payload:{}});
+ assert.equal(simulationDelivery.delivered,1);assert.equal(delivered.length,2);
  const replay=gateway.dispatch(makeCommand());
- assert.equal(replay.duplicate,true);assert.equal(committed,1);assert.equal(delivered.length,1);
+ assert.equal(replay.duplicate,true);assert.equal(committed,1);assert.equal(delivered.length,2);
  gateway.dispose();assert.equal(gateway.isDisposed(),true);
  assert.throws(()=>gateway.dispatch(makeCommand("cmd-gateway-02")),/disposed/);
 });

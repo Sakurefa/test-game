@@ -58,7 +58,7 @@ function formatErrorChain(error) {
     seen.add(current);
     parts.push(current.stack || `${current.name || "Error"}: ${current.message || String(current)}`);
   }
-  return parts.join("\\nCaused by:\\n");
+  return parts.join("\nCaused by:\n");
 }
 
 async function failActiveWorld(error, source) {

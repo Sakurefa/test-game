@@ -22,7 +22,7 @@ function normalizeJson(value,label,maxBytes){
   else{
    const prototype=Object.getPrototypeOf(item);
    if(prototype!==Object.prototype&&prototype!==null)throw new TypeError(label+" must contain plain objects only");
-   result={};
+   result=Object.create(null);
    for(const key of Object.keys(item).sort())result[key]=visit(item[key]);
   }
   ancestors.delete(item);

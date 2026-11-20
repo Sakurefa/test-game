@@ -87,12 +87,12 @@ function validateCatalog(catalog, registryEntries) {
   const universe = catalog.universes.values().next().value;
   if (!universe) throw new Error("No universe definition was provided");
   if (catalog.universes.size !== 1) throw new Error("Exactly one universe definition is required");
-  if (typeof universe.name !== "string" || !universe.name.trim()) throw new Error("Universe requires a non-empty name");
+  if (typeof universe.nameKey !== "string" || !universe.nameKey.trim()) throw new Error("Universe requires a localization nameKey");
   requireGameDate(universe.startDate, "universe.startDate");
   requireReference(catalog.factions, universe.defaultPlayerFactionId, "universe default player faction");
 
   for (const system of catalog.systems.values()) {
-    if (typeof system.name !== "string" || !system.name.trim()) throw new Error(`System ${system.id} requires a name`);
+    if (typeof system.nameKey !== "string" || !system.nameKey.trim()) throw new Error(`System ${system.id} requires a localization nameKey`);
     if (!isRecord(system.position)) throw new Error(`System ${system.id} requires a position`);
     requireFinite(system.position.x, `system ${system.id} position.x`);
     requireFinite(system.position.y, `system ${system.id} position.y`);
@@ -210,7 +210,7 @@ function validateCatalog(catalog, registryEntries) {
     }
   }
   for (const event of catalog.events.values()) {
-    if (typeof event.name !== "string" || !event.name.trim()) throw new Error(`Event ${event.id} requires a name`);
+    if (typeof event.nameKey !== "string" || !event.nameKey.trim()) throw new Error(`Event ${event.id} requires a localization nameKey`);
     requireFinite(event.weight, `event ${event.id} weight`, { min: 0 });
     if (event.tags !== undefined) {
       requireArray(event.tags, `event ${event.id} tags`);
@@ -235,10 +235,48 @@ function validateCatalog(catalog, registryEntries) {
   return universe;
 }
 
+function collectLocalizations(modPackages) {
+  const localizations = {};
+  for (const mod of modPackages.filter((item) => item.enabled !== false && !item.error)
+    .slice().sort((a, b) => a.id === "core" ? -1 : b.id === "core" ? 1 : a.id.localeCompare(b.id))) {
+    for (const [file, data] of Object.entries(mod.data?.localization || {})) {
+      const locale = data?.language?.locale;
+      if (typeof locale !== "string" || !/^[a-z]{2,3}(?:-[A-Z]{2})?$/.test(locale)) {
+        throw new Error(`${mod.id}/localization/${file}: missing or invalid [language].locale`);
+      }
+      if (!localizations[locale]) localizations[locale] = {};
+      const entries = data.content;
+      if (!isRecord(entries)) throw new Error(`${mod.id}/localization/${file}: missing [content] section`);
+      for (const [key, value] of Object.entries(entries)) {
+        if (typeof value !== "string" || !value.trim()) throw new Error(`Invalid localized string: ${locale}.${key}`);
+        localizations[locale][key] = value;
+      }
+    }
+  }
+  if (!localizations["zh-CN"] || Object.keys(localizations["zh-CN"]).length === 0) {
+    throw new Error("Core Mod must provide zh-CN content localization");
+  }
+  return localizations;
+}
+
+function validateLocalizationReferences(catalog, localizations, locale) {
+  const strings = localizations[locale] || {};
+  for (const collectionName of Object.values(DEFINITION_TYPES)) {
+    for (const entity of catalog[collectionName].values()) {
+      for (const field of ["nameKey", "descriptionKey", "governmentKey"]) {
+        const key = entity[field];
+        if (key !== undefined && (typeof key !== "string" || !Object.hasOwn(strings, key))) {
+          throw new Error(`Missing localization key ${String(key)} referenced by ${entity.id}.${field} in locale ${locale}`);
+        }
+      }
+    }
+  }
+}
+
 function compileCatalog(modPackages) {
   try {
     if (!Array.isArray(modPackages)) throw new TypeError("Mod packages must be an array");
-    const catalog = {};
+    const localizations = collectLocalizations(modPackages);\n    const defaultLocale = "zh-CN";\n    const catalog = {};
     for (const collectionName of Object.values(DEFINITION_TYPES)) catalog[collectionName] = new Map();
     const registryEntries = [];
     const enabled = modPackages.filter((mod) => mod.enabled !== false && !mod.error)
@@ -272,13 +310,13 @@ function compileCatalog(modPackages) {
       }
     }
 
-    const universe = validateCatalog(catalog, registryEntries);
+    const universe = validateCatalog(catalog, registryEntries);\n    validateLocalizationReferences(catalog, localizations, defaultLocale);
     const serializable = {};
     for (const [name, collection] of Object.entries(catalog)) {
       serializable[name] = [...collection.values()].map(({ _type, _source, ...entity }) => entity);
     }
     const contentHash = crypto.createHash("sha256").update(JSON.stringify(serializable)).digest("hex");
-    return { ok: true, catalog: { ...catalog, universe, contentHash, serializable } };
+    return { ok: true, catalog: { ...catalog, universe, contentHash, serializable, localizations, defaultLocale } };
   } catch (error) {
     return { ok: false, error: error.message };
   }
@@ -294,4 +332,4 @@ function toPlainCatalog(catalog) {
   return output;
 }
 
-module.exports = { DEFINITION_TYPES, compileCatalog, validateCatalog, toPlainCatalog };
+module.exports = { DEFINITION_TYPES, compileCatalog, validateCatalog, validateLocalizationReferences, collectLocalizations, toPlainCatalog };

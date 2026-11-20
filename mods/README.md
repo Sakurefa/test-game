@@ -1,11 +1,9 @@
 # Mods
 
-This directory contains the required first-party data package and optional community data packages.
+Mod packages are **INI-only**. Read [MOD_API.md](../MOD_API.md) for the format contract.
 
-- `core/` is the required base game-content package and is always enabled.
-- `registry/` declares content identities and references.
-- `content/` stores game data.
-- `localization/` stores translated strings keyed by stable IDs.
-- Community packages use the same data-only format.
-
-Mods cannot contain executable code, scripts or runtime hooks. Read [MOD_API.md](../MOD_API.md) for the manifest, INI syntax, limits and installation rules.
+- `core/` is required and always enabled.
+- Manifests, registry declarations, content definitions and localization all use INI.
+- Content sections use `[type.stable-id]`; localized text is kept in locale INI files.
+- JSON Mod files and inline JSON values are rejected.
+- Mods are declarative data only; they cannot execute code.

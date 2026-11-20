@@ -77,7 +77,7 @@ function colonies(snapshot) {
         ${snapshot.colonies.map((colony) => {
           const stock = Object.entries(colony.state.stockpiles).map(([id, amount]) => {
             const commodity = snapshot.commodities.find((item) => item.id === id);
-            return `<span><small>${escapeHtml(entityName(snapshot, commodity, id))}</small><b>${number(amount)} ${escapeHtml(commodity?.unit || "")}</b></span>`;
+            return `<span><small>${escapeHtml(entityName(snapshot, commodity, id))}</small><b>${number(amount)} ${escapeHtml(commodity?.unitKey ? tr(snapshot, commodity.unitKey) : "")}</b></span>`;
           }).join("");
           const industry = colony.state.industries.map((item) => {
             const recipe = snapshot.recipes.find((entry) => entry.id === item.recipeId);

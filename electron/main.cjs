@@ -223,12 +223,15 @@ handleIpc("world:save", async () => {
   if (!activeWorld || !activeSaveId) throw new Error("No active world is loaded");
   if (worldSaveInProgress) throw new Error("A world save is already in progress");
   worldSaveInProgress = true;
-  campaignTime.tick();
-  const worldBeingSaved = activeWorld;
-  const saveId = activeSaveId;
-  const previousSpeed = campaignTime.getState().speed;
-  campaignTime.pause();
+  let worldBeingSaved = null;
+  let saveId = null;
+  let previousSpeed = 0;
   try {
+    campaignTime.tick();
+    worldBeingSaved = activeWorld;
+    saveId = activeSaveId;
+    previousSpeed = campaignTime.getState().speed;
+    campaignTime.pause();
     const consistentSnapshot = structuredClone(worldBeingSaved);
     await writeGameState(GAME_ROOT, saveId, consistentSnapshot);
     if (activeWorld === worldBeingSaved && activeSaveId === saveId) activeWorldDirty = false;
@@ -236,7 +239,7 @@ handleIpc("world:save", async () => {
     return { saveId, savedAt: new Date().toISOString() };
   } finally {
     worldSaveInProgress = false;
-    if (activeWorld === worldBeingSaved && activeSaveId === saveId && previousSpeed > 0) {
+    if (worldBeingSaved && activeWorld === worldBeingSaved && activeSaveId === saveId && previousSpeed > 0) {
       campaignTime.setSpeed(previousSpeed);
     }
   }

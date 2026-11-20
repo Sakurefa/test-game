@@ -8,7 +8,7 @@
 - Default branch: `main`
 - Game: moddable multi-system frontier simulation.
 - Stack: Electron + Chromium + Vite + Node.js.
-- Current phase: simulation foundation and Mod/content architecture.
+- Current phase: continuous campaign-time kernel and extensible simulation foundation; next is deterministic named RNG and calculation audit services.
 
 ## Non-negotiable decisions
 
@@ -26,7 +26,7 @@ The initial world is the Helios frontier:
 - Four systems: Solace, Cinder, Eos and Veil.
 - Three colonies and three factions.
 - Commodities, production recipes, markets, companies/securities, fleets, wars and events.
-- Daily simulation currently changes production stocks, market prices and war duration.
+- Market/security quotes and war chronology update daily; colony industrial production is scheduled every seven elapsed game days (day 7, 14, 21…).
 - This is a prototype, not yet a full logistics, colony management, trading, financial or RTS implementation.
 
 Long-term direction:
@@ -37,15 +37,17 @@ Long-term direction:
 5. Separate real-time tactical combat from strategic world time.
 6. Add dynamic events, diplomacy and systemic world changes.
 
-## Latest verified repository state — 2026-11-20
+## Latest verified repository state — 2026-11-21
 
-- Latest verified source/build commit (excluding this log-only update): `57cd1c68d12e5348157f1f0abaabc60b4698b0f9`.
-- Source commit tested by CI: `d3647c9043cd948c083fcc674edfc8153672471b`.
-- GitHub Actions run [44769774977](https://github.com/Sakurefa/test-game/actions/runs/44769774977) completed successfully:
-  - Node syntax checks: passed.
-  - Simulation and Mod loader tests: passed.
+- Latest source commit: `0e412336c4f2f1be0ad7f4620a2fd88b630d2247`.
+- Latest main branch commit including generated renderer files: `0915f4de98084391e4d35576e4fcf1c3c7ed7c59`.
+- GitHub Actions run [44782960920](https://github.com/Sakurefa/test-game/actions/runs/44782960920) completed successfully for the source commit:
+  - Electron/engine syntax checks: passed.
+  - Full automated suite: 41 passed, 0 failed.
   - Vite renderer build: passed.
-  - Generated renderer files were committed by the workflow as `57cd1c68d12e5348157f1f0abaabc60b4698b0f9`.
+  - Generated renderer files were committed by the workflow as `0915f4de98084391e4d35576e4fcf1c3c7ed7c59` (`dist/index.html` and hashed JS/CSS assets).
+- An initial CI run [44782725042](https://github.com/Sakurefa/test-game/actions/runs/44782725042) correctly exposed one simulation-system ordering assertion (40/41 passed). The topological ordering implementation was fixed in `0e41233`, and the complete suite then passed.
+- The companion runtime workflow [44782725039](https://github.com/Sakurefa/test-game/actions/runs/44782725039) stopped at the same test failure before building a launcher. The subsequent fix changed only the engine registry; the existing separately distributed Electron launcher remains compatible because it loads `electron/main.cjs`, preload and `dist/` from the adjacent repository directory. No new EXE was produced in this session.
 - The Mod tree contains only INI package files; there are no tracked JSON files under `mods/`.
 - Core uses `manifest.ini`, `registry/definitions.ini`, `content/*.ini` and `localization/zh-CN.ini`.
 - The example Mod also uses INI manifest, registry, content and localization files. Its event text is referenced by localization keys.
@@ -56,24 +58,31 @@ Long-term direction:
 
 ## Current work queue
 
-### Priority 1 — simulation correctness and transparency
-- Add deterministic expected-value tests for production inputs/outputs, price movement, market stock coupling and war-day progression.
-- Ensure the UI explains daily changes so the user can see why values changed.
-- Check for production exploits, stockpile underflow, unbounded prices, and markets whose quotes are disconnected from actual supply/demand.
-- Do not assume a changed value is a correct value.
+### Priority 1 — deterministic calculations and simulation correctness
+- The time kernel now runs continuously and has ordered daily/weekly systems. The engine still uses one shared PRNG stream and does not yet emit structured calculation traces.
+- Implement named random streams per stable subsystem/entity scope so new systems cannot perturb unrelated random sequences.
+- Add a versioned formula registry and structured audit records with inputs, modifiers, intermediate values, random draws (only when actually used), and results.
+- Add deterministic expected-value tests for production inputs/outputs and market repricing; audit stockpile underflow, unbounded prices and supply/demand coupling.
+- The calculation visibility toggle must never change RNG consumption or simulation results.
 
-### Priority 2 — localization completeness
-- Audit all player-visible text in the renderer and ensure it resolves through localization.
-- Check government labels and commodity units as well as names/descriptions.
-- Language selection UI is not yet implemented; default locale remains zh-CN.
+### Priority 2 — presentation and assets
+- Establish renderer-neutral scene and asset contracts before choosing/locking a 2D renderer dependency.
+- Add resource identity, validation, cache and lifecycle boundaries for textures/images, animation/sprites, particles, audio and fonts.
+- Keep DOM for menus/panels and allow a scene backend for the star map, colonies and later other non-combat scenes. Tactical combat is explicitly deferred.
 
-### Priority 3 — content and engine growth
-1. Colony simulation: workforce, population needs, facility upkeep, stability, construction and colony development.
-2. Logistics: freighters and convoys travel through route graphs, consume time/capacity/risk and move physical stock.
-3. Economic agency: company accounting, operating costs/revenue, player orders, ownership, fees, debt and reporting.
+### Priority 3 — help, accessibility and localization
+- Implement localization-backed contextual help with 2–3 content sections: immersive world principle, actual gameplay/numeric mechanics, and contextual navigation when useful.
+- Ensure formula IDs in help resolve to real calculation implementations.
+- Add delayed tooltip handling, separate interface/floating-text font settings and safe font discovery.
+- Audit all player-visible text and localization completeness.
+
+### Priority 4 — world systems and content
+1. Colony simulation: workforce, population needs, facility upkeep, stability, construction and development.
+2. Logistics: freighters and convoys move physical stock through route graphs using travel time, capacity and risk.
+3. Economic agency: company accounts, operating costs/revenue, player orders, ownership, fees, debt and reporting.
 4. Strategic warfare: fleet movement/orders, supply, fronts, objectives, faction AI and territorial change.
-5. Tactical combat: separate real-time battle instances, ship behavior/orders, damage and campaign outcome application.
-6. Living world: events, diplomacy, policies and additional community scenarios.
+5. Living world: events, diplomacy, policies, missions and community scenarios.
+6. Tactical combat is a separate later project with its own fixed-step clock and explicit campaign outcomes; do not put it in the current campaign scheduler.
 
 ## Session log
 
@@ -106,7 +115,7 @@ Long-term direction:
 - Current engine is still strictly day-step based: `advanceDay` executes production, market repricing and war chronology as one daily batch. The renderer offers a single “advance one day” action; no campaign time scheduler or speed controls exist.
 - Current random generator is one saved global PRNG stream. It is deterministic, but it is not yet isolated by subsystem/entity and does not emit calculation/audit records.
 - Current presentation is DOM/CSS card-based; no 2D scene renderer, chart history model, scene asset contract or animation loop exists.
-- Settings already use INI and include general language and graphics UI scale; add new settings through the existing schema-validated `setting/graphics.ini` contract, not JSON.
+- Settings are generated at runtime as schema-validated INI files by `electron/storage.cjs`; graphics settings are stored in `setting/graphics.ini`, and new simulation timing is stored in `setting/simulation.ini`.
 - Recommended architecture direction: keep the authoritative simulation in Node; add a main-process-owned campaign clock controller and deterministic event scheduler; use a calendar timestamp with day/week boundaries and fixed ordered simulation phases; keep strategic campaign time separate from tactical battle fixed-step time; make 1x–4x a multiplier over a separately tunable base real-time rate.
 - Recommended RNG/formula direction: replace the single shared random stream with stable named streams; introduce a versioned formula/roll service that emits structured trace records independent of the display toggle; display traces in a compact inspector/inline annotation without allowing UI visibility to change outcomes.
 - Recommended presentation direction: retain DOM for menus and controls, add a dedicated 2D scene layer (recommend evaluating PixiJS for map/colony/battle scenes) with Canvas/SVG charts and DOM overlays; define renderer-independent snapshots and asset IDs. Visual frames must never mutate simulation state.
@@ -146,3 +155,25 @@ Long-term direction:
 - GitHub Actions lookup for commit f79049d1d311737c1ae33344b9838c487247f1a6 returned no PR-triggered workflow runs. The previous log records successful CI run 44770176048 for e97912c5ae19e7eab01491639317df6d8675e315; that is historical evidence, not verification of the current commit.
 - No source code was changed in this session. No local tests/builds were run. No Windows desktop test was performed.
 - Next concrete task: locate current settings/config schema and inspect complete main/preload/renderer interfaces, then implement Phase A through small testable commits. Before introducing any renderer/audio dependencies, establish the subsystem and asset service contracts. Update this log after each work session.
+
+
+### 2026-11-21 — Phase A: continuous campaign time and simulation-system registry
+
+- Re-read the full root `AGENTS.md` and complete `ASTRA_WORKLOG.md` before implementation. Checked the default branch head and latest relevant Actions runs. Starting head was `a900b7b3df9c5e71f8a4ac89deffde2ee33bdf8e`; prior CI run `44777996978` was green for that base.
+- Added `engine/system-registry.cjs`: stable system IDs, daily/weekly/manual cadence, deterministic priority, dependency validation/topological ordering, initialize/update/save/restore/dispose hooks, explicit manual trigger, synchronous deterministic update requirement and per-system last-run-day protection.
+- Added `engine/campaign-time.cjs`: monotonic main-process time controller, pause and 1x–4x speeds, independently configurable base game-day duration and deterministic injectable clock for tests.
+- Extended `engine/clock.cjs` to preserve fractional game-day progress and convert elapsed campaign time into whole-day boundary crossings.
+- Refactored `engine/simulation.cjs` around registered systems. Market/security quotes and war chronology run daily; colony industrial production runs every seven elapsed days (day 7, 14, 21…). Weekly production executes before same-day market repricing. Catch-up processes every crossed daily boundary; the scheduler records execution markers to avoid duplicate updates.
+- Bumped world save schema from 1 to 2. Added `migrateWorldState` to preserve the old date/day while initializing fractional time and scheduler state. Storage reads schema-1/2 worlds and writes schema-2 only.
+- Added runtime INI setting group `simulation` with `base_day_seconds=60` (allowed 10–3600 seconds). The default is one game day per 60 real seconds at 1x; speed multiplier is independent. The file is generated by storage initialization as `setting/simulation.ini`; it is not a tracked source file.
+- Electron main process owns the authoritative timer and IPC time controls. New worlds and loaded saves begin paused. Saving takes a consistent world snapshot while paused, then resumes the previous speed. Renderer polls snapshots but updates the clock display without full-screen re-rendering between date boundaries.
+- Replaced the visible “推进一天” action with pause and 1x/2x/3x/4x controls; added base-day duration selection under Settings. The legacy one-day IPC method remains only as a compatibility/debug entry point.
+- Added tests in `tests/campaign-time.test.cjs`, `tests/system-registry.test.cjs`, and expanded engine/storage tests for cadence ordering, fractional catch-up, manual systems, save migration and settings validation.
+- First CI attempt `44782725042` found an ordering bug: the registry processed all currently-ready systems as a batch, allowing an independent lower-priority system to run before a newly-unblocked higher-priority system. Fixed the topological ordering to select one highest-priority ready system at a time. Source fix commit: `0e412336c4f2f1be0ad7f4620a2fd88b630d2247`.
+- Verified by Windows GitHub Actions run [44782960920](https://github.com/Sakurefa/test-game/actions/runs/44782960920): syntax checks passed; all 41 tests passed (0 failed); Vite renderer build passed. Workflow generated and committed `dist/index.html` and hashed JS/CSS files as `0915f4de98084391e4d35576e4fcf1c3c7ed7c59`.
+- Exact source/docs/tests changed: `engine/system-registry.cjs`, `engine/campaign-time.cjs`, `engine/clock.cjs`, `engine/index.cjs`, `engine/simulation.cjs`, `electron/storage.cjs`, `electron/main.cjs`, `electron/preload.cjs`, `src/main.js`, `src/world.js`, new `src/time-controls.css`, `tests/engine.test.cjs`, `tests/storage.test.cjs`, new `tests/campaign-time.test.cjs`, new `tests/system-registry.test.cjs`, `package.json`, `docs/ENGINE_ARCHITECTURE.md`, `docs/PLAYTEST_GUIDE.md`, and `README.md`; CI generated the four dist files listed above.
+- The settings-path note in earlier architecture review was corrected: graphics settings are dynamically generated in runtime `setting/graphics.ini`, and the new timing settings are generated in `setting/simulation.ini`.
+- No full local repository test suite or local Vite build was run in this tool environment. The authoritative full suite/build result is the Windows Actions run above. A separate isolated local harness had previously passed 5/5 clock/controller/registry checks.
+- No Windows desktop GUI launch was performed by the assistant. User-side test is now the next required verification: download the latest main ZIP, put the separately distributed launcher EXE beside the extracted repository files, start a new world, confirm it begins paused, test pause and 1x–4x, let one day elapse, verify daily market/war updates, let day 7 elapse for weekly production, save/load, and confirm a loaded world is paused with no duplicate weekly settlement.
+- Known limitations: the current PRNG is still a single global stream; no calculation audit display, event/command bus, asset/audio manager, real 2D scene renderer, contextual tooltips or font scanning have been implemented yet. Tactical combat remains deferred.
+- Next concrete step after the user's Windows smoke test: begin Phase B (named RNG streams plus versioned calculation formulas/audit traces), retaining the user’s rule that visual/debug toggles cannot change outcomes.

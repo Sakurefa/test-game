@@ -16,7 +16,7 @@ The project is a multi-system frontier simulation. A commodity exchange is one s
 
 The simulation engine is plain Node.js CommonJS under `engine/`. It does not import Electron, browser APIs, or renderer code. The Electron main process owns the active world and exposes a narrow IPC bridge. The renderer receives snapshots and submits commands; it never edits the authoritative state directly.
 
-The Electron main process owns the active world and its campaign-time controller. It samples a monotonic clock, converts elapsed real time through the configured base-day duration and selected 0x–4x speed, and passes fractional game days to the engine. The renderer only requests snapshots and issues time-control commands; UI polling and frame rate do not drive the simulation.
+The Electron main process owns the active world and its campaign-time controller. It samples a monotonic clock, converts elapsed real time through the configured base-day duration and selected 1x–4x speed, and passes fractional game days to the engine. The renderer only requests snapshots and issues time-control commands; UI polling and frame rate do not drive the simulation.
 
 The simulation registry defines stable system IDs, cadence, priority, dependencies and optional initialize/update/save/restore/dispose lifecycle hooks. Dependencies are topologically ordered, updates are synchronous and deterministic, and each system records its last execution day in the world save. A system cannot run twice on the same day after a save/load or repeated scheduler call.
 
@@ -24,7 +24,7 @@ The current campaign schedule is:
 
 1. **Every game day:** advance the calendar; update commodity and security quotes; advance active-war chronology; append a bounded daily report.
 2. **Every seventh elapsed game day (day 7, 14, 21…):** run colony industries once before that day’s market repricing, consuming inputs before adding outputs.
-3. **Every world tick:** persist fractional day progress without triggering daily systems before the calendar boundary is crossed.
+3. **Between date boundaries:** retain fractional day progress in the active world state; explicit world saves persist that fraction without triggering daily systems.
 
 The initial base rate is one game day per 60 real seconds at 1x. The 1x–4x multiplier is independent of this rate and can be tuned through `setting/simulation.ini` (`base_day_seconds`). New games and loaded games start paused. The engine clock itself does not depend on wall-clock timestamps.
 

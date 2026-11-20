@@ -5,7 +5,11 @@ const GAME_STATE_SCHEMA_VERSION = 1;
 const MAX_ADVANCE_DAYS = 30;
 const LOG_LIMIT = 100;
 
-function localized(catalog, key) {\n  return catalog.localizations?.[catalog.defaultLocale]?.[key] || `[${key || "missing-localization-key"}]`;\n}\n\nfunction clamp(value, min, max) {
+function localized(catalog, key) {
+  return catalog.localizations?.[catalog.defaultLocale]?.[key] || `[${key || "missing-localization-key"}]`;
+}
+
+function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
@@ -272,7 +276,9 @@ function createSnapshot(world, catalog) {
   }));
   return {
     world,
-    universe: catalog.universe,\n    localization: catalog.localizations?.[catalog.defaultLocale] || {},\n    locale: catalog.defaultLocale || "zh-CN",
+    universe: catalog.universe,
+    localization: catalog.localizations?.[catalog.defaultLocale] || {},
+    locale: catalog.defaultLocale || "zh-CN",
     systems,
     factions: [...catalog.factions.values()],
     colonies,

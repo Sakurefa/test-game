@@ -37,7 +37,7 @@
       </header>
       <div class="audit-panel-body">${o}</div>
       <footer class="audit-panel-footer">只读事件历史 · 不执行命令、不修改模拟状态</footer>
-    </aside>`}function I(e,t){return e.localization?.[t]||`[${t||"missing-localization-key"}]`}function c(e,t,o=""){return t?.nameKey?I(e,t.nameKey):o}function S(e,t){return t?.descriptionKey?I(e,t.descriptionKey):""}function f(e){return new Intl.NumberFormat("zh-CN",{maximumFractionDigits:2}).format(e||0)}function L(e){return`
+    </aside>`}function S(e,t){return e.localization?.[t]||`[${t||"missing-localization-key"}]`}function c(e,t,o=""){return t?.nameKey?S(e,t.nameKey):o}function I(e,t){return t?.descriptionKey?S(e,t.descriptionKey):""}function f(e){return new Intl.NumberFormat("zh-CN",{maximumFractionDigits:2}).format(e||0)}function L(e){return`
     <section class="world-section" data-world-region="recent-events">
       <div class="world-section-head"><div><span class="world-eyebrow">RECENT LOG</span><h3>最近动态</h3></div></div>
       <div class="event-list">${e.recentEvents.map(t=>`
@@ -45,7 +45,7 @@
       `).join("")}</div>
     </section>`}function ae(e){const t=e.colonies.reduce((a,n)=>a+n.state.population,0),o=e.wars.filter(a=>a.state.status==="active").length,i=e.factions.find(a=>a.id===e.world.player.factionId);return`
     <section class="world-intro">
-      <div><span class="world-eyebrow">SECTOR OVERVIEW / ${r(e.universe.id)}</span><h2>${r(c(e,e.universe))}</h2><p>${r(S(e,e.universe))}</p></div>
+      <div><span class="world-eyebrow">SECTOR OVERVIEW / ${r(e.universe.id)}</span><h2>${r(c(e,e.universe))}</h2><p>${r(I(e,e.universe))}</p></div>
       <div class="world-faction"><small>玩家所属势力</small><b>${r(c(e,i,"未知势力"))}</b><small>种子：${e.world.metadata.seed}</small></div>
     </section>
     <section class="world-metrics">
@@ -53,7 +53,7 @@
       <article><small>殖民地</small><b>${e.colonies.length}</b></article>
       <article><small>总人口</small><b>${f(t)}</b></article>
       <article><small>活跃战争</small><b>${o}</b></article>
-      <article><small>可用资金</small><b>${f(e.world.player.account.cash)} CR</b></article>
+      <article><small>可用资金</small><b>${f(e.world.finance.accounts[e.world.player.accountId].balanceMinor/100)} CR</b></article>
     </section>
     <section class="world-section">
       <div class="world-section-head"><div><span class="world-eyebrow">STARMAP</span><h3>星系网络</h3></div><small>星系间的连接代表已知航道，不代表即时移动</small></div>
@@ -62,7 +62,7 @@
           <article class="system-card">
             <span class="system-coordinate">${a.position.x}, ${a.position.y}</span>
             <h4>${r(c(e,a))}</h4>
-            <p>${r(S(e,a))}</p>
+            <p>${r(I(e,a))}</p>
             <small>所属势力：${r(c(e,n,"中立"))}</small>
             <div class="system-links">${a.links.map(l=>r(c(e,e.systems.find(p=>p.id===l),l))).join(" · ")}</div>
             <div class="system-locations">${a.locations.map(l=>r(c(e,l,l.id))).join(" / ")}</div>
@@ -77,7 +77,7 @@
     <section class="world-section" data-world-region="colony-production">
       <div class="world-section-head"><div><span class="world-eyebrow">SETTLEMENTS</span><h3>殖民地与生产</h3></div><small>当前生产按殖民地库存结算，星际物流尚未接入</small></div>
       <div class="colony-grid">
-        ${e.colonies.map(t=>{const o=Object.entries(t.state.stockpiles).map(([a,n])=>{const l=e.commodities.find(p=>p.id===a);return`<span><small>${r(c(e,l,a))}</small><b>${f(n)} ${r(l?.unitKey?I(e,l.unitKey):"")}</b></span>`}).join(""),i=t.state.industries.map(a=>{const n=e.recipes.find(l=>l.id===a.recipeId);return`<li>${r(c(e,n,a.recipeId))} <small>等级 ${a.level}</small></li>`}).join("");return`
+        ${e.colonies.map(t=>{const o=Object.entries(t.state.stockpiles).map(([a,n])=>{const l=e.commodities.find(p=>p.id===a);return`<span><small>${r(c(e,l,a))}</small><b>${f(n)} ${r(l?.unitKey?S(e,l.unitKey):"")}</b></span>`}).join(""),i=t.state.industries.map(a=>{const n=e.recipes.find(l=>l.id===a.recipeId);return`<li>${r(c(e,n,a.recipeId))} <small>等级 ${a.level}</small></li>`}).join("");return`
             <article class="colony-card">
               <div class="colony-heading"><div><span class="world-eyebrow">${r(t.location.systemId)}</span><h4>${r(c(e,t))}</h4><p>${r(c(e,t.faction))} · ${r(c(e,t.location))}</p></div><b class="stability">${t.state.stability}%</b></div>
               <div class="colony-population"><span>人口</span><b>${f(t.state.population)}</b></div>
@@ -107,13 +107,13 @@
       <div class="world-section-head"><div><span class="world-eyebrow">STRATEGIC SITUATION</span><h3>势力与战争</h3></div><small>舰队目前为静态编制数据，战术指令与实时战斗仍在后续阶段</small></div>
       <div class="military-grid">
         <div class="military-panel"><h4>势力</h4>${e.factions.map(t=>`
-          <article class="faction-row"><i style="background:${/^#[0-9a-fA-F]{6}$/.test(t.color)?t.color:"#8ca8c8"}"></i><div><b>${r(c(e,t))}</b><small>${r(I(e,t.governmentKey))} · ${r(S(e,t))}</small></div></article>
+          <article class="faction-row"><i style="background:${/^#[0-9a-fA-F]{6}$/.test(t.color)?t.color:"#8ca8c8"}"></i><div><b>${r(c(e,t))}</b><small>${r(S(e,t.governmentKey))} · ${r(I(e,t))}</small></div></article>
         `).join("")}</div>
         <div class="military-panel"><h4>舰队</h4>${e.fleets.map(t=>{const o=e.systems.flatMap(i=>i.locations).find(i=>i.id===t.locationId);return`
           <article class="fleet-row"><div><b>${r(c(e,t))}</b><small>${r(c(e,t.faction))} · ${r(c(e,o,t.locationId))}</small><p>${t.ships.map(i=>{const a=e.shipClasses.find(n=>n.id===i.shipClassId);return`${r(c(e,a,i.shipClassId))} × ${i.quantity}`}).join("　")}</p></div><span>${t.state.readiness}%<small>战备</small></span></article>`}).join("")}</div>
       </div>
       <div class="war-list">${e.wars.map(t=>`
-        <article class="war-card"><span class="world-eyebrow">ACTIVE CONFLICT</span><h4>${r(c(e,t))}</h4><p>${r(S(e,t))}</p><div><b>${t.state.status==="active"?"进行中":"已结束"}</b><span>持续 ${t.state.daysActive} 天</span><span>${t.participants.map(o=>r(c(e,e.factions.find(i=>i.id===o),o))).join("　VS　")}</span></div></article>
+        <article class="war-card"><span class="world-eyebrow">ACTIVE CONFLICT</span><h4>${r(c(e,t))}</h4><p>${r(I(e,t))}</p><div><b>${t.state.status==="active"?"进行中":"已结束"}</b><span>持续 ${t.state.daysActive} 天</span><span>${t.participants.map(o=>r(c(e,e.factions.find(i=>i.id===o),o))).join("　VS　")}</span></div></article>
       `).join("")}</div>
     </section>`}function se(e,t){switch(t){case"recent-events":return L(e);case"colony-production":return F(e);case"market-quotes":return H(e);case"war-chronology":return P(e);default:return""}}function oe(e,t="overview",o="",i=!1,a=!1){const n=[["overview","星域总览"],["colonies","殖民地与生产"],["markets","市场与金融"],["military","势力与战争"]],l=t==="colonies"?F(e):t==="markets"?H(e):t==="military"?P(e):ae(e),h=(x(e.world.clock.day,e.world.clock.dayFraction||0)*100).toFixed(1),U=e.world.clock.day%7+1;return`
     <main class="world-screen">

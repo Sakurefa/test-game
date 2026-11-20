@@ -74,8 +74,8 @@ function createLedgerAccount(ledger, { id, owner, currency = "CR", overdraftLimi
     overdraftLimitMinor, allowNegative, status: "open", positions: structuredClone(positions) };
   return structuredClone(ledger.accounts[id]);
 }
+// Compatibility name retained for callers. Live balances are authoritative; this returns a diagnostic fact only.
 function recordBalancedTransaction(ledger,{day,date,type,entries,commandId=null,reference=null}={}){
- validateFinancialLedger(ledger);
  if(!Number.isInteger(day)||day<0||typeof date!=="string"||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date))throw new TypeError("Ledger transaction requires an authoritative campaign timestamp");
  assertIdentifier(type,TRANSACTION_TYPE_PATTERN,"Transaction type");
  if(!Array.isArray(entries)||entries.length<2||entries.length>MAX_TRANSACTION_ENTRIES)throw new TypeError("A ledger transaction requires 2–32 entries");

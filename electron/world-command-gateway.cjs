@@ -30,12 +30,16 @@ function createWorldCommandGateway({
    eventDelivery:outcome.eventDelivery
   };
  }
+ function publishEvent(event){
+  if(disposed)throw new Error("World command gateway has been disposed");
+  return eventBus.publish(event);
+ }
  function dispose(){
   if(disposed)return false;
   disposed=true;
   eventBus.dispose();
   return true;
  }
- return Object.freeze({dispatch,dispose,isDisposed:()=>disposed,commandTypes:()=>dispatcher.commandTypes()});
+ return Object.freeze({dispatch,publishEvent,dispose,isDisposed:()=>disposed,commandTypes:()=>dispatcher.commandTypes()});
 }
 module.exports={createWorldCommandGateway};

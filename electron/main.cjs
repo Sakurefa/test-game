@@ -507,6 +507,8 @@ app.whenReady().then(async () => {
 app.on("before-quit", (event) => {
   if (quitting) return;
   quitting = true;
+  campaignTime.pause();
+  clearInterval(campaignTimer);
   logger.info("shutdown", "Shutdown requested; stopping tracked cleanup tasks");
   if (cleanupTasks.size > 0) {
     event.preventDefault();

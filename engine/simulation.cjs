@@ -255,7 +255,7 @@ function createSnapshot(world, catalog) {
     instruments: [
       ...(definition.commodityIds || []).map((id) => ({
         id, kind: "commodity", name: localized(catalog, catalog.commodities.get(id).nameKey),
-        unit: catalog.commodities.get(id).unit, price: world.markets[definition.id].prices[id],
+        unit: localized(catalog, catalog.commodities.get(id).unitKey), price: world.markets[definition.id].prices[id],
         change: world.markets[definition.id].lastChanges[id] || 0,
         stock: world.colonies[definition.colonyId].stockpiles[id] || 0
       })),

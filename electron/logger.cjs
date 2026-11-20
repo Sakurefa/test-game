@@ -8,7 +8,10 @@ const LEVELS = new Set(["DEBUG", "INFO", "WARN", "ERROR"]);
 const instances = new Map();
 
 function safeValue(value, seen = new WeakSet()) {
-  if (value instanceof Error) return { name: value.name, message: value.message, stack: value.stack || value.message };
+  if (value instanceof Error) return {
+    name: value.name, message: value.message, stack: value.stack || value.message,
+    ...(value.cause !== undefined ? { cause: safeValue(value.cause, seen) } : {})
+  };
   if (typeof value === "bigint") return value.toString() + "n";
   if (!value || typeof value !== "object") return value;
   if (seen.has(value)) return "[Circular]";

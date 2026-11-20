@@ -214,10 +214,13 @@ function getActiveWorldSnapshot() {
 }
 
 function getActiveWorldClockStatus() {
-  if (!activeWorld) return null;
+  if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
   try {
+    campaignTime.tick();
     return {
       clock: { ...activeWorld.clock },
+      saveId: activeSaveId,
+      dirty: activeWorldDirty,
       timeControl: campaignTime.getState()
     };
   } catch (error) {

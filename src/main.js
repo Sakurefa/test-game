@@ -1,13 +1,13 @@
 import "./styles.css";
 import "./time-controls.css";
-import { renderWorld, renderWorldRegion, renderCalculationAuditPanel } from "./world.js";
+import { renderWorld, renderWorldRegion, renderCalculationAuditPanel, renderDomainEventPanel } from "./world.js";
 import { estimateCampaignWeekFraction } from "./time-display.mjs";
 import { getWorldDateRefreshRegions } from "./world-refresh.mjs";
 
 const app = document.querySelector("#app");
 const state = {
   page: "home", settings: null, slots: [], mods: [], error: "",
-  busy: false, world: null, worldTab: "overview", worldNotice: "", auditOpen: false
+  busy: false, world: null, worldTab: "overview", worldNotice: "", auditOpen: false, domainEventsOpen: false
 };
 
 function escapeHtml(value) {
@@ -199,7 +199,7 @@ function syncCampaignClockFromSnapshot(snapshot) {
 function renderActiveWorld() {
   if (!state.world) return homePage();
   state.page = "world";
-  app.innerHTML = renderWorld(state.world, state.worldTab, state.worldNotice, state.auditOpen);
+  app.innerHTML = renderWorld(state.world, state.worldTab, state.worldNotice, state.auditOpen, state.domainEventsOpen);
   cacheCampaignClockElements();
   updateCampaignClockMetadata();
   updateCampaignClockProgress();
@@ -226,6 +226,7 @@ function updateActiveWorldRegions(snapshot, previousDay) {
     if (scrollRegion) scrollRegion.scrollTop = previousScrollTop;
   }
   if (state.auditOpen) updateCalculationAuditPanel();
+  if (state.domainEventsOpen) updateDomainEventsPanel();
 }
 
 function updateCalculationAuditPanel() {
@@ -246,6 +247,31 @@ function updateCalculationAuditPanel() {
     const scrollTop = body?.scrollTop ?? 0;
     current.outerHTML = markup;
     const nextBody = app.querySelector("[data-audit-panel] .audit-panel-body");
+    if (nextBody) nextBody.scrollTop = scrollTop;
+  } else {
+    app.querySelector(".world-screen")?.insertAdjacentHTML("beforeend", markup);
+  }
+}
+
+
+function updateDomainEventsPanel() {
+  const current = app.querySelector("[data-domain-event-panel]");
+  const toggle = app.querySelector("[data-world-action='toggle-domain-events']");
+  if (toggle) {
+    toggle.classList.toggle("selected", state.domainEventsOpen);
+    toggle.setAttribute("aria-expanded", String(state.domainEventsOpen));
+  }
+  if (!state.domainEventsOpen) {
+    current?.remove();
+    return;
+  }
+  if (!state.world) return;
+  const markup = renderDomainEventPanel(state.world);
+  if (current) {
+    const body = current.querySelector(".audit-panel-body");
+    const scrollTop = body?.scrollTop ?? 0;
+    current.outerHTML = markup;
+    const nextBody = app.querySelector("[data-domain-event-panel] .audit-panel-body");
     if (nextBody) nextBody.scrollTop = scrollTop;
   } else {
     app.querySelector(".world-screen")?.insertAdjacentHTML("beforeend", markup);
@@ -292,6 +318,7 @@ async function enterNewWorld() {
   try {
     state.world = await window.gameHost.world.startNew();
     state.auditOpen = false;
+    state.domainEventsOpen = false;
     syncCampaignClockFromSnapshot(state.world);
     state.worldTab = "overview";
     state.worldNotice = "新航程已建立，世界时间初始暂停。使用右侧速度控制开始运行；市场每日更新，殖民地工业每七天结算一次。";
@@ -306,6 +333,7 @@ async function loadWorld(saveId) {
   try {
     state.world = await window.gameHost.world.loadSave(saveId);
     state.auditOpen = false;
+    state.domainEventsOpen = false;
     syncCampaignClockFromSnapshot(state.world);
     state.worldTab = "overview";
     state.worldNotice = "存档载入成功，世界时间默认暂停。日期、随机数与结算调度状态已从存档恢复。";
@@ -391,6 +419,15 @@ app.addEventListener("click", async (event) => {
   const worldAction = event.target.closest("[data-world-action]");
   if (worldAction && state.world && worldAction.dataset.worldAction === "toggle-audit" && !state.busy) {
     state.auditOpen = !state.auditOpen;
+    if (state.auditOpen) state.domainEventsOpen = false;
+    updateCalculationAuditPanel();
+    updateDomainEventsPanel();
+    return;
+  }
+  if (worldAction && state.world && worldAction.dataset.worldAction === "toggle-domain-events" && !state.busy) {
+    state.domainEventsOpen = !state.domainEventsOpen;
+    if (state.domainEventsOpen) state.auditOpen = false;
+    updateDomainEventsPanel();
     updateCalculationAuditPanel();
     return;
   }
@@ -423,6 +460,7 @@ app.addEventListener("click", async (event) => {
         worldClockElements = null;
         state.world = null;
         state.auditOpen = false;
+        state.domainEventsOpen = false;
         state.worldNotice = "";
         return homePage();
       }

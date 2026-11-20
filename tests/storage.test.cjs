@@ -17,9 +17,10 @@ async function fixture(t) {
 
 test("logger writes separate JSONL records and rotates runtime logs", async (t) => {
   const root = await fixture(t);
-  const logger = createLogger(root, { maxBytes: 512 });
+  const logger = createLogger(root, { maxBytes: 4096 });
   logger.startup("INFO", "bootstrap", "initialization");
-  for (let i = 0; i < 20; i += 1) logger.info("test", "x".repeat(30));
+  for (let i = 0; i < 100; i += 1) logger.info("test", "x".repeat(30));
+  logger.error("failure-test", { error: new Error("sample diagnostic failure") });
   const files = await fs.readdir(path.join(root, "Logs"));
   assert.ok(files.includes("startup.log"));
   assert.ok(files.includes("runtime.log"));
@@ -30,7 +31,9 @@ test("logger writes separate JSONL records and rotates runtime logs", async (t) 
   const runtime = await fs.readFile(path.join(root, "Logs", "runtime.log"), "utf8");
   const records = runtime.trimEnd().split("\n").map((line) => JSON.parse(line));
   assert.ok(records.length > 0);
-  assert.ok(records.every((record) => record.timestamp && record.level && record.scope === "test"));
+  assert.ok(records.every((record) => record.timestamp && record.level));
+  const failure = records.find((record) => record.scope === "failure-test");
+  assert.match(failure.message.error.stack, /sample diagnostic failure/);
 });
 
 test("initializes root setting, save and Logs directories with default INI files", async (t) => {

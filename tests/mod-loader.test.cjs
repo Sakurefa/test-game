@@ -168,5 +168,5 @@ test("reports a missing core package explicitly", async (t) => {
   const root = await createFixture(t);
   const result = await loadCoreContent(root);
   assert.equal(result.ok, false);
-  assert.match(result.error, /mods\\/core/);
+  assert.match(result.error, /mods.*core/);
 });

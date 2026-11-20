@@ -1,4 +1,4 @@
-const { app, BrowserWindow, ipcMain, shell } = require("electron");
+const { app, BrowserWindow, ipcMain, shell, dialog } = require("electron");
 const path = require("node:path");
 const fs = require("node:fs/promises");
 const { readModPackages, loadCoreContent } = require("./mod-loader.cjs");
@@ -37,13 +37,30 @@ function trackCleanup(task) {
   return () => cleanupTasks.delete(task);
 }
 
-ipcMain.handle("mods:list", async () => {
+function handleIpc(channel, handler) {
+  ipcMain.handle(channel, async (event, ...args) => {
+    logger.debug("ipc", `invoke ${channel}`);
+    try {
+      return await handler(event, ...args);
+    } catch (error) {
+      logger.error(`ipc.${channel}`, error);
+      throw error;
+    }
+  });
+}
+
+if (!app.isPackaged) {
+  process.on("uncaughtException", (error) => logger.error("process.uncaughtException", error));
+  process.on("unhandledRejection", (reason) => logger.error("process.unhandledRejection", reason));
+}
+
+handleIpc("mods:list", async () => {
   await ensureStorage();
   const settings = await readSettings(GAME_ROOT);
   const mods = await readModPackages(getModsDirectory(), { enabledMods: settings.mods.enabled });
   return mods.map(({ data, ...metadata }) => metadata);
 });
-ipcMain.handle("mods:load-all", async () => {
+handleIpc("mods:load-all", async () => {
   await ensureStorage();
   const settings = await readSettings(GAME_ROOT);
   return readModPackages(getModsDirectory(), { enabledMods: settings.mods.enabled });
@@ -59,19 +76,19 @@ function getCoreContent() {
   }
   return coreContentPromise;
 }
-ipcMain.handle("content:load-core", async () => getCoreContent());
+handleIpc("content:load-core", async () => getCoreContent());
 
-ipcMain.handle("app:quit", async () => {
+handleIpc("app:quit", async () => {
   logger.info("shutdown", "Quit requested from title menu");
   app.quit();
   return true;
 });
 
-ipcMain.handle("settings:read", async () => {
+handleIpc("settings:read", async () => {
   await ensureStorage();
   return readSettings(GAME_ROOT);
 });
-ipcMain.handle("settings:write", async (_event, patch) => {
+handleIpc("settings:write", async (_event, patch) => {
   await ensureStorage();
   const result = await writeSettings(GAME_ROOT, patch);
   logger.info("settings", `Updated settings groups: ${result.changed.join(", ")}`);
@@ -93,17 +110,17 @@ ipcMain.handle("settings:write", async (_event, patch) => {
   return result.settings;
 });
 
-ipcMain.handle("save:list-slots", async () => {
+handleIpc("save:list-slots", async () => {
   await ensureStorage();
   return listSaveSlots(GAME_ROOT);
 });
-ipcMain.handle("save:create-slot", async (_event, id, name) => {
+handleIpc("save:create-slot", async (_event, id, name) => {
   await ensureStorage();
   const slot = await createSaveSlot(GAME_ROOT, id, name);
   logger.info("save", `Created save slot ${id}`);
   return slot;
 });
-ipcMain.handle("save:remove-slot", async (_event, id) => {
+handleIpc("save:remove-slot", async (_event, id) => {
   await ensureStorage();
   await removeSaveSlot(GAME_ROOT, id);
   logger.info("save", `Removed save slot ${id}`);
@@ -111,7 +128,7 @@ ipcMain.handle("save:remove-slot", async (_event, id) => {
 });
 
 // Transitional JSON save methods remain rooted in ./save, never Electron userData.
-ipcMain.handle("save:read", async (_event, key) => {
+handleIpc("save:read", async (_event, key) => {
   if (!isSafeSaveKey(key)) throw new Error("Invalid save key");
   await ensureStorage();
   try {
@@ -122,7 +139,7 @@ ipcMain.handle("save:read", async (_event, key) => {
     throw error;
   }
 });
-ipcMain.handle("save:write", async (_event, key, value) => {
+handleIpc("save:write", async (_event, key, value) => {
   if (!isSafeSaveKey(key)) throw new Error("Invalid save key");
   await ensureStorage();
   const file = path.join(GAME_ROOT, "save", key + ".json");
@@ -132,7 +149,7 @@ ipcMain.handle("save:write", async (_event, key, value) => {
   logger.info("save", `Wrote legacy save ${key}`);
   return true;
 });
-ipcMain.handle("save:remove", async (_event, key) => {
+handleIpc("save:remove", async (_event, key) => {
   if (!isSafeSaveKey(key)) throw new Error("Invalid save key");
   await ensureStorage();
   try {
@@ -153,7 +170,7 @@ function createWindow(settings) {
     height: 820,
     minWidth: 900,
     minHeight: 640,
-    frame: !fullscreen,
+    frame: true,
     backgroundColor: "#101722",
     title: "Market — 随机证券市场",
     webPreferences: {
@@ -165,6 +182,9 @@ function createWindow(settings) {
   });
   if (fullscreen) window.setFullScreen(true);
   window.webContents.setZoomFactor((settings?.graphics?.ui_scale || 100) / 100);
+  window.webContents.on("did-fail-load", (_event, errorCode, errorDescription, validatedURL) => {
+    logger.error("renderer.load", { errorCode, errorDescription, validatedURL });
+  });
   window.webContents.on("render-process-gone", (_event, details) => {
     logger.error("renderer", `Renderer process exited: ${JSON.stringify(details)}`);
   });
@@ -199,6 +219,7 @@ app.whenReady().then(async () => {
     });
   } catch (error) {
     logger.error("startup", error);
+    dialog.showErrorBox("无法初始化游戏目录", `${error.message}\n\n请确认游戏文件夹没有被设为只读，并且当前用户拥有写入权限。`);
     app.quit();
   }
 });

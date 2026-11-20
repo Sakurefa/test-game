@@ -66,7 +66,7 @@ test("command handlers must be synchronous and command envelopes must be bounded
 test("command receipts are bounded and validated before persistence",()=>{
  const world=worldFixture();world.commandReceipts=Array.from({length:MAX_COMMAND_RECEIPTS+1},(_,index)=>({commandId:"cmd-"+String(index).padStart(8,"0"),type:"player.counter.increment",signature:"signature",day:1,result:null}));
  assert.throws(()=>validateCommandReceiptState(world),/invalid command receipt history/);
- world.commandReceipts=[{commandId:"cmd-00000001",type:"player.counter.increment",signature:"player.counter.increment\\n{\\"amount\\":2}",day:1,result:null},{commandId:"cmd-00000001",type:"player.counter.increment",signature:"player.counter.increment\\n{\\"amount\\":2}",day:1,result:null}];
+ world.commandReceipts=[{commandId:"cmd-00000001",type:"player.counter.increment",signature:"player.counter.increment\n{\"amount\":2}",day:1,result:null},{commandId:"cmd-00000001",type:"player.counter.increment",signature:"player.counter.increment\n{\"amount\":2}",day:1,result:null}];
  assert.throws(()=>validateCommandReceiptState(world),/invalid command receipt/);
 });
 

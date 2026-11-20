@@ -9,7 +9,14 @@ contextBridge.exposeInMainWorld("gameHost", {
   content: {
     loadCore: () => ipcRenderer.invoke("content:load-core")
   },
+  settings: {
+    read: () => ipcRenderer.invoke("settings:read"),
+    write: (patch) => ipcRenderer.invoke("settings:write", patch)
+  },
   save: {
+    listSlots: () => ipcRenderer.invoke("save:list-slots"),
+    createSlot: (id, name) => ipcRenderer.invoke("save:create-slot", id, name),
+    removeSlot: (id) => ipcRenderer.invoke("save:remove-slot", id),
     read: (key) => ipcRenderer.invoke("save:read", key),
     write: (key, value) => ipcRenderer.invoke("save:write", key, value),
     remove: (key) => ipcRenderer.invoke("save:remove", key)

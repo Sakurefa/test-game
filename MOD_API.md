@@ -34,7 +34,7 @@ Every package has a `manifest.json`. The three data categories have distinct res
 
 - `registry/`: declares stable IDs and their definition types.
 - `content/`: stores actual definitions and values.
-- `localization/`: maps stable text keys to language-specific strings.
+- `localization/`: maps stable text keys to language-specific strings. Display names and descriptions never belong in content definitions.
 
 The reserved `core` package is required and always enabled. It defines the initial universe, systems, locations, colonies, trade routes, factions, commodities, production recipes, markets, companies, securities, ship classes, fleets, wars and event definitions.
 
@@ -112,3 +112,25 @@ INI is a data format, not a programming language. Values are parsed and validate
 - Unknown API versions are rejected.
 
 No compatibility path for executable Mod code exists. See [docs/ENGINE_ARCHITECTURE.md](docs/ENGINE_ARCHITECTURE.md) for how data enters the simulation engine.
+
+## Localization contract
+
+Every content entity must define a stable `nameKey`; optional player-facing descriptions and faction government labels use `descriptionKey` and `governmentKey`. The content definition stores only these keys, never localized display strings.
+
+A locale file declares its locale and provides a `[content]` section. Keys are namespaced by entity ID so they remain stable across languages:
+
+```ini
+[language]
+locale = zh-CN
+display_name = "简体中文"
+
+[content]
+entity.solace.name = "澄光星系"
+entity.solace.description = "边境贸易与矿业交通的交汇处。"
+entity.helios-compact.name = "赫利俄斯协约"
+entity.helios-compact.government = "联合议会"
+```
+
+Use the same keys in other locale files (for example `en-US.ini`) with translated values. The catalog compiler validates every referenced key for the default locale before a world can start. Missing strings are content errors, not silently replaced with IDs. The renderer receives the selected localization dictionary and resolves names at display time.
+
+Do not put translated names in registry IDs, content IDs, save-state identifiers, or simulation rules. IDs are permanent machine-facing identifiers; localized strings are presentation data.

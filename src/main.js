@@ -60,6 +60,36 @@ function homePage() {
   `);
 }
 
+function showFatalError(report) {
+  worldViewEpoch += 1;
+  state.world = null;
+  state.busy = false;
+  state.auditOpen = false;
+  state.domainEventsOpen = false;
+  state.worldNotice = "";
+  homePage();
+if (hostAvailable()) window.gameHost.app.onWorldFatalError(showFatalError);
+  const details = report.logContext || report.stack || report.message || "No error details available";
+  app.insertAdjacentHTML("beforeend", `
+    <div class="fatal-error-backdrop" role="alertdialog" aria-modal="true" aria-labelledby="fatal-error-title">
+      <section class="fatal-error-panel">
+        <div class="fatal-error-heading">
+          <span class="eyebrow">WORLD EXECUTION STOPPED / ${escapeHtml(report.failureId || "UNKNOWN")}</span>
+          <h2 id="fatal-error-title">世界运行发生错误</h2>
+          <p>游戏已停止当前世界并返回主菜单。请复制下方诊断记录并提交给开发者。</p>
+        </div>
+        <div class="fatal-error-message"><b>${escapeHtml(report.source || "unknown")}</b><span>${escapeHtml(report.message || "Unknown error")}</span></div>
+        <label for="fatal-error-report">错误行及前后日志（可直接复制）</label>
+        <textarea id="fatal-error-report" readonly spellcheck="false">${escapeHtml(details)}</textarea>
+        <div class="fatal-error-actions">
+          <button class="action-button" data-action="copy-fatal-error">复制全部诊断记录</button>
+          <button class="small-button" data-action="close-fatal-error">关闭并留在主菜单</button>
+        </div>
+      </section>
+    </div>`);
+  document.querySelector("#fatal-error-report")?.focus();
+}
+
 function subPage(title, subtitle, body) {
   shell(`
     <div class="subpage-heading"><button class="back-button" data-action="home">← 返回</button><span class="eyebrow">FRONTIER / ${escapeHtml(title)}</span><h2>${escapeHtml(title)}</h2><p>${escapeHtml(subtitle)}</p></div>
@@ -478,6 +508,20 @@ app.addEventListener("click", async (event) => {
   if (!button || state.busy) return;
   const action = button.dataset.action;
   try {
+    if (action === "copy-fatal-error") {
+      const report = document.querySelector("#fatal-error-report");
+      if (report) {
+        report.focus();
+        report.select();
+        await navigator.clipboard.writeText(report.value);
+        button.textContent = "已复制";
+      }
+      return;
+    }
+    if (action === "close-fatal-error") {
+      document.querySelector(".fatal-error-backdrop")?.remove();
+      return;
+    }
     if (action === "home") return homePage();
     if (action === "new" || action === "saves" || action === "settings" || action === "mods") return navigate(action);
     if (action === "quit") {

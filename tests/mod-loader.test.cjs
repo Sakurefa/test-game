@@ -7,8 +7,10 @@ const path = require("node:path");
 const {
   MAX_MANIFEST_BYTES,
   MAX_MOD_JSON_BYTES,
-  readModPackages
+  readModPackages,
+  loadCoreContent
 } = require("../electron/mod-loader.cjs");
+const { parseIni } = require("../electron/ini-parser.cjs");
 
 async function createFixture(t) {
   const root = await fs.mkdtemp(path.join(os.tmpdir(), "market-simulator-mods-"));
@@ -34,7 +36,8 @@ function validManifest(id = "example-mod") {
     version: "1.0.0",
     author: "Test Suite",
     description: "Fixture",
-    apiVersion: 1,
+    apiVersion: 2,
+    iniFiles: [],
     dataFiles: ["sample.json"]
   };
 }
@@ -123,4 +126,47 @@ test("rejects symbolic links for Mod data files when the platform permits creati
 
   const [mod] = await readModPackages(root);
   assert.match(mod.error, /linked/i);
+});
+
+
+test("parses INI sections, typed values, quoted strings and inline JSON", () => {
+  const parsed = parseIni('; comment\n[market]\nname = "New Market"\nopen = true\nprice = 12.5\nnotes = text with spaces\nitems = ["A", "B"]\n');
+  assert.deepEqual(parsed, {
+    market: { name: "New Market", open: true, price: 12.5, notes: "text with spaces", items: ["A", "B"] }
+  });
+});
+
+test("rejects duplicate INI keys and unsafe object keys", () => {
+  assert.throws(() => parseIni("[x]\na=1\na=2"), /Duplicate INI key/);
+  assert.throws(() => parseIni("[__proto__]\na=1"), /Invalid INI section/);
+  assert.throws(() => parseIni("[x]\nconstructor=1"), /Invalid INI key/);
+});
+
+test("loads declared INI files as parsed Mod data", async (t) => {
+  const root = await createFixture(t);
+  const manifest = { ...validManifest(), iniFiles: ["world.ini"], dataFiles: [] };
+  await writeMod(root, "example-mod", manifest);
+  await fs.writeFile(path.join(root, "example-mod", "data", "world.ini"), "[world]\nname = Test World\nseed = 42\n");
+  const [mod] = await readModPackages(root);
+  assert.equal(mod.error, undefined);
+  assert.deepEqual(mod.data["world.ini"], { world: { name: "Test World", seed: 42 } });
+});
+
+test("requires and loads the first-party core content package", async (t) => {
+  const root = await createFixture(t);
+  await writeMod(root, "core", {
+    id: "core", name: "Core", version: "1.0.0", author: "Test",
+    apiVersion: 2, iniFiles: ["core.ini"]
+  });
+  await fs.writeFile(path.join(root, "core", "data", "core.ini"), "[core]\nenabled = true\n");
+  const result = await loadCoreContent(root);
+  assert.equal(result.ok, true);
+  assert.deepEqual(result.core.data["core.ini"], { core: { enabled: true } });
+});
+
+test("reports a missing core package explicitly", async (t) => {
+  const root = await createFixture(t);
+  const result = await loadCoreContent(root);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /mods\\/core/);
 });

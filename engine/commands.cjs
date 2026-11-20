@@ -60,7 +60,7 @@ function validateCommandReceiptState(world){
    ||!Number.isInteger(receipt.day)||receipt.day<0||!Object.hasOwn(receipt,"result")||seen.has(receipt.commandId)){
    throw new Error("Save contains an invalid command receipt");
   }
-  const separator=receipt.signature.indexOf("\\n");
+  const separator=receipt.signature.indexOf("\n");
   if(separator<1||receipt.signature.slice(0,separator)!==receipt.type)throw new Error("Save contains an invalid command receipt signature");
   let payload;
   try{payload=JSON.parse(receipt.signature.slice(separator+1));}catch{throw new Error("Save contains an invalid command receipt payload signature");}

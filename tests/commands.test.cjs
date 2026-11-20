@@ -1,7 +1,7 @@
 const test=require("node:test"),assert=require("node:assert/strict");
 const {MAX_COMMAND_RECEIPTS,createCommandDispatcher,validateCommandReceiptState}=require("../engine/commands.cjs");
 const {createDomainEventBus,createWorldCommandRuntime}=require("../engine/index.cjs");
-const worldFixture=()=>({schemaVersion:5,clock:{day:12},counter:5,commandReceipts:[]});
+const worldFixture=()=>({schemaVersion:6,clock:{day:12},counter:5,commandReceipts:[]});
 function createDispatcher(options={}){
  return createCommandDispatcher([{
   id:"player.counter.increment",

@@ -93,12 +93,14 @@ test("writes and restores a versioned game world inside its save slot", async (t
   await initializeStorage(root);
   await createSaveSlot(root, "slot_world", "Frontier Test");
   const state = {
-    schemaVersion: 3,
+    schemaVersion: 4,
     contentHash: "test-content",
     universeId: "test-universe",
     clock: { date: "2478-04-01", day: 0 },
     rng: { seed: 42, streams: {} },
     audit: { calculations: [] },
+    domainEventSequence: 0,
+    domainEvents: [],
     colonies: { "test-colony": { stockpiles: { ore: 10 } } }
   };
   await writeGameState(root, "slot_world", state);

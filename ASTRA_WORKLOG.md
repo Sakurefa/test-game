@@ -39,7 +39,7 @@ Long-term direction:
 
 ## Latest verified repository state — 2026-11-20
 
-- Latest branch commit: `57cd1c68d12e5348157f1f0abaabc60b4698b0f9`.
+- Latest verified source/build commit (excluding this log-only update): `57cd1c68d12e5348157f1f0abaabc60b4698b0f9`.
 - Source commit tested by CI: `d3647c9043cd948c083fcc674edfc8153672471b`.
 - GitHub Actions run [44769774977](https://github.com/Sakurefa/test-game/actions/runs/44769774977) completed successfully:
   - Node syntax checks: passed.

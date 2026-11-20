@@ -51,13 +51,23 @@ function onDaySettled(world, detail) {
   queueAutomaticSave("daily", world);
   if (detail.day % 7 === 0) queueAutomaticSave("weekly", world);
 }
+function formatErrorChain(error) {
+  const parts = [];
+  const seen = new Set();
+  for (let current = error; current && !seen.has(current); current = current.cause) {
+    seen.add(current);
+    parts.push(current.stack || `${current.name || "Error"}: ${current.message || String(current)}`);
+  }
+  return parts.join("\\nCaused by:\\n");
+}
+
 async function failActiveWorld(error, source) {
   if (fatalHandling) return;
   fatalHandling = true;
   campaignTime.pause();
   const failureId = require("node:crypto").randomUUID();
   const errorMessage = error instanceof Error ? error.message : String(error);
-  const errorStack = error instanceof Error ? error.stack : String(error);
+  const errorStack = error instanceof Error ? formatErrorChain(error) : String(error);
   logger.error("world.fatal", { failureId, source, message: errorMessage, stack: errorStack });
   disposeWorldCommandGateway();
   activeWorld = null;

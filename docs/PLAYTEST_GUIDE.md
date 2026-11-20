@@ -59,7 +59,7 @@ The initial scheduler is intentionally simple:
 5. Confirm the calendar date, fractional day progress, inventories, prices, random state and scheduler markers are restored. The world should load paused.
 6. Resume time and confirm daily/weekly updates continue without duplicating the last completed day.
 
-Version-1 world saves are migrated by preserving their date and elapsed day count, adding zero fractional progress and creating the new scheduler state. A save made with different Mod content is still rejected explicitly.
+Legacy world schemas 1–5 are migrated to schema 6. The migration preserves the campaign date/day, existing world state and prior player cash/holdings; it converts cash to integer CR minor units and records balanced opening capital. The world is then paused as usual. A save made with different Mod content is still rejected explicitly.
 
 World data is stored at:
 
@@ -111,7 +111,12 @@ This prototype is designed to be inspected and broken safely. A damaged save sho
 - Expand recent records. Each should show a monotonically increasing event number, campaign day/date, event type, scope, subject and JSON payload.
 - Advance time at 1x–4x. The panel should refresh when the authoritative day changes without resetting its own scroll position. The panel and 「计算审计」 are mutually exclusive and should never overlap.
 - On day 7, confirm that colony production events appear alongside the daily market and war chronology events. The expected cadence is daily for each market and active war, weekly for each colony. Save, leave, reload and resume; the event sequence should continue without duplicate IDs. The persisted idempotency keys must remain unique within the retained history.
-\n\n## Command and event foundation boundary\n\nThe engine command dispatcher and world-command runtime are automated-test foundations. They validate command IDs/types/payloads, run handlers against isolated world drafts, save retry receipts, and commit returned domain events before publishing them to immutable subscribers. The main process exposes a restricted command IPC route, but the current interface has no transfer controls and the gateway only registers finance.transfer. Do not treat the presence of the ledger or command gateway as evidence that player trading, construction, logistics or fleet orders are playable.\n
+
+
+## Command and event foundation boundary
+
+The engine command dispatcher and world-command runtime validate command IDs/types/payloads, run handlers against isolated world drafts, save retry receipts, and commit returned domain events before publishing them to immutable subscribers. The Electron main process exposes a restricted command IPC route; the renderer submits only a command envelope and cannot provide actor identity or permissions. The current gateway registers only finance.transfer. The interface has no transfer controls yet. Do not treat the ledger or command gateway as evidence that market trading, construction, logistics or fleet orders are playable.
+
 ## Financial ledger verification boundary
 
-World schema 6 stores account balances as integer CR minor units and validates them by replaying the append-only, per-currency balanced transaction history. Legacy cash is migrated into the player account and opening-capital transaction. Automated tests cover cash migration, balance reconciliation, overdraw prevention, cross-currency rejection, duplicate transaction IDs and command retries. A future combined Windows test should inspect the displayed starting balance, load an older schema-5 save, and confirm the account value is unchanged after migration and save/reload.
+World schema 6 stores account balances as integer CR minor units and validates them by replaying the append-only, per-currency balanced transaction history. Legacy cash is migrated into the player account and opening-capital transaction. Automated tests cover cash migration, balance reconciliation, overdraw prevention, cross-currency rejection, duplicate transaction IDs and command retries. A future combined Windows test should inspect the displayed starting balance, load an older schema-5 save, confirm its previous cash and holdings are preserved after migration, and then save/reload to verify the same balance remains.

@@ -55,7 +55,7 @@ function validateCommandReceiptState(world){
  const seen=new Set();
  for(const receipt of world.commandReceipts){
   if(!isRecord(receipt)||typeof receipt.commandId!=="string"||!COMMAND_ID_PATTERN.test(receipt.commandId)
-   ||typeof receipt.type!=="string"||!COMMAND_TYPE_PATTERN.test(receipt.type)
+   ||typeof receipt.type!=="string"||receipt.type.length>128||!COMMAND_TYPE_PATTERN.test(receipt.type)
    ||typeof receipt.signature!=="string"||receipt.signature.length>MAX_COMMAND_PAYLOAD_BYTES+160
    ||!Number.isInteger(receipt.day)||receipt.day<0||!Object.hasOwn(receipt,"result")||seen.has(receipt.commandId)){
    throw new Error("Save contains an invalid command receipt");
@@ -64,6 +64,7 @@ function validateCommandReceiptState(world){
   if(separator<1||receipt.signature.slice(0,separator)!==receipt.type)throw new Error("Save contains an invalid command receipt signature");
   let payload;
   try{payload=JSON.parse(receipt.signature.slice(separator+1));}catch{throw new Error("Save contains an invalid command receipt payload signature");}
+  if(!isRecord(payload))throw new Error("Save contains an invalid command receipt payload signature");
   const canonical=normalizeJson(payload,"Command receipt payload",MAX_COMMAND_PAYLOAD_BYTES);
   if(canonical.serialized!==receipt.signature.slice(separator+1))throw new Error("Save contains a non-canonical command receipt signature");
   normalizeJson(receipt.result,"Command receipt result",MAX_COMMAND_RESULT_BYTES);
@@ -95,7 +96,7 @@ function createCommandDispatcher(definitions=[],options={}){
  if(options.validateWorld!==undefined&&typeof options.validateWorld!=="function")throw new TypeError("Command world validator must be a function");
  const handlers=new Map();
  function register(definition){
-  if(!isRecord(definition)||typeof definition.id!=="string"||!COMMAND_TYPE_PATTERN.test(definition.id))throw new TypeError("Every command requires a stable lowercase ID");
+  if(!isRecord(definition)||typeof definition.id!=="string"||definition.id.length>128||!COMMAND_TYPE_PATTERN.test(definition.id))throw new TypeError("Every command requires a stable lowercase ID");
   if(handlers.has(definition.id))throw new Error("Duplicate command definition: "+definition.id);
   if(typeof definition.validate!=="function"||typeof definition.execute!=="function")throw new TypeError("Command "+definition.id+" requires validate and execute functions");
   if(definition.authorize!==undefined&&typeof definition.authorize!=="function")throw new TypeError("Command "+definition.id+".authorize must be a function");
@@ -108,7 +109,7 @@ function createCommandDispatcher(definitions=[],options={}){
   if(!isRecord(world))throw new TypeError("A world state is required to dispatch a command");
   if(!isRecord(command)||Object.keys(command).some(key=>!["commandId","type","payload"].includes(key))
    ||typeof command.commandId!=="string"||!COMMAND_ID_PATTERN.test(command.commandId)
-   ||typeof command.type!=="string"||!COMMAND_TYPE_PATTERN.test(command.type)
+   ||typeof command.type!=="string"||command.type.length>128||!COMMAND_TYPE_PATTERN.test(command.type)
    ||!isRecord(command.payload))throw new TypeError("Invalid command envelope");
   if(world.commandReceipts!==undefined&&!Array.isArray(world.commandReceipts))throw new Error("World has an invalid command receipt history");
   const receipts=world.commandReceipts??[];
@@ -140,7 +141,7 @@ function createCommandDispatcher(definitions=[],options={}){
   const result=normalizeJson(rawOutcome.result===undefined?null:rawOutcome.result,"Command result",MAX_COMMAND_RESULT_BYTES).value;
   const events=normalizeCommandEvents(rawOutcome.events??[],command.commandId);
   if(options.validateWorld){
-   const validation=assertSynchronous(options.validateWorld(draft,context),"Command world validation");
+   const validation=assertSynchronous(options.validateWorld(deepFreeze(structuredClone(draft)),context),"Command world validation");
    runGuard(()=>validation,{},"Command world validation");
   }
   const day=Number.isInteger(draft.clock?.day)?draft.clock.day:0;

@@ -47,6 +47,7 @@ jobs:
           git add -f dist
           if (-not (git diff --cached --quiet)) {
             git commit -m "chore(runtime): sync Electron runtime dependencies"
+            git pull --rebase origin main
             git push
           }
       - name: Upload standalone launcher EXE

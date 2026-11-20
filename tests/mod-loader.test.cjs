@@ -174,6 +174,20 @@ test("requires and loads the first-party core data package", async (t) => {
   assert.deepEqual(result.core.data.content["core.ini"], { core: { enabled: true } });
 });
 
+test("core content loading honors disabled community Mods", async (t) => {
+  const root = await createFixture(t);
+  await writeMod(root, "core", {
+    id: "core", name: "Core", version: "1.0.0", author: "Test",
+    apiVersion: 3, registryFiles: [], contentFiles: [], localizationFiles: []
+  });
+  await writeMod(root, "community-pack", validManifest("community-pack"), {
+    content: { "sample.json": "{}" }
+  });
+  const result = await loadCoreContent(root, { enabledMods: { core: true, "community-pack": false } });
+  assert.equal(result.ok, true);
+  assert.equal(result.mods.find((mod) => mod.id === "community-pack").enabled, false);
+});
+
 test("reports a missing core package explicitly", async (t) => {
   const root = await createFixture(t);
   const result = await loadCoreContent(root);

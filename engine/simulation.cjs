@@ -321,6 +321,64 @@ function settleDay(world, catalog) {
   return { day: world.clock.day, date: world.clock.date, summary, systemsRun, calculations: calculationRecords };
 }
 
+function validateDayInputs(world, catalog) {
+  if (!world?.clock || !Number.isInteger(world.clock.day) || typeof world.clock.date !== "string") {
+    throw new Error("DAY_INPUT world.clock.day/date is missing or invalid");
+  }
+  if (!world.rng || !Number.isInteger(world.rng.seed) || !world.rng.streams || typeof world.rng.streams !== "object") {
+    throw new Error("DAY_INPUT world.rng seed/streams is missing or invalid");
+  }
+  if (!world.scheduler?.lastRunDayBySystem || typeof world.scheduler.lastRunDayBySystem !== "object") {
+    throw new Error("DAY_INPUT world.scheduler.lastRunDayBySystem is missing");
+  }
+  if (!Array.isArray(world.events) || !Array.isArray(world.domainEvents) || !Number.isInteger(world.domainEventSequence)) {
+    throw new Error("DAY_INPUT world event history state is missing or invalid");
+  }
+  for (const id of catalog.colonies.keys()) {
+    const colony = world.colonies?.[id];
+    if (!colony || !colony.stockpiles || !Array.isArray(colony.industries)) {
+      throw new Error("DAY_INPUT required colony data is missing: " + id);
+    }
+    if (!Number.isFinite(colony.population) || colony.population <= 0) {
+      throw new Error("DAY_INPUT colony population must be greater than zero: " + id);
+    }
+    if (!Number.isFinite(colony.stability) || colony.stability < 0 || colony.stability > 100) {
+      throw new Error("DAY_INPUT colony stability is invalid: " + id);
+    }
+    for (const industry of colony.industries) {
+      if (!catalog.recipes.has(industry.recipeId) || !Number.isFinite(industry.level) || industry.level <= 0) {
+        throw new Error("DAY_INPUT industry recipe/level is missing or invalid: " + id + "." + industry.recipeId);
+      }
+    }
+  }
+  for (const [id, definition] of catalog.markets) {
+    const market = world.markets?.[id];
+    if (!market?.prices || !market.lastChanges) throw new Error("DAY_INPUT market state is missing: " + id);
+    if (!world.colonies?.[definition.colonyId]) throw new Error("DAY_INPUT market references a missing colony: " + id + "." + definition.colonyId);
+    for (const instrumentId of [...(definition.commodityIds || []), ...(definition.securityIds || [])]) {
+      const price = market.prices[instrumentId];
+      if (!Number.isFinite(price) || price <= 0) {
+        throw new Error("DAY_INPUT required market price must be greater than zero: " + id + "." + instrumentId);
+      }
+    }
+  }
+  for (const id of catalog.fleets.keys()) {
+    if (!world.fleets?.[id]) throw new Error("DAY_INPUT fleet state is missing: " + id);
+  }
+  for (const [id, definition] of catalog.wars) {
+    const war = world.wars?.[id];
+    if (!war || !Number.isInteger(war.daysActive) || war.daysActive < 0 || !war.warWeariness) {
+      throw new Error("DAY_INPUT war state is missing or invalid: " + id);
+    }
+    for (const factionId of definition.participants) {
+      if (!Number.isFinite(war.warWeariness[factionId]) || war.warWeariness[factionId] < 0) {
+        throw new Error("DAY_INPUT war weariness is missing or invalid: " + id + "." + factionId);
+      }
+    }
+  }
+  validateWorldFinancialState(world);
+}
+
 function advanceDay(world, catalog, { eventBus = null, onDaySettled = null } = {}) {
   if (eventBus !== null && (!eventBus || typeof eventBus.publish !== "function")) {
     throw new TypeError("A domain event bus must provide publish(event)");

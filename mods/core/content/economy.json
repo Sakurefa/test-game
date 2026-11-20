@@ -4,62 +4,62 @@
     {
       "id": "ore",
       "category": "raw-material",
-      "unit": "吨",
       "basePrice": 18,
       "targetStock": 100,
       "priceElasticity": 0.8,
       "volatility": 0.025,
-      "nameKey": "entity.ore.name"
+      "nameKey": "entity.ore.name",
+      "unitKey": "entity.ore.unit"
     },
     {
       "id": "water",
       "category": "resource",
-      "unit": "吨",
       "basePrice": 7,
       "targetStock": 90,
       "priceElasticity": 0.55,
       "volatility": 0.012,
-      "nameKey": "entity.water.name"
+      "nameKey": "entity.water.name",
+      "unitKey": "entity.water.unit"
     },
     {
       "id": "food",
       "category": "consumer-good",
-      "unit": "吨",
       "basePrice": 12,
       "targetStock": 120,
       "priceElasticity": 0.7,
       "volatility": 0.018,
-      "nameKey": "entity.food.name"
+      "nameKey": "entity.food.name",
+      "unitKey": "entity.food.unit"
     },
     {
       "id": "alloys",
       "category": "industrial-good",
-      "unit": "吨",
       "basePrice": 46,
       "targetStock": 65,
       "priceElasticity": 0.9,
       "volatility": 0.03,
-      "nameKey": "entity.alloys.name"
+      "nameKey": "entity.alloys.name",
+      "unitKey": "entity.alloys.unit"
     },
     {
       "id": "fuel",
       "category": "strategic-good",
-      "unit": "吨",
       "basePrice": 31,
       "targetStock": 55,
       "priceElasticity": 1.1,
       "volatility": 0.035,
-      "nameKey": "entity.fuel.name"
+      "nameKey": "entity.fuel.name",
+      "unitKey": "entity.fuel.unit"
     },
     {
       "id": "electronics",
       "category": "industrial-good",
-      "unit": "箱",
       "basePrice": 88,
       "targetStock": 35,
       "priceElasticity": 1.05,
       "volatility": 0.04,
-      "nameKey": "entity.electronics.name"
+      "nameKey": "entity.electronics.name",
+      "unitKey": "entity.electronics.unit"
     }
   ],
   "recipes": [

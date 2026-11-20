@@ -129,3 +129,14 @@ The renderer distinguishes simulation cadence from presentation refresh cadence.
 The world content scroll container remains mounted while a region is replaced, preserving the user's reading position. A full world snapshot is still transferred at committed day boundaries in this prototype; the next evolution should replace that broad payload with typed domain events or versioned per-domain projections as the number of active systems grows. UI refresh policy must remain downstream of simulation results and must never influence system cadence, random draws or settlement order.
 
 The campaign progress bar represents the current seven-day week and uses seven visual segments. Continuous movement within each segment represents elapsed time in that day; crossing a segment boundary corresponds to a daily settlement, and the weekly boundary corresponds to colony production. The renderer clamps the display just before a boundary until the main process confirms the authoritative date change.
+
+
+## Named randomness and calculation audit
+
+World schema version 3 replaces the single shared PRNG state with named streams. Each stream seed is derived from the saved world seed and a stable lowercase stream ID; each stream advances independently and its state is saved under that ID. Current market noise uses one stream per market instrument (`economy.market.<market-id>.<instrument-id>`). Adding or consuming random values in another market or subsystem therefore cannot shift this instrument's sequence. Stream IDs are persistent simulation identifiers and must never be renamed casually.
+
+Schema 1 and 2 saves migrate to schema 3 while preserving calendar, scheduler and entity state. The legacy shared PRNG position cannot be mapped to independent streams without coupling them again, so migrated saves begin their new named streams from the original world seed. Their future random outcomes intentionally differ from the old shared-stream sequence; after migration, save/load remains deterministic.
+
+The versioned calculation registry currently contains `economy.commodity-price` v1 and `economy.security-price` v1. Each execution produces a deterministic audit record with day, formula ID/version, inputs, modifiers, intermediate steps, actual random draws and result. The world save retains the latest 200 calculation records. Audit reads are observational and do not access random streams.
+
+Calculation capture is unconditional in the simulation service. A future UI visibility switch must only decide whether the renderer displays already-recorded audit data; it must not be passed into formulas, scheduler systems or random-stream services. Thus enabling/disabling the inspector cannot alter random consumption, formula order or simulation results. Formula IDs in contextual help should resolve to these registry entries rather than duplicate formula text.

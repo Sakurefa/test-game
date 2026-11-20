@@ -1,8 +1,9 @@
-const { SeededRandom, hashSeed } = require("./random.cjs");
+const { NamedRandomStreams, hashSeed } = require("./random.cjs");
+const { createCalculationService, CALCULATION_AUDIT_LIMIT } = require("./formulas.cjs");
 const { createClock, advanceClock, advanceClockTime } = require("./clock.cjs");
 const { createSystemRegistry } = require("./system-registry.cjs");
 
-const GAME_STATE_SCHEMA_VERSION = 2;
+const GAME_STATE_SCHEMA_VERSION = 3;
 const MAX_ADVANCE_DAYS = 30;
 const MAX_CAMPAIGN_CATCH_UP_DAYS = 3650;
 const LOG_LIMIT = 100;
@@ -23,7 +24,7 @@ function round(value, digits = 2) {
 function createWorld(catalog, options = {}) {
   if (!catalog?.universe || !catalog?.contentHash) throw new TypeError("A validated content catalog is required");
   const seed = hashSeed(options.seed ?? Date.now());
-  const random = new SeededRandom(seed);
+  const randomStreams = new NamedRandomStreams(seed);
   const colonies = {};
   for (const definition of catalog.colonies.values()) {
     colonies[definition.id] = {
@@ -85,7 +86,8 @@ function createWorld(catalog, options = {}) {
     universeId: catalog.universe.id,
     clock: createClock(catalog.universe.startDate),
     scheduler: { lastRunDayBySystem: {} },
-    rng: random.snapshot(),
+    rng: randomStreams.snapshot(),
+    audit: { calculations: [] },
     player: {
       factionId: options.playerFactionId || catalog.universe.defaultPlayerFactionId,
       account: { cash: 250000, holdings: {} }
@@ -135,20 +137,24 @@ function produceForColony(catalog, colonyState) {
   return output;
 }
 
-function updateMarket(catalog, marketState, colonyState, allColonyStates, random) {
+function updateMarket(catalog, marketState, colonyState, allColonyStates, randomStreams, calculations, day) {
   const market = catalog.markets.get(marketState.id);
   const changes = {};
   for (const commodityId of market.commodityIds || []) {
     const commodity = catalog.commodities.get(commodityId);
     const stock = colonyState.stockpiles[commodityId] || 0;
-    const scarcity = clamp((commodity.targetStock - stock) / commodity.targetStock, -1, 1.5);
-    const fundamentals = commodity.basePrice * clamp(1 + scarcity * commodity.priceElasticity, 0.25, 3.5);
-    const noise = (random.next() - 0.5) * commodity.volatility;
     const previous = marketState.prices[commodityId] ?? commodity.basePrice;
-    const target = Math.max(0.01, fundamentals * (1 + noise));
-    const next = round(previous + (target - previous) * 0.18, 3);
-    marketState.prices[commodityId] = next;
-    changes[commodityId] = round((next - previous) / previous * 100, 2);
+    const streamId = "economy.market." + marketState.id + "." + commodityId;
+    const { result } = calculations.evaluate("economy.commodity-price", {
+      basePrice: commodity.basePrice,
+      targetStock: commodity.targetStock,
+      stock,
+      priceElasticity: commodity.priceElasticity,
+      volatility: commodity.volatility,
+      previousPrice: previous
+    }, { random: randomStreams.get(streamId), randomStreamId: streamId, day });
+    marketState.prices[commodityId] = result.price;
+    changes[commodityId] = result.change;
   }
 
   for (const securityId of market.securityIds || []) {
@@ -158,12 +164,15 @@ function updateMarket(catalog, marketState, colonyState, allColonyStates, random
       const production = allColonyStates[colonyId]?.lastProduction || {};
       return sum + Object.values(production).reduce((total, quantity) => total + quantity, 0);
     }, 0);
-    const operationalDrift = clamp(outputValue * 0.00001, 0, 0.003);
     const previous = marketState.prices[securityId] ?? security.initialPrice;
-    const noise = (random.next() - 0.5) * security.volatility;
-    const next = round(Math.max(0.01, previous * (1 + noise + operationalDrift)), 3);
-    marketState.prices[securityId] = next;
-    changes[securityId] = round((next - previous) / previous * 100, 2);
+    const streamId = "economy.market." + marketState.id + "." + securityId;
+    const { result } = calculations.evaluate("economy.security-price", {
+      outputValue,
+      volatility: security.volatility,
+      previousPrice: previous
+    }, { random: randomStreams.get(streamId), randomStreamId: streamId, day });
+    marketState.prices[securityId] = result.price;
+    changes[securityId] = result.change;
   }
   marketState.lastChanges = changes;
   return changes;
@@ -186,11 +195,11 @@ const simulationSystems = createSystemRegistry([
     cadence: "daily",
     order: 20,
     dependsOn: ["colonies.production"],
-    update: ({ world, catalog, random, summary }) => {
+    update: ({ world, catalog, randomStreams, calculations, summary, day }) => {
       for (const marketState of Object.values(world.markets)) {
         const definition = catalog.markets.get(marketState.id);
         summary.market[marketState.id] = updateMarket(
-          catalog, marketState, world.colonies[definition.colonyId], world.colonies, random
+          catalog, marketState, world.colonies[definition.colonyId], world.colonies, randomStreams, calculations, day
         );
       }
     }
@@ -220,7 +229,11 @@ function validateWorldState(world, catalog) {
     throw new Error("This save was created with different Mod content. Restore the matching Mods before loading.");
   }
   if (world.universeId !== catalog.universe.id) throw new Error("Save universe does not match the loaded content");
-  if (!Number.isInteger(world.rng?.state) || !Number.isInteger(world.rng?.seed)) throw new Error("Save has an invalid random state");
+  if (!Number.isInteger(world.rng?.seed) || !world.rng?.streams || typeof world.rng.streams !== "object" || Array.isArray(world.rng.streams)) {
+    throw new Error("Save has an invalid named random state");
+  }
+  new NamedRandomStreams(world.rng.seed, world.rng.streams);
+  if (!world.audit || !Array.isArray(world.audit.calculations)) throw new Error("Save has an invalid calculation audit");
   if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)
     || !Number.isFinite(world.clock.dayFraction) || world.clock.dayFraction < 0 || world.clock.dayFraction >= 1) {
     throw new Error("Save has an invalid game clock");
@@ -241,16 +254,23 @@ function validateWorldState(world, catalog) {
 
 function advanceDay(world, catalog) {
   validateWorldState(world, catalog);
-  const random = new SeededRandom(world.rng.seed, world.rng.state);
+  const randomStreams = new NamedRandomStreams(world.rng.seed, world.rng.streams);
+  const calculations = createCalculationService();
   world.clock = advanceClock(world.clock, 1);
   const summary = { production: {}, market: {} };
   const systemsRun = simulationSystems.runDue({
     world,
     day: world.clock.day,
-    context: { catalog, random, summary }
+    context: { catalog, randomStreams, calculations, summary }
   });
 
-  world.rng = random.snapshot();
+  world.rng = randomStreams.snapshot();
+  if (!world.audit || typeof world.audit !== "object") world.audit = { calculations: [] };
+  if (!Array.isArray(world.audit.calculations)) world.audit.calculations = [];
+  world.audit.calculations.push(...calculations.getRecords());
+  if (world.audit.calculations.length > CALCULATION_AUDIT_LIMIT) {
+    world.audit.calculations.splice(0, world.audit.calculations.length - CALCULATION_AUDIT_LIMIT);
+  }
   const productionCount = Object.keys(summary.production).length;
   const marketCount = Object.keys(summary.market).length;
   const report = productionCount > 0
@@ -283,21 +303,30 @@ function advanceCampaignTime(world, catalog, elapsedGameDays) {
 
 function migrateWorldState(world) {
   if (!world || typeof world !== "object" || Array.isArray(world)) throw new TypeError("Invalid saved world");
+  if (![1, 2, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
+    throw new Error("Unsupported or invalid game-state schema: " + world.schemaVersion);
+  }
+  if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)) {
+    throw new Error("Saved world has an invalid game clock");
+  }
   if (world.schemaVersion === 1) {
-    if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)) {
-      throw new Error("Legacy save has an invalid game clock");
-    }
     world.clock.dayFraction = 0;
     world.scheduler = { lastRunDayBySystem: {} };
-    world.schemaVersion = GAME_STATE_SCHEMA_VERSION;
-    return world;
   }
-  if (world.schemaVersion !== GAME_STATE_SCHEMA_VERSION) {
-    throw new Error(`Unsupported or invalid game-state schema: ${world.schemaVersion}`);
-  }
-  if (world.clock && world.clock.dayFraction === undefined) world.clock.dayFraction = 0;
+  if (world.clock.dayFraction === undefined) world.clock.dayFraction = 0;
   if (!world.scheduler) world.scheduler = { lastRunDayBySystem: {} };
   if (!world.scheduler.lastRunDayBySystem) world.scheduler.lastRunDayBySystem = {};
+
+  if (world.schemaVersion < 3) {
+    const legacySeed = Number.isInteger(world.rng?.seed) ? world.rng.seed : 0x6d2b79f5;
+    // Legacy saves used one shared stream. New streams derive independently from seed + stable ID.
+    world.rng = { seed: hashSeed(legacySeed), streams: {} };
+    world.audit = { calculations: [] };
+    world.schemaVersion = GAME_STATE_SCHEMA_VERSION;
+  } else {
+    if (!world.rng || !world.rng.streams) world.rng = { seed: hashSeed(world.rng?.seed ?? 0x6d2b79f5), streams: {} };
+    if (!world.audit || !Array.isArray(world.audit.calculations)) world.audit = { calculations: [] };
+  }
   return world;
 }
 

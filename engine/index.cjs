@@ -1,5 +1,6 @@
 module.exports = {
   ...require("./random.cjs"),
+  ...require("./formulas.cjs"),
   ...require("./clock.cjs"),
   ...require("./system-registry.cjs"),
   ...require("./campaign-time.cjs"),

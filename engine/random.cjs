@@ -62,4 +62,48 @@ class SeededRandom {
   }
 }
 
-module.exports = { DEFAULT_SEED, hashSeed, SeededRandom };
+const STREAM_ID_PATTERN = /^[a-z][a-z0-9._:-]{1,127}$/;
+
+class NamedRandomStreams {
+  constructor(seed = DEFAULT_SEED, savedStreams = {}) {
+    this.seed = hashSeed(seed);
+    if (!savedStreams || typeof savedStreams !== "object" || Array.isArray(savedStreams)) {
+      throw new TypeError("Saved named random streams must be an object");
+    }
+    this.streams = new Map();
+    for (const [id, saved] of Object.entries(savedStreams)) {
+      if (!STREAM_ID_PATTERN.test(id)) throw new Error("Invalid random stream ID: " + id);
+      if (!saved || typeof saved !== "object" || !Number.isInteger(saved.seed)
+        || !Number.isInteger(saved.state)) {
+        throw new Error("Invalid saved random stream state: " + id);
+      }
+      const expectedSeed = this.deriveSeed(id);
+      if ((saved.seed >>> 0) !== expectedSeed) {
+        throw new Error("Random stream seed does not match its stable ID: " + id);
+      }
+      this.streams.set(id, new SeededRandom(expectedSeed, saved.state));
+    }
+  }
+
+  deriveSeed(id) {
+    return hashSeed(String(this.seed) + ":" + id);
+  }
+
+  get(id) {
+    if (typeof id !== "string" || !STREAM_ID_PATTERN.test(id)) {
+      throw new TypeError("Random stream requires a stable lowercase ID");
+    }
+    if (!this.streams.has(id)) this.streams.set(id, new SeededRandom(this.deriveSeed(id)));
+    return this.streams.get(id);
+  }
+
+  snapshot() {
+    const streams = {};
+    for (const id of [...this.streams.keys()].sort()) {
+      streams[id] = this.streams.get(id).snapshot();
+    }
+    return { seed: this.seed, streams };
+  }
+}
+
+module.exports = { DEFAULT_SEED, hashSeed, SeededRandom, NamedRandomStreams };

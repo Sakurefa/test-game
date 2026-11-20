@@ -27,10 +27,12 @@ Copy-Item (Join-Path $distSource "*") (Join-Path $appDirectory "dist") -Recurse 
 $runtimeManifest = @{
   name = "stock-market-simulator"
   version = "0.1.0"
+  description = "A moddable desktop stock-market simulation game."
+  author = "Sakurefa"
   private = $true
   main = "electron/main.cjs"
 }
-$runtimeManifest | ConvertTo-Json -Depth 5 | Set-Content -Path (Join-Path $appDirectory "package.json") -Encoding utf8
+$runtimeManifest | ConvertTo-Json -Depth 5 | Set-Content -Path (Join-Path $appDirectory "package.json") -Encoding utf8NoBOM
 
 Write-Host "Prepared clean Electron app directory: $appDirectory"
 Get-ChildItem $appDirectory -Recurse | Select-Object FullName

@@ -56,7 +56,7 @@ async function readCategory(directory,category,declared){
  const dir=path.join(directory,category),st=await fs.lstat(dir);
  if(!st.isDirectory()||st.isSymbolicLink())throw new Error("Mod "+category+"/ directory is missing or linked");
  if((await fs.readdir(dir)).some(f=>f.toLowerCase().endsWith(".json")))throw new Error("JSON files are forbidden in Mod "+category+"/; use INI");
- for(const file of declared){const p=path.join(dir,file),s=await fs.lstat(p);if(!s.isFile()||s.isSymbolicLink()||s.size>MAX_INI_BYTES)throw new Error(category+" file is missing, linked or too large: "+file);out[file]=parseIni(await fs.readFile(p,"utf8"));}
+ for(const file of declared){const p=path.join(dir,file),s=await fs.lstat(p);if(!s.isFile()||s.isSymbolicLink()||s.size>MAX_INI_BYTES)throw new Error(category+" file is missing, linked or too large: "+file);out[file]=parseIni(await fs.readFile(p,"utf8"),{rejectInlineJson:true});}
  return out;
 }
 async function readModPackages(root,options={}){
@@ -67,7 +67,7 @@ async function readModPackages(root,options={}){
   try{
    try{await fs.access(path.join(dir,"manifest.json"));throw new Error("JSON Mod manifests are forbidden; use manifest.ini");}catch(e){if(e.message.includes("forbidden"))throw e;if(e.code!=="ENOENT")throw e;}
    const mp=path.join(dir,"manifest.ini"),ms=await fs.lstat(mp);if(!ms.isFile()||ms.isSymbolicLink()||ms.size>MAX_MANIFEST_BYTES)throw new Error("Manifest is missing, linked or too large");
-   const parsed=parseIni(await fs.readFile(mp,"utf8")),meta=parsed.mod,files=parsed.files;
+   const parsed=parseIni(await fs.readFile(mp,"utf8"),{rejectInlineJson:true}),meta=parsed.mod,files=parsed.files;
    if(!meta||!files||meta.id!==entry.name||typeof meta.name!=="string"||typeof meta.version!=="string"||typeof meta.author!=="string"||meta.api_version!==MOD_API_VERSION||Object.keys(meta).some(k=>["code","code_files","scripts","script_files"].includes(k)))throw new Error("Invalid manifest or unsupported data-only Mod API version");
    const declarations={registry:fileList(files.registry,"registry"),content:fileList(files.content,"content"),localization:fileList(files.localization,"localization")};
    const enabled=entry.name==="core"||enabledMods[entry.name]!==false,data={};

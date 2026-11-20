@@ -6,6 +6,9 @@ contextBridge.exposeInMainWorld("gameHost", {
     list: () => ipcRenderer.invoke("mods:list"),
     loadAll: () => ipcRenderer.invoke("mods:load-all")
   },
+  content: {
+    loadCore: () => ipcRenderer.invoke("content:load-core")
+  },
   save: {
     read: (key) => ipcRenderer.invoke("save:read", key),
     write: (key, value) => ipcRenderer.invoke("save:write", key, value),

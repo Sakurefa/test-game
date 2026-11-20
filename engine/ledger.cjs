@@ -12,7 +12,7 @@ function assertIdentifier(value,pattern,label){
 }
 function createFinancialLedger({playerFactionId,startDate,startingBalanceMinor=25000000,positions={}}={}){
  assertIdentifier(playerFactionId,/^[a-z0-9][a-z0-9._-]{1,63}$/,"Player faction ID");
- if(typeof startDate!=="string"||!/^d{4}-d{2}-d{2}$/.test(startDate))throw new TypeError("A valid ledger start date is required");
+ if(typeof startDate!=="string"||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(startDate))throw new TypeError("A valid ledger start date is required");
  if(!Number.isSafeInteger(startingBalanceMinor)||startingBalanceMinor<0)throw new RangeError("Starting balance must be a non-negative safe integer in minor units");
  if(!isRecord(positions))throw new TypeError("Legacy positions must be an object");
  const ledger={
@@ -54,7 +54,7 @@ function validateFinancialLedger(ledger){
  for(const transaction of ledger.transactions){
   if(!isRecord(transaction)||!Number.isInteger(transaction.sequence)||transaction.sequence!==previousSequence+1
    ||transaction.id!=="ledger-"+transaction.sequence||transaction.sequence>ledger.sequence
-   ||!Number.isInteger(transaction.day)||transaction.day<0||typeof transaction.date!=="string"||!/^d{4}-d{2}-d{2}$/.test(transaction.date)
+   ||!Number.isInteger(transaction.day)||transaction.day<0||typeof transaction.date!=="string"||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(transaction.date)
    ||typeof transaction.type!=="string"||!TRANSACTION_TYPE_PATTERN.test(transaction.type)
    ||!Array.isArray(transaction.entries)||transaction.entries.length<2||transaction.entries.length>MAX_TRANSACTION_ENTRIES
    ||(transaction.commandId!==null&&(typeof transaction.commandId!=="string"||!COMMAND_ID_PATTERN.test(transaction.commandId)))
@@ -81,7 +81,7 @@ function validateFinancialLedger(ledger){
 }
 function recordBalancedTransaction(ledger,{day,date,type,entries,commandId=null,reference=null}={}){
  validateFinancialLedger(ledger);
- if(!Number.isInteger(day)||day<0||typeof date!=="string"||!/^d{4}-d{2}-d{2}$/.test(date))throw new TypeError("Ledger transaction requires an authoritative campaign timestamp");
+ if(!Number.isInteger(day)||day<0||typeof date!=="string"||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(date))throw new TypeError("Ledger transaction requires an authoritative campaign timestamp");
  assertIdentifier(type,TRANSACTION_TYPE_PATTERN,"Transaction type");
  if(!Array.isArray(entries)||entries.length<2||entries.length>MAX_TRANSACTION_ENTRIES)throw new TypeError("A ledger transaction requires 2–32 entries");
  if(commandId!==null){

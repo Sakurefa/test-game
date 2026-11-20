@@ -49,6 +49,16 @@ test("loads a data-only Mod from its declared content directory", async (t) => {
   assert.equal(mods[0].error, undefined);
 });
 
+test("honors disabled Mod state while keeping core enabled", async (t) => {
+  const root = await createFixture(t);
+  await writeMod(root, "core", { ...validManifest("core"), contentFiles: [] });
+  await writeMod(root, "example-mod", validManifest(), { content: { "sample.json": "{}" } });
+  const mods = await readModPackages(root, { enabledMods: { core: false, "example-mod": false } });
+  assert.equal(mods.find((mod) => mod.id === "core").enabled, true);
+  assert.equal(mods.find((mod) => mod.id === "example-mod").enabled, false);
+  assert.deepEqual(mods.find((mod) => mod.id === "example-mod").data.content, {});
+});
+
 test("reports a malformed Mod without hiding a valid Mod", async (t) => {
   const root = await createFixture(t);
   await writeMod(root, "valid-mod", validManifest("valid-mod"), { content: { "sample.json": "{}" } });

@@ -115,7 +115,7 @@ No compatibility path for executable Mod code exists. See [docs/ENGINE_ARCHITECT
 
 ## Localization contract
 
-Every content entity must define a stable `nameKey`; optional player-facing descriptions and faction government labels use `descriptionKey` and `governmentKey`. The content definition stores only these keys, never localized display strings.
+Every content entity must define a stable `nameKey`; optional player-facing descriptions, faction government labels and commodity units use `descriptionKey`, `governmentKey` and `unitKey`. The content definition stores only these keys, never localized display strings.
 
 A locale file declares its locale and provides a `[content]` section. Keys are namespaced by entity ID so they remain stable across languages:
 

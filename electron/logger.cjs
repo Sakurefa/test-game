@@ -47,7 +47,10 @@ function createLogger(root, options = {}) {
   function write(level, scope, message, startup = false) {
     if (!LEVELS.has(level)) level = "INFO";
     const timestamp = new Date().toISOString();
-    const line = `[${timestamp}] [${level}] [${String(scope || "general").slice(0, 80)}] ${safeText(message)}\n`;
+    let line = `[${timestamp}] [${level}] [${String(scope || "general").slice(0, 80)}] ${safeText(message)}\\n`;
+    if (Buffer.byteLength(line, "utf8") > Math.min(maxBytes, 64 * 1024)) {
+      line = Buffer.from(line, "utf8").subarray(0, Math.min(maxBytes, 64 * 1024) - 20).toString("utf8") + " [truncated]\\n";
+    }
     const bytes = Buffer.byteLength(line, "utf8");
     try {
       ensureDirectory();

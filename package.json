@@ -30,9 +30,11 @@
     },
     "artifactName": "Market-Simulator-${version}-Windows-${arch}.${ext}",
     "files": [
-      "dist/**/*",
-      "electron/**/*",
-      "package.json"
+      "**/*",
+      "!release/**",
+      "!scripts/**",
+      "!mods/**",
+      "!source/**"
     ],
     "extraFiles": [
       { "from": "mods", "to": "mods" },

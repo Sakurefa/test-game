@@ -129,7 +129,7 @@ test("all world content names and descriptions are resolved from Core localizati
     "shipClasses", "fleets", "wars", "events"
   ]) {
     for (const entity of catalog[collectionName].values()) {
-      assert.equal(typeof entity.name, "undefined", `${entity.id} must not store a display name in content JSON`);
+      assert.equal(typeof entity.name, "undefined", `${entity.id} must not store a display name in content JSON`);\n      assert.equal(typeof entity.description, "undefined", `${entity.id} must not store a localized description in content JSON`);\n      if (entity.unitKey) assert.ok(catalog.localizations["zh-CN"][entity.unitKey], `Missing localized unit for ${entity.id}`);
       assert.equal(typeof entity.nameKey, "string", `${entity.id} must reference a localization key`);
       assert.ok(catalog.localizations["zh-CN"][entity.nameKey], `Missing localized name for ${entity.id}`);
       if (entity.descriptionKey) {

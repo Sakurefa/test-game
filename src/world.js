@@ -1,5 +1,6 @@
 import { getCampaignWeekFraction } from "./time-display.mjs";
 import { getRecentCalculationRecords } from "./calculation-audit.mjs";
+import { getRecentDomainEvents } from "./domain-event-view.mjs";
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -9,7 +10,8 @@ function escapeHtml(value) {
 
 const FORMULA_LABELS = Object.freeze({
   "economy.commodity-price": "商品市场定价",
-  "economy.security-price": "证券价格计算"
+  "economy.security-price": "证券价格计算",
+  "economy.colony-production": "殖民地生产结算"
 });
 
 function auditJson(value) {
@@ -48,6 +50,38 @@ export function renderCalculationAuditPanel(snapshot) {
       </header>
       <div class="audit-panel-body">${content}</div>
       <footer class="audit-panel-footer">只读历史记录 · 不参与公式、时间调度或随机数生成</footer>
+    </aside>`;
+}
+
+
+function renderDomainEventRecord(event) {
+  const scope = event.scope || "world";
+  return `
+    <details class="audit-record domain-event-record">
+      <summary>
+        <span><b>#${event.sequence} · 第 ${event.day} 天 · ${escapeHtml(event.type)}</b><small>${escapeHtml(event.date)} · ${escapeHtml(scope)} · ${escapeHtml(event.subjectId || "无主体")}</small></span>
+        <em>${Object.keys(event.payload || {}).length} 个字段</em>
+      </summary>
+      <div class="audit-record-body">
+        <section><h5>事件元数据</h5><pre>${auditJson({ id: event.id, sequence: event.sequence, day: event.day, date: event.date, type: event.type, scope, subjectId: event.subjectId })}</pre></section>
+        <section><h5>事件载荷</h5><pre>${auditJson(event.payload)}</pre></section>
+      </div>
+    </details>`;
+}
+
+export function renderDomainEventPanel(snapshot) {
+  const records = getRecentDomainEvents(snapshot.world, 30);
+  const content = records.length
+    ? records.map(renderDomainEventRecord).join("")
+    : `<div class="audit-empty">目前还没有领域事件。推进世界时间后，生产、市场和战争系统会在结算时写入记录。</div>`;
+  return `
+    <aside class="calculation-audit-panel domain-event-panel" data-domain-event-panel aria-label="领域事件只读面板">
+      <header class="audit-panel-header">
+        <div><span class="world-eyebrow">DOMAIN EVENT STREAM / READ ONLY</span><h3>世界事件</h3><small>最近 ${records.length} 条 · 最多显示 30 条 · 世界保留上限 300 条</small></div>
+        <button data-world-action="toggle-domain-events" aria-label="关闭世界事件">关闭</button>
+      </header>
+      <div class="audit-panel-body">${content}</div>
+      <footer class="audit-panel-footer">只读事件历史 · 不执行命令、不修改模拟状态</footer>
     </aside>`;
 }
 
@@ -204,7 +238,7 @@ export function renderWorldRegion(snapshot, regionId) {
   }
 }
 
-export function renderWorld(snapshot, activeTab = "overview", notice = "", auditOpen = false) {
+export function renderWorld(snapshot, activeTab = "overview", notice = "", auditOpen = false, domainEventsOpen = false) {
   const tabs = [
     ["overview", "星域总览"], ["colonies", "殖民地与生产"],
     ["markets", "市场与金融"], ["military", "势力与战争"]
@@ -233,6 +267,7 @@ export function renderWorld(snapshot, activeTab = "overview", notice = "", audit
         <div class="world-tabs">${tabs.map(([id, label]) => `<button data-world-tab="${id}" class="${activeTab === id ? "active" : ""}">${label}</button>`).join("")}</div>
         <div class="world-actions">
           <button data-world-action="toggle-audit" class="${auditOpen ? "selected" : ""}" aria-expanded="${auditOpen}">计算审计</button>
+          <button data-world-action="toggle-domain-events" class="${domainEventsOpen ? "selected" : ""}" aria-expanded="${domainEventsOpen}">世界事件</button>
           <span class="time-control-label" data-time-label>${snapshot.timeControl?.paused ? "时间已暂停" : `世界时间 · ${snapshot.timeControl?.speed || 1}x`}</span>
           <div class="time-speed-buttons">
             <button data-world-action="set-speed" data-speed="0" title="暂停世界时间" class="${snapshot.timeControl?.speed === 0 ? "selected" : ""}" aria-pressed="${snapshot.timeControl?.speed === 0}">Ⅱ</button>
@@ -249,5 +284,6 @@ export function renderWorld(snapshot, activeTab = "overview", notice = "", audit
       <div class="world-content">${content}</div>
       <footer class="world-footer"><span data-save-status>存档：${escapeHtml(snapshot.saveId || "未命名")} · ${snapshot.dirty ? "有未保存更改" : "已保存"}</span><span>世界版本 ${snapshot.world.schemaVersion} · 内容指纹 ${snapshot.world.contentHash.slice(0, 10)}</span></footer>
       ${auditOpen ? renderCalculationAuditPanel(snapshot) : ""}
+      ${domainEventsOpen ? renderDomainEventPanel(snapshot) : ""}
     </main>`;
 }

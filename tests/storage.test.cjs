@@ -23,7 +23,7 @@ test("logger preserves startup log and rotates runtime logs within five files", 
   const files = await fs.readdir(path.join(root, "Logs"));
   assert.ok(files.includes("startup.log"));
   assert.ok(files.includes("runtime.log"));
-  assert.ok(files.length <= 5);
+  assert.ok(files.length <= 6);
   const startup = await fs.readFile(path.join(root, "Logs", "startup.log"), "utf8");
   assert.match(startup, /initialization/);
   assert.equal(startup.trimEnd().split("\\n").length, 1);

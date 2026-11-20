@@ -3,7 +3,7 @@ const path = require("node:path");
 
 const MAX_LOG_BYTES = 100 * 1024 * 1024;
 const MAX_RUNTIME_ARCHIVES = 4;
-const MAX_RECORD_BYTES = 1024 * 1024;
+const MAX_RECORD_BYTES = 16 * 1024 * 1024;
 const LEVELS = new Set(["DEBUG", "INFO", "WARN", "ERROR"]);
 const instances = new Map();
 
@@ -54,7 +54,7 @@ function createLogger(root, options = {}) {
     };
     let line = JSON.stringify(record) + "\n";
     if (Buffer.byteLength(line, "utf8") > Math.min(maxBytes, MAX_RECORD_BYTES)) {
-      record.message = "[record exceeds the configured 1 MiB diagnostic line limit]";
+      record.message = "[record exceeds the configured 16 MiB diagnostic line limit]";
       line = JSON.stringify(record) + "\n";
     }
     const bytes = Buffer.byteLength(line, "utf8");

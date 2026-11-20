@@ -57,6 +57,17 @@ Long-term direction:
 - Root `AGENTS.md` and this work log establish the mandatory start/end session protocol.
 - **No Windows desktop test has been performed for this exact revision.** The user previously launched an earlier build and observed a day advance, but has not validated the correctness of the simulation numbers.
 
+## Latest verified repository update — 2026-11-21
+
+- Latest source commit for incremental view refresh and weekly progress: `a667df97e7415b964c4a7d8a9cf73c2a49028dea`.
+- Latest `main` commit including CI-generated renderer output: `f09659303c76c29fb70bd16aa8628431952e56f7`.
+- GitHub Actions run [44791212863](https://github.com/Sakurefa/test-game/actions/runs/44791212863) completed successfully:
+  - Electron/engine syntax checks passed.
+  - Full automated suite: 52 passed, 0 failed.
+  - Vite renderer build passed.
+  - CI generated updated `dist/index.html` and hashed JS/CSS assets in `f096593`.
+- The user confirmed the previous clock interpolation is now smooth. The new incremental rendering and weekly progress changes have CI coverage, but have not yet received a Windows desktop GUI test.
+
 ## Current work queue
 
 ### Priority 1 — deterministic calculations and simulation correctness
@@ -195,3 +206,17 @@ Long-term direction:
 - Source fix commit: `5a4d8103e673b589aeab5b7596bba0c8c99bf13b`. Windows GitHub Actions run [44788224888](https://github.com/Sakurefa/test-game/actions/runs/44788224888) completed successfully: syntax checks passed, all 45 tests passed (0 failed), and Vite renderer build passed. Generated renderer output was committed as `f843b1f5e177d09ca7e48cf930201ed2a309bc88`.
 - No local full test suite/build was run in this environment. No Windows desktop GUI launch was performed by the assistant. The issue requires user-side confirmation on the newly downloaded main ZIP; the separate EXE does not need updating because its bootstrap loads the adjacent repository's current `electron/main.cjs`, preload and `dist/`.
 - Next verification: user should download the latest main ZIP and confirm (1) percentage/progress bar move smoothly without clicking, (2) date and all relevant panels refresh on day rollover, (3) pause freezes the progress, (4) no obvious stutter remains at 1x–4x. If confirmed, continue with Phase B named random streams and formula/audit traces.
+
+### 2026-11-21 — incremental world-view refresh and weekly campaign progress
+
+- Re-read the complete root `AGENTS.md` and `ASTRA_WORKLOG.md`, inspected the current `main` head and latest Actions status before editing. Starting main head: `21ffb864d17db81abc78c135d7e661aeeeb3e7a5`.
+- User reported that each date change caused the overview's recent-event list to rebuild and the world view's scroll position to jump to the top. The root cause was confirmed in `src/main.js`: the date-boundary polling path fetched a full snapshot and called `renderActiveWorld()`, which replaced `#app` and therefore destroyed the mounted `.world-content` scroll container.
+- Added a cadence-aware view-region policy in `src/world-refresh.mjs`: overview event history, market quotes and war chronology refresh daily; colony production refreshes only when a seven-day boundary is crossed. Added policy tests, including multi-day catch-up.
+- Added stable region IDs and `renderWorldRegion()` to `src/world.js`. On an authoritative day change, `src/main.js` now replaces only the due region and keeps the existing `.world-content` scroll owner mounted, explicitly restoring its previous `scrollTop`. The renderer no longer rebuilds the entire world screen for automatic date-boundary updates.
+- Switched the campaign progress indicator from a single-day bar to a seven-segment weekly bar. `src/time-display.mjs` now derives week progress from the authoritative day plus interpolated day fraction; crossing a confirmed seven-day boundary resets the displayed week. This visual calculation does not control or mutate simulation time. Added coverage for daily segments, week rollover, interpolation, clamping and invalid inputs.
+- Updated `docs/ENGINE_ARCHITECTURE.md` and `docs/PLAYTEST_GUIDE.md` with region refresh contracts, expected scroll behavior and seven-segment week progress.
+- Exact source/test/docs changes: `src/main.js`, `src/world.js`, new `src/world-refresh.mjs`, `src/time-display.mjs`, `src/time-controls.css`, `tests/time-display.test.mjs`, new `tests/world-refresh.test.mjs`, `docs/ENGINE_ARCHITECTURE.md` and `docs/PLAYTEST_GUIDE.md`. CI generated `dist/index.html` plus the updated hashed JS/CSS outputs.
+- Source commit: `a667df97e7415b964c4a7d8a9cf73c2a49028dea`. GitHub Actions run [44791212863](https://github.com/Sakurefa/test-game/actions/runs/44791212863) passed syntax checks, all 52 automated tests (0 failed) and the Vite renderer build. CI generated renderer commit: `f09659303c76c29fb70bd16aa8628431952e56f7`.
+- Important remaining distinction: daily updates still fetch/serialize a full world snapshot over IPC; only DOM rendering is now region-scoped. The current prototype world is small, but a future domain-event/per-domain projection phase should narrow that payload so data transfer also scales with changed systems. Explicit tab navigation and some user-triggered actions still use the full screen renderer.
+- No local full suite/build or assistant-run Windows desktop GUI test was performed. The new behavior requires user-side verification on Windows, especially scrolling within 最近动态 while days advance, weekly bar segmentation/reset, and daily-vs-weekly panel refresh cadence. The separately distributed launcher EXE does not need replacement because it loads the adjacent repository's current source/runtime files.
+- Next: obtain the user's Windows validation, then proceed with named RNG streams and formula/audit services. Preserve the separation between simulation cadence, IPC update payloads and DOM view refreshes.

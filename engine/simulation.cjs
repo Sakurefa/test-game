@@ -5,7 +5,7 @@ const GAME_STATE_SCHEMA_VERSION = 1;
 const MAX_ADVANCE_DAYS = 30;
 const LOG_LIMIT = 100;
 
-function clamp(value, min, max) {
+function localized(catalog, key) {\n  return catalog.localizations?.[catalog.defaultLocale]?.[key] || `[${key || "missing-localization-key"}]`;\n}\n\nfunction clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
@@ -92,7 +92,7 @@ function createWorld(catalog, options = {}) {
       day: 0,
       date: catalog.universe.startDate,
       type: "system",
-      text: `新航程在${catalog.universe.name}展开。`
+      text: `新航程在${localized(catalog, catalog.universe.nameKey)}展开。`
     }]
   };
 }
@@ -250,13 +250,13 @@ function createSnapshot(world, catalog) {
     state: world.markets[definition.id],
     instruments: [
       ...(definition.commodityIds || []).map((id) => ({
-        id, kind: "commodity", name: catalog.localizations?.[catalog.defaultLocale]?.[catalog.commodities.get(id).nameKey] || id,
+        id, kind: "commodity", name: localized(catalog, catalog.commodities.get(id).nameKey),
         unit: catalog.commodities.get(id).unit, price: world.markets[definition.id].prices[id],
         change: world.markets[definition.id].lastChanges[id] || 0,
         stock: world.colonies[definition.colonyId].stockpiles[id] || 0
       })),
       ...(definition.securityIds || []).map((id) => ({
-        id, kind: "equity", name: catalog.localizations?.[catalog.defaultLocale]?.[catalog.securities.get(id).nameKey] || id,
+        id, kind: "equity", name: localized(catalog, catalog.securities.get(id).nameKey),
         ticker: catalog.securities.get(id).ticker, unit: "股",
         price: world.markets[definition.id].prices[id],
         change: world.markets[definition.id].lastChanges[id] || 0

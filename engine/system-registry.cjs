@@ -49,12 +49,11 @@ function createSystemRegistry(definitions) {
       .filter((system) => system.dependsOn.every((id) => completed.has(id)))
       .sort(compare);
     if (ready.length === 0) throw new Error("Simulation system dependency cycle detected");
-    for (const system of ready) {
-      const { _index, ...publicSystem } = system;
-      ordered.push(Object.freeze(publicSystem));
-      completed.add(system.id);
-      remaining.delete(system.id);
-    }
+    const system = ready[0];
+    const { _index, ...publicSystem } = system;
+    ordered.push(Object.freeze(publicSystem));
+    completed.add(system.id);
+    remaining.delete(system.id);
   }
 
   const systems = Object.freeze(ordered);

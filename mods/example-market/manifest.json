@@ -4,6 +4,9 @@
   "version": "1.0.0",
   "author": "Market Simulator Community",
   "description": "A tiny example Mod showing the API v1 folder and data format.",
-  "apiVersion": 1,
-  "dataFiles": ["market-events.json"]
+  "apiVersion": 2,
+  "dataFiles": [
+    "market-events.json"
+  ],
+  "iniFiles": []
 }

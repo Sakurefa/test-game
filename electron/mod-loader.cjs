@@ -69,7 +69,7 @@ async function readModPackages(root, options = {}) {
         manifest.id !== entry.name || typeof manifest.name !== "string" ||
         typeof manifest.version !== "string" || typeof manifest.author !== "string" ||
         manifest.apiVersion !== MOD_API_VERSION ||
-        CATEGORIES.some((category) => !Array.isArray(declarations[category])) ||
+        CATEGORIES.some((category) => !Object.hasOwn(manifest, category + "Files") || !Array.isArray(declarations[category])) ||
         Object.keys(manifest).some((key) => ["code", "codeFiles", "scripts", "scriptFiles"].includes(key))
       ) {
         throw new Error("Invalid manifest or unsupported data-only Mod API version");

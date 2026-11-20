@@ -59,9 +59,9 @@ Long-term direction:
 
 ## Latest verified repository update — 2026-11-21
 
-- Latest source commit for incremental view refresh and weekly progress: `a667df97e7415b964c4a7d8a9cf73c2a49028dea`.
-- Latest `main` commit including CI-generated renderer output: `f09659303c76c29fb70bd16aa8628431952e56f7`.
-- GitHub Actions run [44791212863](https://github.com/Sakurefa/test-game/actions/runs/44791212863) completed successfully:
+- Latest source commit for incremental view refresh, weekly progress and live week-day metadata: `c8bbe13d19a3bd7b6f3caed90deac8d625d2f05b`.
+- Latest `main` commit including CI-generated renderer output: `73a2387a14f8f7946c9cf4ef6400513646fddc14`.
+- GitHub Actions run [44791557695](https://github.com/Sakurefa/test-game/actions/runs/44791557695) completed successfully for the final renderer source, including the live week-day metadata correction:
   - Electron/engine syntax checks passed.
   - Full automated suite: 52 passed, 0 failed.
   - Vite renderer build passed.
@@ -220,3 +220,11 @@ Long-term direction:
 - Important remaining distinction: daily updates still fetch/serialize a full world snapshot over IPC; only DOM rendering is now region-scoped. The current prototype world is small, but a future domain-event/per-domain projection phase should narrow that payload so data transfer also scales with changed systems. Explicit tab navigation and some user-triggered actions still use the full screen renderer.
 - No local full suite/build or assistant-run Windows desktop GUI test was performed. The new behavior requires user-side verification on Windows, especially scrolling within 最近动态 while days advance, weekly bar segmentation/reset, and daily-vs-weekly panel refresh cadence. The separately distributed launcher EXE does not need replacement because it loads the adjacent repository's current source/runtime files.
 - Next: obtain the user's Windows validation, then proceed with named RNG streams and formula/audit services. Preserve the separation between simulation cadence, IPC update payloads and DOM view refreshes.
+
+
+### Follow-up verification — live weekly day label
+
+- A final source review found that the initial world render included the current weekday label, but the existing clock metadata synchronizer overwrote it with the older day/week-only text on the next clock sample.
+- Updated `src/main.js` so live clock metadata consistently displays total elapsed day, week number and day-within-week.
+- Follow-up source commit: `c8bbe13d19a3bd7b6f3caed90deac8d625d2f05b`. Windows GitHub Actions run [44791557695](https://github.com/Sakurefa/test-game/actions/runs/44791557695) completed successfully: syntax checks passed, all 52 tests passed (0 failed), and Vite production build passed. Generated renderer output commit: `73a2387a14f8f7946c9cf4ef6400513646fddc14`.
+- No Windows desktop GUI test has yet been performed for this revision; user-side verification remains required.

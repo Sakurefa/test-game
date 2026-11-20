@@ -21,18 +21,18 @@ function createFinancialLedger({playerFactionId,startDate,startingBalanceMinor=2
    "player-main":{id:"player-main",owner:{type:"player",id:playerFactionId},currency:"CR",balanceMinor:startingBalanceMinor,overdraftLimitMinor:0,allowNegative:false,status:"open",positions:structuredClone(positions)},
    "system-treasury":{id:"system-treasury",owner:{type:"system",id:"core"},currency:"CR",balanceMinor:-startingBalanceMinor,overdraftLimitMinor:0,allowNegative:true,status:"open",positions:{}}
   },
-  sequence:1,
-  transactions:[{
+  sequence:startingBalanceMinor>0?1:0,
+  transactions:startingBalanceMinor>0?[{
    id:"ledger-1",sequence:1,day:0,date:startDate,type:"finance.opening-capital",commandId:null,reference:"world-genesis",
    entries:[{accountId:"player-main",deltaMinor:startingBalanceMinor},{accountId:"system-treasury",deltaMinor:-startingBalanceMinor}]
-  }]
+  }]:[]
  };
  validateFinancialLedger(ledger);
  return ledger;
 }
 function validateFinancialLedger(ledger){
  if(!isRecord(ledger)||!isRecord(ledger.currencies)||!isRecord(ledger.accounts)||!Array.isArray(ledger.transactions)
-  ||!Number.isInteger(ledger.sequence)||ledger.sequence<1||ledger.transactions.length>MAX_FINANCIAL_TRANSACTIONS
+  ||!Number.isInteger(ledger.sequence)||ledger.sequence<0||ledger.transactions.length>MAX_FINANCIAL_TRANSACTIONS
   ||ledger.transactions.length!==ledger.sequence)throw new Error("Save has an invalid financial ledger header");
  const currencies=new Set();
  for(const [id,currency] of Object.entries(ledger.currencies)){
@@ -84,7 +84,10 @@ function recordBalancedTransaction(ledger,{day,date,type,entries,commandId=null,
  if(!Number.isInteger(day)||day<0||typeof date!=="string"||!/^d{4}-d{2}-d{2}$/.test(date))throw new TypeError("Ledger transaction requires an authoritative campaign timestamp");
  assertIdentifier(type,TRANSACTION_TYPE_PATTERN,"Transaction type");
  if(!Array.isArray(entries)||entries.length<2||entries.length>MAX_TRANSACTION_ENTRIES)throw new TypeError("A ledger transaction requires 2–32 entries");
- if(commandId!==null)assertIdentifier(commandId,COMMAND_ID_PATTERN,"Ledger command ID");
+ if(commandId!==null){
+  assertIdentifier(commandId,COMMAND_ID_PATTERN,"Ledger command ID");
+  if(ledger.transactions.some(transaction=>transaction.commandId===commandId))throw new Error("Ledger command ID has already been committed: "+commandId);
+ }
  if(reference!==null&&(typeof reference!=="string"||reference.length>128))throw new TypeError("Ledger reference must be a short string or null");
  if(ledger.sequence>=MAX_FINANCIAL_TRANSACTIONS)throw new RangeError("Financial ledger has reached its configured transaction limit");
  const seen=new Set(),currencyTotals=new Map(),deltas=[];

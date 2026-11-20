@@ -32,44 +32,6 @@
       "app": "electron-app"
     },
     "artifactName": "Market-Simulator-${version}-Windows-${arch}.${ext}",
-    "extraFiles": [
-      {
-        "from": "mods",
-        "to": "mods"
-      },
-      {
-        "from": "src",
-        "to": "source/src"
-      },
-      {
-        "from": "electron",
-        "to": "source/electron"
-      },
-      {
-        "from": "data",
-        "to": "source/data"
-      },
-      {
-        "from": "index.html",
-        "to": "source/index.html"
-      },
-      {
-        "from": "vite.config.js",
-        "to": "source/vite.config.js"
-      },
-      {
-        "from": "package.json",
-        "to": "source/package.json"
-      },
-      {
-        "from": "README.md",
-        "to": "README.md"
-      },
-      {
-        "from": "MOD_API.md",
-        "to": "MOD_API.md"
-      }
-    ],
     "asar": false,
     "win": {
       "target": [
@@ -82,14 +44,8 @@
       ]
     },
     "files": [
-      "**/*",
+      "bootstrap.cjs",
       "package.json"
-    ],
-    "extraResources": [
-      {
-        "from": "electron-app/package.json",
-        "to": "app/package.json"
-      }
     ]
   }
 }

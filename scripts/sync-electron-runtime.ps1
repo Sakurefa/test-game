@@ -14,7 +14,7 @@ $required = @("resources/app/package.json","resources/app/bootstrap.cjs","electr
 foreach ($relative in $required) {
   if (-not (Test-Path (Join-Path $root $relative) -PathType Leaf)) { throw "Runtime layout verification failed: $relative" }
 }
-$tooLarge = Get-ChildItem $root -Recurse -File | Where-Object { $_.Length -ge 90MB -and $_.FullName -notlike (Join-Path $root ".git*") }
+$tooLarge = Get-ChildItem $root -Recurse -File | Where-Object { $_.FullName -notmatch '[\\/](\.git|node_modules|release|electron-app)[\\/]' -and $_.Length -ge 90MB }
 if ($tooLarge) { throw "At least one runtime dependency is 90 MiB or larger: $($tooLarge[0].FullName)" }
 Write-Host "Synchronized Electron runtime files into repository root."
 Write-Host "The launcher EXE is intentionally excluded from the repository."

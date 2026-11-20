@@ -1,9 +1,10 @@
 # Mods
 
-This is the external Mod directory included beside the game executable in the Windows ZIP release.
+This directory contains the required first-party content package and optional community content packages.
 
-For the current folder layout, manifest format, host API and limits, read [MOD_API.md](../MOD_API.md).
+- `core/` is the required base game-content package. Future game definitions and non-engine content belong here, primarily in editable `.ini` files.
+- Other folders are optional community Mods, each with its own `manifest.json` and `data/` directory.
 
-API v1 supports data-only JSON Mods. It does not execute JavaScript. The game currently discovers and validates installed Mods, but the title screen does not yet apply their data to gameplay.
+The core package is currently a structural placeholder. Actual gameplay content is deliberately not part of this architecture pass.
 
-Install a Mod by copying its folder here. Each Mod must contain a `manifest.json` and any declared JSON files inside `data/`.
+For package layout, manifest fields, INI syntax, host APIs and safety limits, read [MOD_API.md](../MOD_API.md).

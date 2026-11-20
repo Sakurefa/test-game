@@ -176,8 +176,10 @@ app.addEventListener("click", async (event) => {
         state.worldNotice = "时间已推进一天。殖民地生产、市场报价与战争纪年均已更新。";
       } else if (action === "save") {
         const result = await window.gameHost.world.save();
+        state.world.dirty = false;
         state.worldNotice = `世界已保存：${result.saveId}`;
       } else if (action === "leave") {
+        if (state.world.dirty && !window.confirm("当前世界有尚未保存的更改。返回主菜单将丢失这些更改，确定继续吗？")) return;
         await window.gameHost.world.leave();
         state.world = null;
         state.worldNotice = "";

@@ -19,6 +19,7 @@ let quitting = false;
 let activeWorld = null;
 let activeCatalog = null;
 let activeSaveId = null;
+let activeWorldDirty = false;
 const cleanupTasks = new Set();
 
 function getModsDirectory() {
@@ -93,7 +94,7 @@ async function loadWorldCatalog() {
 
 function getActiveWorldSnapshot() {
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
-  return { ...createSnapshot(activeWorld, activeCatalog), saveId: activeSaveId };
+  return { ...createSnapshot(activeWorld, activeCatalog), saveId: activeSaveId, dirty: activeWorldDirty };
 }
 
 handleIpc("world:start-new", async () => {
@@ -102,6 +103,7 @@ handleIpc("world:start-new", async () => {
   activeSaveId = `slot_demo_${Date.now().toString(36)}`;
   await createSaveSlot(GAME_ROOT, activeSaveId, activeWorld.metadata.name);
   await writeGameState(GAME_ROOT, activeSaveId, activeWorld);
+  activeWorldDirty = false;
   logger.info("world", `Started world ${activeWorld.universeId} in ${activeSaveId}`);
   return getActiveWorldSnapshot();
 });
@@ -112,6 +114,7 @@ handleIpc("world:load-save", async (_event, saveId) => {
   activeWorld = await readGameState(GAME_ROOT, saveId);
   validateWorldState(activeWorld, activeCatalog);
   activeSaveId = saveId;
+  activeWorldDirty = false;
   logger.info("world", `Loaded world from ${saveId}`);
   return getActiveWorldSnapshot();
 });
@@ -119,6 +122,7 @@ handleIpc("world:load-save", async (_event, saveId) => {
 handleIpc("world:advance-day", async () => {
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
   advanceDay(activeWorld, activeCatalog);
+  activeWorldDirty = true;
   logger.info("world", `Advanced to day ${activeWorld.clock.day} (${activeWorld.clock.date})`);
   return getActiveWorldSnapshot();
 });
@@ -126,6 +130,7 @@ handleIpc("world:advance-day", async () => {
 handleIpc("world:save", async () => {
   if (!activeWorld || !activeSaveId) throw new Error("No active world is loaded");
   await writeGameState(GAME_ROOT, activeSaveId, activeWorld);
+  activeWorldDirty = false;
   logger.info("world", `Saved world to ${activeSaveId}`);
   return { saveId: activeSaveId, savedAt: new Date().toISOString() };
 });
@@ -135,6 +140,7 @@ handleIpc("world:leave", async () => {
   activeWorld = null;
   activeCatalog = null;
   activeSaveId = null;
+  activeWorldDirty = false;
   return true;
 });
 

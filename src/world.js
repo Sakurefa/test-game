@@ -146,6 +146,6 @@ export function renderWorld(snapshot, activeTab = "overview", notice = "") {
       </div>
       ${notice ? `<div class="world-notice">${escapeHtml(notice)}</div>` : ""}
       <div class="world-content">${content}</div>
-      <footer class="world-footer"><span>存档：${escapeHtml(snapshot.saveId || "未命名")}</span><span>世界版本 ${snapshot.world.schemaVersion} · 内容指纹 ${snapshot.world.contentHash.slice(0, 10)}</span></footer>
+      <footer class="world-footer"><span>存档：${escapeHtml(snapshot.saveId || "未命名")} · ${snapshot.dirty ? "有未保存更改" : "已保存"}</span><span>世界版本 ${snapshot.world.schemaVersion} · 内容指纹 ${snapshot.world.contentHash.slice(0, 10)}</span></footer>
     </main>`;
 }

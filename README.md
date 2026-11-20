@@ -8,7 +8,7 @@ The repository contains the editable game source and the Electron runtime files 
 
 1. Download the repository using **Code → Download ZIP** and extract it.
 2. Obtain the matching `Market Simulator.exe` launcher from the project maintainer.
-3. Put that EXE in the extracted repository root, beside `electron/`, `src/`, `resources/`, and `locales/`.
+3. Put that EXE in the extracted repository root, beside `electron/`, `src/`, `mods/`, `resources/`, and `locales/`.
 4. Run `Market Simulator.exe`.
 
 Do not move the EXE away from the repository folder. The launcher uses the Electron runtime beside it and loads the game from this repository. The launcher and checked-in Electron runtime must come from the same Electron version.
@@ -32,21 +32,19 @@ npm run build:web
 
 The generated `dist/` directory is committed by GitHub Actions so the fixed launcher can load the latest renderer without bundling game data into the EXE.
 
-## Electron runtime maintenance
-
-The Electron runtime files in the repository are generated from the pinned Electron version in `package.json`. Run the **Prepare Electron Runtime and Launcher** workflow only when initially preparing the runtime or intentionally upgrading Electron.
-
-That workflow synchronizes all required runtime files into the repository, deliberately excludes the large launcher EXE from Git, and provides the EXE as a temporary Actions artifact. Download it and distribute it separately (for example, through the project QQ group).
-
 ## Project layout
 
-- `electron/` — Electron main process, preload bridge and minimal bootstrap
-- `src/` — renderer UI and game modules
+- `electron/` — desktop host, preload bridge, Mod discovery and INI parser
+- `src/` — renderer UI and engine-side frontend modules
 - `dist/` — generated renderer output used at runtime
-- `data/` — default game data and configuration
-- `mods/` — external data Mods and examples
+- `mods/core/` — required first-party game-content package; future gameplay content belongs here
+- `mods/<mod-id>/` — optional community content packages
 - `resources/`, `locales/`, root DLL/Pak files — Electron runtime dependencies
-- `MOD_API.md` — Mod API v1 specification
+- `MOD_API.md` — Mod API v2 and INI format specification
+
+## Content architecture
+
+The project separates engine code from game content. Engine code handles execution and infrastructure; game definitions, balance, scenarios, events, items, characters and other non-engine content are intended to live in `mods/core/`, primarily as editable INI files. The core package is currently only a validated structural placeholder; existing game content has not yet been migrated.
 
 ## Local saves
 
@@ -54,4 +52,4 @@ Save data is stored under Electron's per-user application data directory, inside
 
 ## Mods
 
-Mod API v1 supports data-only JSON packages. Install Mods into the repository's root `mods/` directory. JavaScript Mods and runtime hooks are not enabled in v1. See [MOD_API.md](MOD_API.md).
+The required `mods/core/` package supplies the first-party content base. Optional Mods are installed as sibling folders under `mods/`. API v2 supports data-only INI and JSON files; it does not execute JavaScript. See [MOD_API.md](MOD_API.md).

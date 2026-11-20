@@ -1,5 +1,6 @@
 const test=require("node:test"),assert=require("node:assert/strict");
 const {MAX_COMMAND_RECEIPTS,createCommandDispatcher,validateCommandReceiptState}=require("../engine/commands.cjs");
+const {createDomainEventBus,createWorldCommandRuntime}=require("../engine/index.cjs");
 const worldFixture=()=>({schemaVersion:5,clock:{day:12},counter:5,commandReceipts:[]});
 function createDispatcher(options={}){
  return createCommandDispatcher([{
@@ -67,4 +68,45 @@ test("command receipts are bounded and validated before persistence",()=>{
  assert.throws(()=>validateCommandReceiptState(world),/invalid command receipt history/);
  world.commandReceipts=[{commandId:"cmd-00000001",type:"player.counter.increment",signature:"signature",day:1,result:null},{commandId:"cmd-00000001",type:"player.counter.increment",signature:"signature",day:1,result:null}];
  assert.throws(()=>validateCommandReceiptState(world),/invalid command receipt/);
+});
+
+test("command receipt records are protected from business handler mutation",()=>{
+ const world=worldFixture();
+ const dispatcher=createCommandDispatcher([{
+  id:"player.counter.increment",validate:()=>true,
+  execute:({world})=>{world.counter+=1;world.commandReceipts.push({commandId:"cmd-forged00",type:"player.counter.increment",signature:"forged",day:1,result:null});return {result:world.counter,events:[]};}
+ }]);
+ assert.throws(()=>dispatcher.dispatch({world,command:command(),context:{}}),/cannot modify command receipts/);
+ assert.equal(world.counter,5);assert.deepEqual(world.commandReceipts,[]);
+});
+
+test("world command runtime commits state, receipt, domain history and bus delivery together",()=>{
+ const world={...worldFixture(),clock:{day:12,date:"2478-04-13"},domainEventSequence:0,domainEvents:[]};
+ const dispatcher=createCommandDispatcher([{
+  id:"player.account.withdraw",validate:({payload,world})=>Number.isFinite(payload.amount)&&payload.amount>0&&payload.amount<=world.counter?true:"Invalid withdrawal amount",
+  execute:({world,payload})=>{world.counter-=payload.amount;return {result:{balance:world.counter},events:[{type:"player.account-withdrawn",scope:"world",payload:{amount:payload.amount,balance:world.counter}}]};}
+ }]);
+ const bus=createDomainEventBus(),seen=[];
+ bus.subscribe("player.account-withdrawn",event=>seen.push(event));
+ const runtime=createWorldCommandRuntime({dispatcher,eventBus:bus});
+ const first=runtime.dispatch({world,command:{commandId:"cmd-withdraw-001",type:"player.account.withdraw",payload:{amount:2}}});
+ assert.equal(first.world.counter,3);assert.equal(first.world.commandReceipts.length,1);
+ assert.equal(first.world.domainEventSequence,1);assert.equal(first.world.domainEvents.length,1);
+ assert.deepEqual(first.events,first.world.domainEvents);assert.equal(seen.length,1);
+ const replay=runtime.dispatch({world:first.world,command:{commandId:"cmd-withdraw-001",type:"player.account.withdraw",payload:{amount:2}}});
+ assert.equal(replay.duplicate,true);assert.equal(replay.world,first.world);assert.deepEqual(replay.events,[]);
+ assert.equal(seen.length,1);assert.equal(first.world.domainEventSequence,1);
+});
+
+test("world command runtime rolls back the draft when event persistence conflicts",()=>{
+ const world={...worldFixture(),clock:{day:12,date:"2478-04-13"},domainEventSequence:1,domainEvents:[
+  {id:"domain-1",sequence:1,day:12,date:"2478-04-13",type:"player.account-withdrawn",scope:"world",subjectId:null,idempotencyKey:"command:cmd-withdraw-002:0",payload:{amount:99}}
+ ]};
+ const dispatcher=createCommandDispatcher([{
+  id:"player.account.withdraw",validate:()=>true,
+  execute:({world,payload})=>{world.counter-=payload.amount;return {result:{balance:world.counter},events:[{type:"player.account-withdrawn",scope:"world",payload:{amount:payload.amount,balance:world.counter}}]};}
+ }]);
+ const runtime=createWorldCommandRuntime({dispatcher});
+ assert.throws(()=>runtime.dispatch({world,command:{commandId:"cmd-withdraw-002",type:"player.account.withdraw",payload:{amount:2}}}),/idempotency key conflict/);
+ assert.equal(world.counter,5);assert.deepEqual(world.commandReceipts,[]);assert.equal(world.domainEventSequence,1);
 });

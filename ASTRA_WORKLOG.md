@@ -88,3 +88,15 @@ Long-term direction:
 - Confirmed CI run 44766621802 failed during `npm test`: example event `example-positive-news` has no localization `nameKey`. Renderer build was skipped.
 - No Windows runtime test was performed in this session.
 - Next: implement an actual INI-only Mod schema, migrate all Mod package data and fixtures, update docs/tests, then verify CI. Keep this log updated as work proceeds.
+
+
+### 2026-11-20 — INI migration implementation checkpoint
+
+- Added `AGENTS.md` and the root `ASTRA_WORKLOG.md`; future work sessions must read and update the log.
+- Replaced the Mod INI parser so inline JSON arrays/objects are rejected.
+- Replaced Mod loading with INI-only manifests, registry and content normalization. Mod data file declarations now accept only `.ini`.
+- Migrated Core universe/economy/factions/military/events definitions, Core registry and both Mod manifests to INI.
+- Migrated the example event to localization keys and added `mods/example-market/localization/zh-CN.ini`.
+- Removed all currently tracked JSON files from the `mods/` tree.
+- Updated catalog registry filename to `definitions.ini`; updating tests and docs in this checkpoint.
+- Verification is pending CI. No Windows desktop test performed.

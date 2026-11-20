@@ -3,8 +3,9 @@ const { createCalculationService, CALCULATION_AUDIT_LIMIT } = require("./formula
 const { createClock, advanceClock, advanceClockTime } = require("./clock.cjs");
 const { createSystemRegistry } = require("./system-registry.cjs");
 const { createDomainEventEmitter, validateDomainEventState } = require("./domain-events.cjs");
+const { validateCommandReceiptState } = require("./commands.cjs");
 
-const GAME_STATE_SCHEMA_VERSION = 4;
+const GAME_STATE_SCHEMA_VERSION = 5;
 const MAX_ADVANCE_DAYS = 30;
 const MAX_CAMPAIGN_CATCH_UP_DAYS = 3650;
 const LOG_LIMIT = 100;
@@ -91,6 +92,7 @@ function createWorld(catalog, options = {}) {
     audit: { calculations: [] },
     domainEventSequence: 0,
     domainEvents: [],
+    commandReceipts: [],
     player: {
       factionId: options.playerFactionId || catalog.universe.defaultPlayerFactionId,
       account: { cash: 250000, holdings: {} }
@@ -136,6 +138,7 @@ function produceForColony(catalog, colonyState, calculations, day, emitDomainEve
   }
   colonyState.lastProduction = output;
   emitDomainEvent({ type: "colony.production-settled", scope: "colony", subjectId: colonyState.id,
+    idempotencyKey: `campaign-day:${day}:colony.production-settled:${colonyState.id}`,
     payload: { industryCount: colonyState.industries.length, activeIndustryCount, production: output } });
   return output;
 }
@@ -181,6 +184,7 @@ function updateMarket(catalog, marketState, colonyState, allColonyStates, random
   }
   marketState.lastChanges = changes;
   emitDomainEvent({ type: "market.prices-settled", scope: "market", subjectId: marketState.id,
+    idempotencyKey: `campaign-day:${day}:market.prices-settled:${marketState.id}`,
     payload: { instrumentCount: Object.keys(changes).length, changes } });
   return changes;
 }
@@ -220,6 +224,7 @@ const simulationSystems = createSystemRegistry([
         if (war.status !== "active") continue;
         war.daysActive += 1;
         emitDomainEvent({ type: "war.chronology-advanced", scope: "war", subjectId: war.id,
+          idempotencyKey: `campaign-day:${world.clock.day}:war.chronology-advanced:${war.id}`,
           payload: { daysActive: war.daysActive } });
       }
     }
@@ -245,6 +250,7 @@ function validateWorldState(world, catalog) {
   new NamedRandomStreams(world.rng.seed, world.rng.streams);
   if (!world.audit || !Array.isArray(world.audit.calculations)) throw new Error("Save has an invalid calculation audit");
   validateDomainEventState(world);
+  validateCommandReceiptState(world);
   if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)
     || !Number.isFinite(world.clock.dayFraction) || world.clock.dayFraction < 0 || world.clock.dayFraction >= 1) {
     throw new Error("Save has an invalid game clock");
@@ -280,8 +286,10 @@ function validateWorldState(world, catalog) {
   return true;
 }
 
-function advanceDay(world, catalog) {
+function advanceDay(world, catalog, { eventBus = null } = {}) {
+  if (eventBus !== null && (!eventBus || typeof eventBus.publish !== "function")) throw new TypeError("A domain event bus must provide publish(event)");
   validateWorldState(world, catalog);
+  const previousEventSequence = world.domainEventSequence;
   const randomStreams = new NamedRandomStreams(world.rng.seed, world.rng.streams);
   const calculations = createCalculationService();
   world.clock = advanceClock(world.clock, 1);
@@ -312,24 +320,29 @@ function advanceDay(world, catalog) {
     marketChanges: summary.market,
     systemsRun
   });
+  if (eventBus) {
+    for (const event of world.domainEvents) {
+      if (event.sequence > previousEventSequence) eventBus.publish(event);
+    }
+  }
   return world;
 }
 
-function advanceCampaignTime(world, catalog, elapsedGameDays) {
+function advanceCampaignTime(world, catalog, elapsedGameDays, options = {}) {
   validateWorldState(world, catalog);
   const targetClock = advanceClockTime(world.clock, elapsedGameDays);
   const daysToAdvance = targetClock.day - world.clock.day;
   if (daysToAdvance > MAX_CAMPAIGN_CATCH_UP_DAYS) {
     throw new RangeError(`A single campaign-time update cannot exceed ${MAX_CAMPAIGN_CATCH_UP_DAYS} whole days`);
   }
-  for (let index = 0; index < daysToAdvance; index += 1) advanceDay(world, catalog);
+  for (let index = 0; index < daysToAdvance; index += 1) advanceDay(world, catalog, options);
   world.clock.dayFraction = targetClock.dayFraction;
   return { daysAdvanced: daysToAdvance, dayFraction: world.clock.dayFraction, world };
 }
 
 function migrateWorldState(world) {
   if (!world || typeof world !== "object" || Array.isArray(world)) throw new TypeError("Invalid saved world");
-  if (![1, 2, 3, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
+  if (![1, 2, 3, 4, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
     throw new Error("Unsupported or invalid game-state schema: " + world.schemaVersion);
   }
   if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)) {
@@ -351,14 +364,16 @@ function migrateWorldState(world) {
     if (!world.audit || !Array.isArray(world.audit.calculations)) world.audit = { calculations: [] };
   }
   if (world.schemaVersion < 4) { world.domainEventSequence = 0; world.domainEvents = []; world.schemaVersion = 4; }
+  if (world.schemaVersion < 5) { world.commandReceipts = []; world.schemaVersion = 5; }
+  if (!Array.isArray(world.commandReceipts)) world.commandReceipts = [];
   return world;
 }
 
-function advanceDays(world, catalog, days = 1) {
+function advanceDays(world, catalog, days = 1, options = {}) {
   if (!Number.isInteger(days) || days < 1 || days > MAX_ADVANCE_DAYS) {
     throw new RangeError(`A single time-advance request must be between 1 and ${MAX_ADVANCE_DAYS} days`);
   }
-  for (let day = 0; day < days; day += 1) advanceDay(world, catalog);
+  for (let day = 0; day < days; day += 1) advanceDay(world, catalog, options);
   return world;
 }
 

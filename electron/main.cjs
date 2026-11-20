@@ -6,6 +6,7 @@ const {
   initializeStorage, readSettings, writeSettings, listSaveSlots,
   createSaveSlot, readGameState, writeGameState, removeSaveSlot, isSafeSlotId
 } = require("./storage.cjs");
+const { createAutomaticSaveManager } = require("./autosave.cjs");
 const { compileCatalog } = require("../engine/catalog.cjs");
 const { createWorld, advanceDay, advanceCampaignTime, migrateWorldState, createSnapshot, validateWorldState } = require("../engine/simulation.cjs");
 const { CampaignTimeController } = require("../engine/campaign-time.cjs");
@@ -20,18 +21,64 @@ let storageReady = false;
 let quitting = false;
 let activeWorld = null;
 let activeCatalog = null;
+let mainWindow = null;
+let pendingFatalReport = null;
+let fatalHandling = false;
 let activeSaveId = null;
 let activeWorldDirty = false;
 let activeCommandGateway = null;
 let worldSaveInProgress = false;
 let worldTransitionInProgress = false;
 const cleanupTasks = new Set();
+const automaticSaves = createAutomaticSaveManager({
+  root: GAME_ROOT, listSaveSlots, createSaveSlot, readGameState, writeGameState
+});
+function queueAutomaticSave(kind, world) {
+  automaticSaves.save(kind, world).then((result) => {
+    logger.info("autosave.complete", result);
+  }).catch((error) => {
+    logger.error("autosave.failed", { kind, day: world.clock.day, date: world.clock.date, error });
+  });
+}
+function onDaySettled(world, detail) {
+  logger.info("simulation.day-settled", detail);
+  queueAutomaticSave("daily", world);
+  if (detail.day % 7 === 0) queueAutomaticSave("weekly", world);
+}
+async function failActiveWorld(error, source) {
+  if (fatalHandling) return;
+  fatalHandling = true;
+  campaignTime.pause();
+  const failureId = require("node:crypto").randomUUID();
+  const errorMessage = error instanceof Error ? error.message : String(error);
+  const errorStack = error instanceof Error ? error.stack : String(error);
+  logger.error("world.fatal", { failureId, source, message: errorMessage, stack: errorStack });
+  disposeWorldCommandGateway();
+  activeWorld = null;
+  activeCatalog = null;
+  activeSaveId = null;
+  activeWorldDirty = false;
+  await new Promise((resolve) => setTimeout(resolve, 150));
+  let logContext = errorStack || errorMessage;
+  try {
+    const lines = (await fs.readFile(path.join(logger.directory, "runtime.log"), "utf8")).split(/\\r?\\n/).filter(Boolean);
+    const index = lines.findIndex((line) => line.includes(failureId));
+    if (index >= 0) logContext = lines.slice(Math.max(0, index - 5), index + 6).join("\\n");
+  } catch (readError) {
+    logger.error("world.fatal-log-read", readError);
+  }
+  pendingFatalReport = { failureId, source, message: errorMessage, stack: errorStack, logContext };
+  if (mainWindow && !mainWindow.isDestroyed()) mainWindow.webContents.send("app:world-fatal-error", pendingFatalReport);
+  logger.error("world.fatal", { failureId, status: "returned-to-title-screen" });
+}
 const campaignTime = new CampaignTimeController({
   baseDayDurationMs: 60000,
   onAdvance: (elapsedGameDays) => {
     if (!activeWorld || !activeCatalog) return;
     const eventBus = activeCommandGateway ? { publish: (event) => activeCommandGateway.publishEvent(event) } : null;
-    const result = advanceCampaignTime(activeWorld, activeCatalog, elapsedGameDays, eventBus ? { eventBus } : {});
+    const result = advanceCampaignTime(activeWorld, activeCatalog, elapsedGameDays, {
+      ...(eventBus ? { eventBus } : {}), onDaySettled
+    });
     if (result.daysAdvanced > 0 || result.dayFraction !== 0) activeWorldDirty = true;
   }
 });
@@ -40,7 +87,7 @@ const campaignTimer = setInterval(() => {
     campaignTime.tick();
   } catch (error) {
     campaignTime.pause();
-    logger.error("world.clock", error);
+    void failActiveWorld(error, "campaign-clock");
   }
 }, 100);
 campaignTimer.unref?.();
@@ -133,9 +180,7 @@ function installWorldCommandGateway() {
       activeWorldDirty = true;
     },
     onEvent: (event) => {
-      logger.debug("world.domain-event", {
-        id: event.id, type: event.type, day: event.day, subjectId: event.subjectId
-      });
+      logger.info("world.domain-event", event);
     }
   });
 }
@@ -241,7 +286,12 @@ handleIpc("world:advance-day", async () => {
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
   campaignTime.pause();
   const eventBus = activeCommandGateway ? { publish: (event) => activeCommandGateway.publishEvent(event) } : null;
-  advanceDay(activeWorld, activeCatalog, eventBus ? { eventBus } : {});
+  try {
+    advanceDay(activeWorld, activeCatalog, { ...(eventBus ? { eventBus } : {}), onDaySettled });
+  } catch (error) {
+    void failActiveWorld(error, "manual-day-advance");
+    throw error;
+  }
   activeWorldDirty = true;
   logger.info("world", `Advanced to day ${activeWorld.clock.day} (${activeWorld.clock.date})`);
   return getActiveWorldSnapshot();
@@ -308,7 +358,8 @@ handleIpc("settings:write", async (_event, patch) => {
     const mode = result.settings.general.window_mode;
     if (mode === "windowed") {
       window.setFullScreen(false);
-      window.setMenuBarVisibility(false);
+      mainWindow = window;
+  window.setMenuBarVisibility(false);
       window.setBounds({ width: 1240, height: 820 });
     } else {
       window.setMenuBarVisibility(false);
@@ -409,7 +460,13 @@ function createWindow(settings) {
   window.on("unresponsive", () => logger.error("window", "Renderer became unresponsive"));
   window.on("close", () => logger.info("window", "Main window close requested"));
   window.on("responsive", () => logger.info("window", "Renderer became responsive"));
-  window.on("closed", () => logger.info("window", "Main window closed"));
+  window.on("closed", () => {
+    logger.info("window", "Main window closed");
+    if (mainWindow === window) mainWindow = null;
+  });
+  window.webContents.on("did-finish-load", () => {
+    if (pendingFatalReport) window.webContents.send("app:world-fatal-error", pendingFatalReport);
+  });
 
   if (DEV_URL) window.loadURL(DEV_URL);
   else window.loadFile(path.join(GAME_ROOT, "dist", "index.html"));

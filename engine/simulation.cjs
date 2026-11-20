@@ -329,7 +329,7 @@ function advanceCampaignTime(world, catalog, elapsedGameDays) {
 
 function migrateWorldState(world) {
   if (!world || typeof world !== "object" || Array.isArray(world)) throw new TypeError("Invalid saved world");
-  if (![1, 2, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
+  if (![1, 2, 3, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
     throw new Error("Unsupported or invalid game-state schema: " + world.schemaVersion);
   }
   if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)) {

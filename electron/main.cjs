@@ -68,13 +68,13 @@ async function failActiveWorld(error, source) {
     for (const fileName of logFiles) {
       try {
         const content = await fs.readFile(path.join(logger.directory, fileName), "utf8");
-        lines.push(...content.split(/\\r?\\n/).filter(Boolean));
+        lines.push(...content.split(/\r?\n/).filter(Boolean));
       } catch (readError) {
         if (readError.code !== "ENOENT") throw readError;
       }
     }
     const index = lines.findIndex((line) => line.includes(failureId));
-    if (index >= 0) logContext = lines.slice(Math.max(0, index - 5), index + 6).join("\\n");
+    if (index >= 0) logContext = lines.slice(Math.max(0, index - 5), index + 6).join("\n");
   } catch (readError) {
     logger.error("world.fatal-log-read", readError);
   }

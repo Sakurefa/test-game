@@ -33,7 +33,7 @@ test("seeded random generator can be resumed from a snapshot", () => {
 
 test("core and optional Mod content compile into a registered multi-system catalog", async () => {
   const catalog = await loadCatalog();
-  assert.equal(catalog.universe.name, "赫利俄斯边境");
+  assert.equal(catalog.universe.name, undefined);\n  assert.equal(catalog.localizations["zh-CN"][catalog.universe.nameKey], "赫利俄斯边境");
   assert.equal(catalog.systems.size, 4);
   assert.equal(catalog.colonies.size, 3);
   assert.equal(catalog.fleets.size, 2);
@@ -118,4 +118,30 @@ test("catalog rejects a trade route that is not represented by the starmap", asy
   const result = compileCatalog(mods);
   assert.equal(result.ok, false);
   assert.match(result.error, /route.*risk/);
+});
+\ntest("all world content names and descriptions are resolved from Core localization", async () => {
+  const catalog = await loadCatalog();
+  for (const collectionName of [
+    "universes", "systems", "locations", "tradeRoutes", "factions", "colonies",
+    "commodities", "recipes", "markets", "companies", "securities",
+    "shipClasses", "fleets", "wars", "events"
+  ]) {
+    for (const entity of catalog[collectionName].values()) {
+      assert.equal(typeof entity.name, "undefined", `${entity.id} must not store a display name in content JSON`);
+      assert.equal(typeof entity.nameKey, "string", `${entity.id} must reference a localization key`);
+      assert.ok(catalog.localizations["zh-CN"][entity.nameKey], `Missing localized name for ${entity.id}`);
+      if (entity.descriptionKey) {
+        assert.ok(catalog.localizations["zh-CN"][entity.descriptionKey], `Missing localized description for ${entity.id}`);
+      }
+    }
+  }
+});
+
+test("catalog rejects missing localized strings", async () => {
+  const mods = await readModPackages(path.join(__dirname, "..", "mods"));
+  const core = mods.find((mod) => mod.id === "core");
+  delete core.data.localization["zh-CN.ini"].content["entity.solace.name"];
+  const result = compileCatalog(mods);
+  assert.equal(result.ok, false);
+  assert.match(result.error, /Missing localization key.*entity.solace.name/);
 });

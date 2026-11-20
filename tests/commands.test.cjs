@@ -148,3 +148,18 @@ test("world command runtime commits valid no-event commands",()=>{
  assert.equal(state.world.counter,6);
  assert.equal(state.world.commandReceipts.length,1);
 });
+
+test("command handler execution failures carry a fatal world error code", () => {
+ const dispatcher=createCommandDispatcher([{
+  id:"test.explode",
+  validate:()=>true,
+  execute:()=>{throw new Error("broken account reference");}
+ }]);
+ const world={commandReceipts:[],clock:{day:1,date:"2478-04-02"}};
+ assert.throws(()=>dispatcher.dispatch({
+  world,
+  command:{commandId:"cmd-fatal-0001",type:"test.explode",payload:{}}
+ }),error=>error.code==="WORLD_COMMAND_EXECUTION_FAILURE"
+  && /test.explode failed/.test(error.message)
+  && /broken account reference/.test(error.message));
+});

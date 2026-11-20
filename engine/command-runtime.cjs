@@ -8,15 +8,16 @@ function createWorldCommandRuntime({dispatcher,eventBus=null}={}){
  function dispatch({world,command,context={}}={}){
   if(eventBus?.isDisposed?.())throw new Error("Domain event bus has been disposed");
   const outcome=dispatcher.dispatch({world,command,context});
-  if(outcome.duplicate)return {...outcome,events:[]};
-  if(!outcome.events.length)return {...outcome,events:[]};
+  if(outcome.duplicate)return {...outcome,events:[],eventDelivery:[]};
+  if(!outcome.events.length)return {...outcome,events:[],eventDelivery:[]};
   const nextWorld=outcome.world;
   if(!nextWorld.clock||!Number.isInteger(nextWorld.clock.day)||typeof nextWorld.clock.date!=="string")throw new Error("Command runtime requires an authoritative campaign clock");
   const emitDomainEvent=createDomainEventEmitter(nextWorld,nextWorld.clock);
   const previousSequence=nextWorld.domainEventSequence;
   const committedEvents=outcome.events.map(event=>emitDomainEvent(event));
-  if(eventBus)for(const event of committedEvents){if(event.sequence>previousSequence)eventBus.publish(event);}
-  return {...outcome,events:committedEvents};
+  const eventDelivery=[];
+  if(eventBus)for(const event of committedEvents){if(event.sequence>previousSequence)eventDelivery.push(eventBus.publish(event));}
+  return {...outcome,events:committedEvents,eventDelivery};
  }
  return Object.freeze({dispatch});
 }

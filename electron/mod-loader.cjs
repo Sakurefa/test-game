@@ -45,7 +45,8 @@ async function readCategory(directory, category, declaredFiles) {
   return output;
 }
 
-async function readModPackages(root) {
+async function readModPackages(root, options = {}) {
+  const enabledMods = options.enabledMods || {};
   await fs.mkdir(root, { recursive: true });
   const entries = await fs.readdir(root, { withFileTypes: true });
   const mods = [];
@@ -74,9 +75,10 @@ async function readModPackages(root) {
         throw new Error("Invalid manifest or unsupported data-only Mod API version");
       }
 
+      const enabled = entry.name === "core" || enabledMods[entry.name] !== false;
       const data = {};
       for (const category of CATEGORIES) {
-        data[category] = await readCategory(directory, category, declarations[category]);
+        data[category] = enabled ? await readCategory(directory, category, declarations[category]) : {};
       }
 
       mods.push({
@@ -86,6 +88,7 @@ async function readModPackages(root) {
         author: manifest.author,
         description: typeof manifest.description === "string" ? manifest.description : "",
         apiVersion: manifest.apiVersion,
+        enabled,
         data
       });
     } catch (error) {

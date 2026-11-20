@@ -35,7 +35,7 @@ test("financial ledger starts with balanced opening capital and integer minor un
  assert.equal(empty.sequence,0);assert.equal(empty.transactions.length,0);assert.equal(validateFinancialLedger(empty),true);
 });
 
-test("balanced transactions update both accounts and append an immutable history fact",()=>{
+test("balanced transactions update both accounts and return a detached history fact",()=>{
  const world=createWorld();
  const transaction=recordBalancedTransaction(world.finance,{
   day:4,date:"2478-04-05",type:"finance.transfer-settled",commandId:"cmd-transfer-0001",

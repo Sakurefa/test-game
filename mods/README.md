@@ -1,16 +1,9 @@
 # Mods
 
-This directory is reserved for development-time mods and examples.
+This is the external Mod directory included beside the game executable in the Windows ZIP release.
 
-The first mod format will be data-driven JSON. A mod should eventually contain a
-manifest file describing its id, name, version, author, and content files.
+For the current folder layout, manifest format, host API and limits, read [MOD_API.md](../MOD_API.md).
 
-Planned content types:
-- Stocks and sectors
-- Market events
-- Market rules and balance configuration
-- UI themes and sound presets
+API v1 supports data-only JSON Mods. It does not execute JavaScript. The game currently discovers and validates installed Mods, but the title screen does not yet apply their data to gameplay.
 
-Executable JavaScript mods are intentionally postponed until a small, explicit
-plugin API and permission boundary have been designed. Do not place untrusted
-scripts here and assume they are safe to execute.
+Install a Mod by copying its folder here. Each Mod must contain a `manifest.json` and any declared JSON files inside `data/`.

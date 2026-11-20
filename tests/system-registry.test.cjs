@@ -98,7 +98,7 @@ test("runtime update failures identify the exact simulation system node", () => 
   assert.throws(
     () => registry.runDue({ world, day: 1 }),
     (error) => error.code === "SIMULATION_SYSTEM_FAILURE"
-      && /economy\\.market-pricing\\.update failed/.test(error.message)
+      && error.message.includes("economy.market-pricing.update failed")
       && /required quote was missing/.test(error.message)
   );
 });

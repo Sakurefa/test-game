@@ -16,7 +16,7 @@ function createDispatcher(options={}){
 const command=(commandId="cmd-00000001",payload={amount:2})=>({commandId,type:"player.counter.increment",payload});
 
 test("commands validate before executing and commit an isolated world draft",()=>{
- const original=worldFixture(),dispatcher=createDispatcher({validateWorld:draft=>Number.isInteger(draft.counter)&&draft.counter>=0});
+ const original=worldFixture(),dispatcher=createDispatcher({validateWorld:draft=>{draft.counter=999;return Number.isInteger(draft.counter)&&draft.counter===7;}});
  const outcome=dispatcher.dispatch({world:original,command:command(),context:{canControlWorld:true}});
  assert.notEqual(outcome.world,original);assert.equal(original.counter,5);assert.equal(outcome.world.counter,7);
  assert.deepEqual(outcome.result,{counter:7});assert.equal(outcome.duplicate,false);
@@ -109,4 +109,10 @@ test("world command runtime rolls back the draft when event persistence conflict
  const runtime=createWorldCommandRuntime({dispatcher});
  assert.throws(()=>runtime.dispatch({world,command:{commandId:"cmd-withdraw-002",type:"player.account.withdraw",payload:{amount:2}}}),/idempotency key conflict/);
  assert.equal(world.counter,5);assert.deepEqual(world.commandReceipts,[]);assert.equal(world.domainEventSequence,1);
+});
+
+test("command validators receive a read-only post-transition view",()=>{
+ const world=worldFixture(),dispatcher=createDispatcher({validateWorld:draft=>{draft.counter=999;return true;}});
+ const outcome=dispatcher.dispatch({world,command:command(),context:{canControlWorld:true}});
+ assert.equal(outcome.world.counter,7);assert.equal(world.counter,5);
 });

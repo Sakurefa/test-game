@@ -2,6 +2,7 @@ const { contextBridge, ipcRenderer } = require("electron");
 
 contextBridge.exposeInMainWorld("gameHost", {
   platform: process.platform,
+  app: { quit: () => ipcRenderer.invoke("app:quit") },
   mods: {
     list: () => ipcRenderer.invoke("mods:list"),
     loadAll: () => ipcRenderer.invoke("mods:load-all")

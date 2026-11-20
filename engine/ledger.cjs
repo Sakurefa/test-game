@@ -4,7 +4,8 @@ const ACCOUNT_ID_PATTERN=/^[a-z][a-z0-9._-]{1,63}$/;
 const OWNER_TYPE_PATTERN=/^(player|faction|company|colony|system)$/;
 const CURRENCY_PATTERN=/^[A-Z][A-Z0-9]{1,7}$/;
 const TRANSACTION_TYPE_PATTERN=/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
-const COMMAND_ID_PATTERN=/^[a-zA-Z0-9][a-zA-Z0-9._:-]{7,127}$/;
+const COMMAND_ID_PATTERN=/^[a-zA-Z0-9][a-zA-Z0-9._:-]{7,95}$/;
+const RESERVED_ACCOUNT_IDS=new Set(["constructor","prototype","__proto__","tostring","valueof","hasownproperty"]);
 
 function isRecord(value){return Boolean(value)&&typeof value==="object"&&!Array.isArray(value);}
 function assertIdentifier(value,pattern,label){
@@ -42,7 +43,7 @@ function validateFinancialLedger(ledger){
  }
  const balances=new Map();
  for(const [id,account] of Object.entries(ledger.accounts)){
-  if(!isRecord(account)||id!==account.id||!ACCOUNT_ID_PATTERN.test(id)||!isRecord(account.owner)
+  if(!isRecord(account)||id!==account.id||!ACCOUNT_ID_PATTERN.test(id)||RESERVED_ACCOUNT_IDS.has(id)||!isRecord(account.owner)
    ||!OWNER_TYPE_PATTERN.test(account.owner.type)||typeof account.owner.id!=="string"||!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(account.owner.id)
    ||!currencies.has(account.currency)||!Number.isSafeInteger(account.balanceMinor)
    ||!Number.isSafeInteger(account.overdraftLimitMinor)||account.overdraftLimitMinor<0
@@ -79,6 +80,31 @@ function validateFinancialLedger(ledger){
   if(!account.allowNegative&&account.balanceMinor < -account.overdraftLimitMinor)throw new Error("Financial account exceeds its overdraft limit: "+id);
  }
  return true;
+}
+function createLedgerCurrency(ledger,{id,minorUnitDigits=2}={}){
+ validateFinancialLedger(ledger);
+ if(typeof id!=="string"||!CURRENCY_PATTERN.test(id))throw new TypeError("Currency requires a stable uppercase code");
+ if(!Number.isInteger(minorUnitDigits)||minorUnitDigits<0||minorUnitDigits>6)throw new RangeError("Currency minor digits must be an integer from 0 to 6");
+ if(Object.hasOwn(ledger.currencies,id))throw new Error("Currency already exists: "+id);
+ const candidate=structuredClone(ledger);
+ candidate.currencies[id]={id,minorUnitDigits};
+ validateFinancialLedger(candidate);
+ Object.assign(ledger,candidate);
+ return structuredClone(candidate.currencies[id]);
+}
+function createLedgerAccount(ledger,{id,owner,currency="CR",overdraftLimitMinor=0,allowNegative=false,positions={}}={}){
+ validateFinancialLedger(ledger);
+ if(typeof id!=="string"||!ACCOUNT_ID_PATTERN.test(id)||RESERVED_ACCOUNT_IDS.has(id))throw new TypeError("Account requires a valid non-reserved ID");
+ if(Object.hasOwn(ledger.accounts,id))throw new Error("Financial account already exists: "+id);
+ if(!isRecord(owner)||!OWNER_TYPE_PATTERN.test(owner.type)||typeof owner.id!=="string"||!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(owner.id))throw new TypeError("Financial account requires a stable owner");
+ if(!Object.hasOwn(ledger.currencies,currency))throw new Error("Unknown account currency: "+currency);
+ if(!Number.isSafeInteger(overdraftLimitMinor)||overdraftLimitMinor<0||typeof allowNegative!=="boolean")throw new TypeError("Invalid account overdraft policy");
+ if(!isRecord(positions))throw new TypeError("Account positions must be an object");
+ const candidate=structuredClone(ledger);
+ candidate.accounts[id]={id,owner:{type:owner.type,id:owner.id},currency,balanceMinor:0,overdraftLimitMinor,allowNegative,status:"open",positions:structuredClone(positions)};
+ validateFinancialLedger(candidate);
+ Object.assign(ledger,candidate);
+ return structuredClone(candidate.accounts[id]);
 }
 function recordBalancedTransaction(ledger,{day,date,type,entries,commandId=null,reference=null}={}){
  validateFinancialLedger(ledger);

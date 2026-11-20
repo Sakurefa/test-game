@@ -9,6 +9,7 @@ const {
 const { compileCatalog } = require("../engine/catalog.cjs");
 const { createWorld, advanceDay, advanceCampaignTime, migrateWorldState, createSnapshot, validateWorldState } = require("../engine/simulation.cjs");
 const { CampaignTimeController } = require("../engine/campaign-time.cjs");
+const { createWorldCommandGateway } = require("./world-command-gateway.cjs");
 const { getLogger } = require("./logger.cjs");
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
@@ -21,6 +22,7 @@ let activeWorld = null;
 let activeCatalog = null;
 let activeSaveId = null;
 let activeWorldDirty = false;
+let activeCommandGateway = null;
 const cleanupTasks = new Set();
 const campaignTime = new CampaignTimeController({
   baseDayDurationMs: 60000,
@@ -110,6 +112,31 @@ async function loadWorldCatalog() {
   return result.catalog;
 }
 
+function disposeWorldCommandGateway() {
+  activeCommandGateway?.dispose();
+  activeCommandGateway = null;
+}
+
+function installWorldCommandGateway() {
+  disposeWorldCommandGateway();
+  if (!activeWorld || !activeCatalog) return;
+  activeCommandGateway = createWorldCommandGateway({
+    getWorld: () => activeWorld,
+    getCatalog: () => activeCatalog,
+    getActor: (world) => ({ type: "player", id: world.player.factionId }),
+    validateWorld: (world, catalog) => validateWorldState(world, catalog),
+    onWorldCommit: (world) => {
+      activeWorld = world;
+      activeWorldDirty = true;
+    },
+    onEvent: (event) => {
+      logger.debug("world.domain-event", {
+        id: event.id, type: event.type, day: event.day, subjectId: event.subjectId
+      });
+    }
+  });
+}
+
 function getActiveWorldSnapshot() {
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
   campaignTime.tick();
@@ -135,6 +162,7 @@ handleIpc("world:start-new", async () => {
   await createSaveSlot(GAME_ROOT, activeSaveId, activeWorld.metadata.name);
   await writeGameState(GAME_ROOT, activeSaveId, activeWorld);
   activeWorldDirty = false;
+  installWorldCommandGateway();
   logger.info("world", `Started world ${activeWorld.universeId} in ${activeSaveId}`);
   return getActiveWorldSnapshot();
 });
@@ -147,6 +175,7 @@ handleIpc("world:load-save", async (_event, saveId) => {
   campaignTime.reset();
   activeSaveId = saveId;
   activeWorldDirty = false;
+  installWorldCommandGateway();
   logger.info("world", `Loaded world from ${saveId}`);
   return getActiveWorldSnapshot();
 });
@@ -156,6 +185,13 @@ handleIpc("world:set-speed", async (_event, speed) => {
   const state = campaignTime.setSpeed(speed);
   logger.info("world.clock", state.paused ? "Campaign time paused" : `Campaign time set to ${state.speed}x`);
   return getActiveWorldSnapshot();
+});
+
+handleIpc("world:dispatch-command", async (_event, command) => {
+  if (!activeCommandGateway) throw new Error("No active world command gateway is available");
+  campaignTime.tick();
+  const outcome = activeCommandGateway.dispatch(command);
+  return { ...outcome, snapshot: getActiveWorldSnapshot() };
 });
 
 handleIpc("world:clock-status", async () => getActiveWorldClockStatus());
@@ -192,6 +228,7 @@ handleIpc("world:save", async () => {
 
 handleIpc("world:leave", async () => {
   campaignTime.pause();
+  disposeWorldCommandGateway();
   logger.info("world", `Leaving active world ${activeSaveId || "unknown"}`);
   activeWorld = null;
   activeCatalog = null;
@@ -363,6 +400,7 @@ app.on("child-process-gone", (_event, details) => {
   logger.error("process.child-gone", details);
 });
 app.on("will-quit", () => {
+  disposeWorldCommandGateway();
   clearInterval(campaignTimer);
   logger.info("shutdown", "Application will quit");
 });

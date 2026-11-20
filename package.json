@@ -25,28 +25,58 @@
   "build": {
     "appId": "com.sakurefa.stockmarketsimulator",
     "productName": "Market Simulator",
-    "directories": { "output": "release" },
+    "directories": {
+      "output": "release"
+    },
     "artifactName": "Market-Simulator-${version}-Windows-${arch}.${ext}",
-    "files": [
-      "package.json",
-      "electron/main.cjs",
-      "electron/preload.cjs",
-      "dist/**/*"
-    ],
     "extraFiles": [
-      { "from": "mods", "to": "mods" },
-      { "from": "src", "to": "source/src" },
-      { "from": "electron", "to": "source/electron" },
-      { "from": "data", "to": "source/data" },
-      { "from": "index.html", "to": "source/index.html" },
-      { "from": "vite.config.js", "to": "source/vite.config.js" },
-      { "from": "package.json", "to": "source/package.json" },
-      { "from": "README.md", "to": "README.md" },
-      { "from": "MOD_API.md", "to": "MOD_API.md" }
+      {
+        "from": "mods",
+        "to": "mods"
+      },
+      {
+        "from": "src",
+        "to": "source/src"
+      },
+      {
+        "from": "electron",
+        "to": "source/electron"
+      },
+      {
+        "from": "data",
+        "to": "source/data"
+      },
+      {
+        "from": "index.html",
+        "to": "source/index.html"
+      },
+      {
+        "from": "vite.config.js",
+        "to": "source/vite.config.js"
+      },
+      {
+        "from": "package.json",
+        "to": "source/package.json"
+      },
+      {
+        "from": "README.md",
+        "to": "README.md"
+      },
+      {
+        "from": "MOD_API.md",
+        "to": "MOD_API.md"
+      }
     ],
     "asar": true,
     "win": {
-      "target": [{ "target": "dir", "arch": ["x64"] }]
+      "target": [
+        {
+          "target": "dir",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
     }
   }
 }

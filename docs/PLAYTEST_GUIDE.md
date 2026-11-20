@@ -38,11 +38,11 @@ The player starts in 自由港同盟 with an initial account balance displayed i
 ## 4. Test the continuous clock
 
 1. Confirm the world initially shows **时间已暂停** and its calendar day does not change.
-2. Select **1x**. At the default setting, one in-game day takes 60 real seconds.
+2. Select **1x**. The day-progress percentage and slim progress bar should move smoothly without clicking anything. At the default setting, one in-game day takes 60 real seconds.
 3. Select **2x**, **3x** and **4x**. At the default base rate, one in-game day takes approximately 30, 20 and 15 real seconds respectively.
 4. Select the pause control. The day-progress percentage should stop increasing and the calendar should stop advancing.
 5. Open **设置 → 基础时间流速**. Change the number of real seconds assigned to one game day, save, and confirm the selected speed remains independent of that base duration.
-6. Start a fresh test world or continue the current one until it crosses a day boundary. Market quotes and active-war chronology update daily.
+6. Start a fresh test world or continue the current one until it crosses a day boundary. The calendar and world panels refresh when the main process confirms the new day; market quotes and active-war chronology update daily. Between day boundaries, only the clock progress display should animate.
 7. Continue until elapsed day 7, then open **殖民地与生产**. Industrial inventories should reflect one weekly production cycle. Production should run again on elapsed day 14, 21 and so on.
 
 The initial scheduler is intentionally simple:

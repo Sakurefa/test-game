@@ -16,7 +16,7 @@ The project is a multi-system frontier simulation. A commodity exchange is one s
 
 The simulation engine is plain Node.js CommonJS under `engine/`. It does not import Electron, browser APIs, or renderer code. The Electron main process owns the active world and exposes a narrow IPC bridge. The renderer receives snapshots and submits commands; it never edits the authoritative state directly.
 
-The Electron main process owns the active world and its campaign-time controller. It samples a monotonic clock, converts elapsed real time through the configured base-day duration and selected 1x–4x speed, and passes fractional game days to the engine. The renderer only requests snapshots and issues time-control commands; UI polling and frame rate do not drive the simulation.
+The Electron main process owns the active world and its campaign-time controller. It samples a monotonic clock, converts elapsed real time through the configured base-day duration and selected 1x–4x speed, and passes fractional game days to the engine. The renderer issues time-control commands and polls a small clock-only IPC payload. It interpolates the visible day-progress bar locally with requestAnimationFrame; full world snapshots are requested only when the authoritative main-process clock crosses a day boundary. UI animation and polling never drive simulation state.
 
 The simulation registry defines stable system IDs, cadence, priority, dependencies and optional initialize/update/save/restore/dispose lifecycle hooks. Dependencies are topologically ordered, updates are synchronous and deterministic, and each system records its last execution day in the world save. A system cannot run twice on the same day after a save/load or repeated scheduler call.
 

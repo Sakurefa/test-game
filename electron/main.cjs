@@ -116,6 +116,17 @@ function getActiveWorldSnapshot() {
   return { ...createSnapshot(activeWorld, activeCatalog), saveId: activeSaveId, dirty: activeWorldDirty, timeControl: campaignTime.getState() };
 }
 
+function getActiveWorldClockStatus() {
+  if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
+  campaignTime.tick();
+  return {
+    clock: { ...activeWorld.clock },
+    saveId: activeSaveId,
+    dirty: activeWorldDirty,
+    timeControl: campaignTime.getState()
+  };
+}
+
 handleIpc("world:start-new", async () => {
   activeCatalog = await loadWorldCatalog();
   activeWorld = createWorld(activeCatalog, { seed: Date.now() });
@@ -147,6 +158,7 @@ handleIpc("world:set-speed", async (_event, speed) => {
   return getActiveWorldSnapshot();
 });
 
+handleIpc("world:clock-status", async () => getActiveWorldClockStatus());
 handleIpc("world:time-status", async () => getActiveWorldSnapshot());
 
 handleIpc("world:advance-day", async () => {

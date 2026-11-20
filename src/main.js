@@ -1,6 +1,7 @@
 import "./styles.css";
 import "./time-controls.css";
 import { renderWorld } from "./world.js";
+import { estimateCampaignDayFraction } from "./time-display.mjs";
 
 const app = document.querySelector("#app");
 const state = {
@@ -65,56 +66,183 @@ function subPage(title, subtitle, body) {
   `);
 }
 
+let worldClockView = null;
+let worldClockElements = null;
+let worldClockAnimationFrame = null;
+let worldClockPollInFlight = false;
+let worldViewEpoch = 0;
+
+function cacheCampaignClockElements() {
+  worldClockElements = {
+    date: app.querySelector("[data-world-date]"),
+    day: app.querySelector("[data-world-day]"),
+    percent: app.querySelector("[data-world-percent]"),
+    progress: app.querySelector("[data-world-progress]"),
+    progressTrack: app.querySelector("[data-world-progress-track]"),
+    status: app.querySelector("[data-time-label]"),
+    speedButtons: [...app.querySelectorAll("[data-world-action='set-speed']")],
+    footer: app.querySelector("[data-save-status]")
+  };
+}
+
+function updateCampaignClockMetadata() {
+  if (!worldClockView || !worldClockElements) return;
+  const { clock, timeControl } = worldClockView;
+  const week = Math.floor(clock.day / 7) + 1;
+
+  if (worldClockElements.date && worldClockElements.date.textContent !== clock.date) {
+    worldClockElements.date.textContent = clock.date;
+  }
+  if (worldClockElements.day) {
+    const label = `第 ${clock.day} 天 · 第 ${week} 周`;
+    if (worldClockElements.day.textContent !== label) worldClockElements.day.textContent = label;
+  }
+  if (worldClockElements.status) {
+    const label = timeControl.paused ? "时间已暂停" : `世界时间 · ${timeControl.speed}x`;
+    if (worldClockElements.status.textContent !== label) worldClockElements.status.textContent = label;
+  }
+  for (const button of worldClockElements.speedButtons) {
+    const selected = Number(button.dataset.speed) === timeControl.speed;
+    if (button.classList.contains("selected") !== selected) {
+      button.classList.toggle("selected", selected);
+      button.setAttribute("aria-pressed", String(selected));
+    }
+  }
+  if (worldClockElements.footer) {
+    const label = `存档：${worldClockView.saveId || "未命名"} · ${worldClockView.dirty ? "有未保存更改" : "已保存"}`;
+    if (worldClockElements.footer.textContent !== label) worldClockElements.footer.textContent = label;
+  }
+}
+
+function updateCampaignClockProgress() {
+  if (!worldClockView || !worldClockElements) return;
+  const { clock, timeControl } = worldClockView;
+  const elapsedMs = timeControl.speed > 0
+    ? Math.max(0, performance.now() - worldClockView.syncedAt)
+    : 0;
+  const fraction = estimateCampaignDayFraction({
+    dayFraction: clock.dayFraction || 0,
+    speed: timeControl.speed,
+    baseDayDurationMs: timeControl.baseDayDurationMs,
+    elapsedMs
+  });
+  const percentage = (fraction * 100).toFixed(1);
+
+  if (worldClockElements.percent && worldClockElements.percent.textContent !== `${percentage}%`) {
+    worldClockElements.percent.textContent = `${percentage}%`;
+  }
+  if (worldClockElements.progress) {
+    const width = `${percentage}%`;
+    if (worldClockElements.progress.style.width !== width) worldClockElements.progress.style.width = width;
+  }
+  if (worldClockElements.progressTrack) {
+    const value = String(Number(percentage));
+    if (worldClockElements.progressTrack.getAttribute("aria-valuenow") !== value) {
+      worldClockElements.progressTrack.setAttribute("aria-valuenow", value);
+    }
+  }
+}
+
+function stopCampaignClockAnimation() {
+  if (worldClockAnimationFrame !== null) {
+    cancelAnimationFrame(worldClockAnimationFrame);
+    worldClockAnimationFrame = null;
+  }
+}
+
+function animateCampaignClock() {
+  worldClockAnimationFrame = null;
+  if (state.page !== "world" || !state.world || !worldClockView) return;
+  updateCampaignClockProgress();
+  if (worldClockView.timeControl.speed > 0) {
+    worldClockAnimationFrame = requestAnimationFrame(animateCampaignClock);
+  }
+}
+
+function startCampaignClockAnimation() {
+  if (worldClockView?.timeControl.speed > 0 && worldClockAnimationFrame === null) {
+    worldClockAnimationFrame = requestAnimationFrame(animateCampaignClock);
+  }
+}
+
+function syncCampaignClock(status) {
+  if (!state.world || !status?.clock || !status?.timeControl) return;
+  worldClockView = {
+    clock: { ...status.clock },
+    timeControl: { ...status.timeControl },
+    saveId: status.saveId ?? state.world.saveId,
+    dirty: status.dirty ?? state.world.dirty,
+    syncedAt: performance.now()
+  };
+  state.world.world.clock = { ...status.clock };
+  state.world.timeControl = { ...status.timeControl };
+  if (status.saveId !== undefined) state.world.saveId = status.saveId;
+  if (status.dirty !== undefined) state.world.dirty = status.dirty;
+  updateCampaignClockMetadata();
+  updateCampaignClockProgress();
+  if (worldClockView.timeControl.speed > 0) startCampaignClockAnimation();
+  else stopCampaignClockAnimation();
+}
+
+function syncCampaignClockFromSnapshot(snapshot) {
+  syncCampaignClock({
+    clock: snapshot.world.clock,
+    timeControl: snapshot.timeControl,
+    saveId: snapshot.saveId,
+    dirty: snapshot.dirty
+  });
+}
+
 function renderActiveWorld() {
   if (!state.world) return homePage();
   state.page = "world";
   app.innerHTML = renderWorld(state.world, state.worldTab, state.worldNotice);
+  cacheCampaignClockElements();
+  updateCampaignClockMetadata();
+  updateCampaignClockProgress();
+  startCampaignClockAnimation();
 }
 
-function updateCampaignTimeDisplay(snapshot) {
-  const day = snapshot.world.clock.day;
-  const week = Math.floor(day / 7) + 1;
-  const progress = Math.floor((snapshot.world.clock.dayFraction || 0) * 100);
-  const dayLabel = app.querySelector("[data-world-day]");
-  if (dayLabel) dayLabel.textContent = `第 ${day} 天 · 第 ${week} 周 · ${progress}% 日进度`;
-  const dateLabel = app.querySelector("[data-world-date]");
-  if (dateLabel) dateLabel.textContent = snapshot.world.clock.date;
-  const status = app.querySelector("[data-time-label]");
-  if (status) status.textContent = snapshot.timeControl?.paused ? "时间已暂停" : `世界时间 · ${snapshot.timeControl?.speed || 1}x`;
-  for (const button of app.querySelectorAll("[data-world-action='set-speed']")) {
-    const selected = Number(button.dataset.speed) === snapshot.timeControl?.speed;
-    button.classList.toggle("selected", selected);
-    button.setAttribute("aria-pressed", String(selected));
-  }
-  const footer = app.querySelector("[data-save-status]");
-  if (footer) footer.textContent = `存档：${snapshot.saveId || "未命名"} · ${snapshot.dirty ? "有未保存更改" : "已保存"}`;
-}
-
-let worldPollInFlight = false;
-setInterval(async () => {
-  if (!hostAvailable() || state.page !== "world" || !state.world || state.busy || worldPollInFlight) return;
-  worldPollInFlight = true;
+async function pollCampaignClock() {
+  if (!hostAvailable() || state.page !== "world" || !state.world || state.busy || worldClockPollInFlight) return;
+  worldClockPollInFlight = true;
+  const requestEpoch = worldViewEpoch;
+  const requestedWorld = state.world;
+  const previousDay = requestedWorld.world.clock.day;
   try {
-    const snapshot = await window.gameHost.world.getStatus();
-    if (state.page === "world" && state.world) {
-      const previousDay = state.world.clock.day;
+    // Keep this IPC payload small: only the authoritative clock and control state.
+    const clockStatus = await window.gameHost.world.getClockStatus();
+    if (requestEpoch !== worldViewEpoch || state.page !== "world" || state.world !== requestedWorld || state.busy) return;
+
+    if (clockStatus.clock.day !== previousDay) {
+      // Market, colony and military panels only need a full snapshot when a game day is committed.
+      const snapshot = await window.gameHost.world.getStatus();
+      if (requestEpoch !== worldViewEpoch || state.page !== "world" || state.world !== requestedWorld || state.busy) return;
       state.world = snapshot;
-      if (snapshot.world.clock.day !== previousDay) renderActiveWorld();
-      else updateCampaignTimeDisplay(snapshot);
+      syncCampaignClockFromSnapshot(snapshot);
+      renderActiveWorld();
+    } else {
+      syncCampaignClock(clockStatus);
     }
   } catch (error) {
-    console.error("World status polling failed", error);
+    console.error("World clock synchronization failed", error);
   } finally {
-    worldPollInFlight = false;
+    worldClockPollInFlight = false;
   }
-}, 500);
+}
+
+setInterval(() => {
+  void pollCampaignClock();
+}, 250);
 
 async function enterNewWorld() {
+  worldViewEpoch += 1;
   if (!hostAvailable()) {
     return subPage("开始新航程", "需要桌面运行环境。", '<p class="empty-state">请通过独立启动器打开游戏，浏览器预览不具备存档和模拟接口。</p>');
   }
   try {
     state.world = await window.gameHost.world.startNew();
+    syncCampaignClockFromSnapshot(state.world);
     state.worldTab = "overview";
     state.worldNotice = "新航程已建立，世界时间初始暂停。使用右侧速度控制开始运行；市场每日更新，殖民地工业每七天结算一次。";
     renderActiveWorld();
@@ -124,8 +252,10 @@ async function enterNewWorld() {
 }
 
 async function loadWorld(saveId) {
+  worldViewEpoch += 1;
   try {
     state.world = await window.gameHost.world.loadSave(saveId);
+    syncCampaignClockFromSnapshot(state.world);
     state.worldTab = "overview";
     state.worldNotice = "存档载入成功，世界时间默认暂停。日期、随机数与结算调度状态已从存档恢复。";
     renderActiveWorld();
@@ -209,23 +339,32 @@ app.addEventListener("click", async (event) => {
 
   const worldAction = event.target.closest("[data-world-action]");
   if (worldAction && state.world && !state.busy) {
+    worldViewEpoch += 1;
     state.busy = true;
     try {
       const action = worldAction.dataset.worldAction;
       if (action === "set-speed") {
         const speed = Number(worldAction.dataset.speed);
         state.world = await window.gameHost.world.setSpeed(speed);
+        syncCampaignClockFromSnapshot(state.world);
         state.worldNotice = speed === 0 ? "世界时间已暂停。" : `世界时间已切换为 ${speed}x。`;
       } else if (action === "advance") {
         state.world = await window.gameHost.world.advanceDay();
+        syncCampaignClockFromSnapshot(state.world);
         state.worldNotice = "兼容性调试操作：世界时间已推进一天。";
       } else if (action === "save") {
         const result = await window.gameHost.world.save();
         state.world.dirty = false;
+        const clockStatus = await window.gameHost.world.getClockStatus();
+        syncCampaignClock(clockStatus);
         state.worldNotice = `世界已保存：${result.saveId}`;
       } else if (action === "leave") {
         if (state.world.dirty && !window.confirm("当前世界有尚未保存的更改。返回主菜单将丢失这些更改，确定继续吗？")) return;
         await window.gameHost.world.leave();
+        worldViewEpoch += 1;
+        stopCampaignClockAnimation();
+        worldClockView = null;
+        worldClockElements = null;
         state.world = null;
         state.worldNotice = "";
         return homePage();

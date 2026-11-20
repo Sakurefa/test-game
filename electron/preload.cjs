@@ -15,6 +15,7 @@ contextBridge.exposeInMainWorld("gameHost", {
     loadSave: (saveId) => ipcRenderer.invoke("world:load-save", saveId),
     advanceDay: () => ipcRenderer.invoke("world:advance-day"),
     setSpeed: (speed) => ipcRenderer.invoke("world:set-speed", speed),
+    getClockStatus: () => ipcRenderer.invoke("world:clock-status"),
     getStatus: () => ipcRenderer.invoke("world:time-status"),
     save: () => ipcRenderer.invoke("world:save"),
     leave: () => ipcRenderer.invoke("world:leave")

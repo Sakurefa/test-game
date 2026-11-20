@@ -154,7 +154,12 @@ export function renderWorld(snapshot, activeTab = "overview", notice = "") {
     <main class="world-screen">
       <header class="world-header">
         <div class="world-brand"><span class="world-mark">F</span><div><b>FRONTIER</b><small>STAR SYSTEMS SIMULATION</small></div></div>
-        <div class="world-date"><small>GALACTIC DATE</small><b data-world-date>${escapeHtml(snapshot.world.clock.date)}</b><span data-world-day>第 ${snapshot.world.clock.day} 天 · 第 ${Math.floor(snapshot.world.clock.day / 7) + 1} 周 · ${Math.floor((snapshot.world.clock.dayFraction || 0) * 100)}% 日进度</span></div>
+        <div class="world-date">
+          <small>GALACTIC DATE</small>
+          <b data-world-date>${escapeHtml(snapshot.world.clock.date)}</b>
+          <div class="world-day-summary"><span data-world-day>第 ${snapshot.world.clock.day} 天 · 第 ${Math.floor(snapshot.world.clock.day / 7) + 1} 周</span><strong data-world-percent>${((snapshot.world.clock.dayFraction || 0) * 100).toFixed(1)}%</strong></div>
+          <div class="campaign-day-track" data-world-progress-track role="progressbar" aria-label="当前游戏日进度" aria-valuemin="0" aria-valuemax="100" aria-valuenow="${((snapshot.world.clock.dayFraction || 0) * 100).toFixed(1)}"><span data-world-progress style="width:${((snapshot.world.clock.dayFraction || 0) * 100).toFixed(1)}%"></span></div>
+        </div>
       </header>
       <div class="world-toolbar">
         <div class="world-tabs">${tabs.map(([id, label]) => `<button data-world-tab="${id}" class="${activeTab === id ? "active" : ""}">${label}</button>`).join("")}</div>

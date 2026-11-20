@@ -127,8 +127,9 @@ World schema 6 stores account balances as integer CR minor units and validates t
 1. Start a new world and let it cross one full game-day boundary. Confirm `save/slot_auto_daily_1` appears and can be loaded.
 2. Advance another day. Confirm `slot_auto_daily_1` contains the newest day and `slot_auto_daily_2` contains the previous day.
 3. Advance to day 7 and confirm the independent weekly pair is created. Continue to day 14 and confirm weekly slot 1/2 rotate independently from daily slots.
-4. Confirm manual save slots are not overwritten by autosaves.
-5. Inspect `Logs/runtime.log`: every record must occupy one physical line and parse as JSON. Search by scope, entity ID, transaction ID or campaign day. Check that day-settlement records contain production, market, calculation and systems-run details.
-6. In a disposable test save only, deliberately remove a required market price or referenced colony state, then advance to the next day. Confirm the day is not partially committed, campaign time pauses, the title menu appears, and the fatal dialog shows the concrete error with surrounding log lines. Copy the report and confirm it contains the same error record as `Logs/runtime.log`.
-7. Confirm an autosave write failure is logged as an autosave error but does not masquerade as a simulation-system failure.
-8. These checks require the Windows desktop build. Automated storage/rotation and simulation atomicity tests do not replace a Windows GUI test.
+4. Load a daily or weekly autosave, then use manual Save. Confirm a separate slot_manual_* is created and the automatic slot pair remains unchanged.
+5. Confirm manual save slots are not overwritten by autosaves.
+6. Inspect `Logs/runtime.log`: every record must occupy one physical line and parse as JSON. Search by scope, entity ID, transaction ID or campaign day. Check that day-settlement records contain production, market, calculation and systems-run details.
+7. In a disposable test save only, deliberately remove a required market price or referenced colony state, then advance to the next day. Confirm the day is not partially committed, campaign time pauses, the title menu appears, and the fatal dialog shows the concrete error with surrounding log lines. Copy the report and confirm it contains the same error record as `Logs/runtime.log`.
+8. Confirm an autosave write failure is logged as an autosave error but does not masquerade as a simulation-system failure.
+9. These checks require the Windows desktop build. Automated storage/rotation and simulation atomicity tests do not replace a Windows GUI test.

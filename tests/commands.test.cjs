@@ -122,3 +122,29 @@ test("replayed command IDs are reauthorized before returning a stored result",()
  assert.throws(()=>dispatcher.dispatch({world:first.world,command:command(),context:{canControlWorld:false}}),/authorization/);
  assert.equal(first.world.counter,7);
 });
+
+test("world command runtime commits state before notifying event subscribers",()=>{
+ const initial=worldFixture(),state={world:initial},observed=[];
+ const dispatcher=createCommandDispatcher([{
+  id:"player.counter.increment",validate:()=>true,
+  execute:({world})=>{world.counter+=1;return {result:{counter:world.counter},events:[{type:"world.counter-changed",payload:{counter:world.counter}}]};}
+ }]);
+ const bus=createDomainEventBus();
+ bus.subscribe("world.counter-changed",()=>observed.push(state.world.counter));
+ const runtime=createWorldCommandRuntime({dispatcher,eventBus:bus,onCommit:next=>{state.world=next;}});
+ runtime.dispatch({world:initial,command:{commandId:"cmd-commit-order1",type:"player.counter.increment",payload:{}}});
+ assert.deepEqual(observed,[6]);
+ assert.equal(state.world.counter,6);
+});
+
+test("world command runtime commits valid no-event commands",()=>{
+ const initial=worldFixture(),state={world:initial};
+ const dispatcher=createCommandDispatcher([{
+  id:"player.counter.increment",validate:()=>true,
+  execute:({world})=>{world.counter+=1;return {result:{counter:world.counter},events:[]};}
+ }]);
+ const runtime=createWorldCommandRuntime({dispatcher,onCommit:next=>{state.world=next;}});
+ runtime.dispatch({world:initial,command:{commandId:"cmd-no-event01",type:"player.counter.increment",payload:{}}});
+ assert.equal(state.world.counter,6);
+ assert.equal(state.world.commandReceipts.length,1);
+});

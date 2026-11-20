@@ -3,10 +3,11 @@
   "events": [
     {
       "id": "example-positive-news",
-      "name": "Example: Positive Industry News",
-      "description": "A sample event for demonstrating the Mod data format.",
-      "tags": ["example", "positive"],
-      "weight": 1
+      "name": "矿业订单增加",
+      "type": "market-rumor",
+      "description": "一份新的矿业长期采购合同正在市场间流传。",
+      "weight": 1,
+      "tags": ["example", "ore", "industry"]
     }
   ]
 }

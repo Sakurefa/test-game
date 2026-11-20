@@ -1,0 +1,7 @@
+{
+  "schemaVersion": 1,
+  "events": [
+    {"id":"supply-rumor","name":"补给传闻","type":"market-rumor","description":"边境商船传出某条航线将出现短期供应紧张。","weight":3,"tags":["trade","supply"]},
+    {"id":"border-alert","name":"边境警报","type":"military-alert","description":"边境巡逻队提高警戒等级，舰队指挥部正在评估局势。","weight":1,"tags":["military","frontier"]}
+  ]
+}

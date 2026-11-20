@@ -1,6 +1,6 @@
 # Mod API v3 — Data-only packages
 
-Market Simulator separates the engine from game content. The engine owns all executable behavior. Mods provide declarative data only.
+The engine owns all executable behavior. Mods provide declarative data only.
 
 **A Mod cannot ship or execute JavaScript, scripts, native binaries, runtime hooks or code patches.** If a game mechanic needs to change, the engine itself must be changed by the project maintainers. A future extension API, if ever needed, will be designed separately with explicit capabilities and permissions.
 
@@ -12,23 +12,31 @@ mods/
     manifest.json
     registry/
       registry.ini
+      definitions.json
     content/
       core.ini
+      universe.json
+      economy.json
+      factions.json
+      military.json
+      events.json
     localization/
       zh-CN.ini
   example-market/
     manifest.json
+    registry/
+      definitions.json
     content/
       market-events.json
 ```
 
 Every package has a `manifest.json`. The three data categories have distinct responsibilities:
 
-- `registry/`: declares IDs, types, ownership and references so the engine can discover content.
-- `content/`: stores the actual game definitions and values.
+- `registry/`: declares stable IDs and their definition types.
+- `content/`: stores actual definitions and values.
 - `localization/`: maps stable text keys to language-specific strings.
 
-The reserved `core` package is required and always enabled. Its contents establish the base game data. The current files are structural placeholders; actual gameplay content will be authored separately.
+The reserved `core` package is required and always enabled. It defines the initial universe, systems, locations, colonies, trade routes, factions, commodities, production recipes, markets, companies, securities, ship classes, fleets, wars and event definitions.
 
 ## Manifest
 
@@ -36,31 +44,49 @@ All three category arrays are required, even when empty:
 
 ```json
 {
-  "id": "example-market",
-  "name": "Example Market Pack",
+  "id": "example-pack",
+  "name": "Example Pack",
   "version": "1.0.0",
   "author": "Community",
-  "description": "An example content package.",
+  "description": "A data-only content package.",
   "apiVersion": 3,
-  "registryFiles": [],
-  "contentFiles": ["market-events.json"],
+  "registryFiles": ["definitions.json"],
+  "contentFiles": ["new-content.json"],
   "localizationFiles": []
 }
 ```
 
-File declarations are simple filenames located directly inside their matching category directory. Path separators and parent traversal are not allowed. Supported files are `.ini` and `.json`. Duplicate declarations are rejected.
+Declared filenames must be simple filenames in their category directory. Path separators and parent traversal are not allowed. Supported files are `.ini` and `.json`.
+
+## Registry and definition types
+
+A registry JSON file contains a top-level `entries` array:
+
+```json
+{
+  "schemaVersion": 1,
+  "entries": [
+    { "id": "my-star-system", "type": "star_system" },
+    { "id": "my-colony", "type": "colony" }
+  ]
+}
+```
+
+The ID in the registry must match exactly one content definition. IDs are globally unique across enabled packages. Supported types are `universe`, `star_system`, `location`, `trade_route`, `faction`, `colony`, `commodity`, `recipe`, `market`, `company`, `security`, `ship_class`, `fleet`, `war` and `event`.
+
+Content JSON files use top-level collections such as `systems`, `locations`, `colonies`, `commodities`, `recipes`, `markets`, `companies`, `securities`, `shipClasses`, `fleets`, `wars` and `events`. A universe file also contains one `universe` object and may contain `tradeRoutes`.
+
+The loader validates duplicate IDs and cross-references before the world is allowed to start. For example, a colony must reference a valid location and faction, each industry must reference a valid recipe, and recipe inputs and outputs must reference valid commodities.
 
 ## INI format
 
-INI is the preferred human-editable format. It supports sections, key/value pairs, full-line comments, quoted strings, typed scalar values and inline JSON arrays/objects.
+INI remains available for human-editable settings and small data groups:
 
 ```ini
-; Full-line comments start with ; or #
 [market]
-name = "North Atlantic Exchange"
+name = "North Exchange"
 starting_cash = 25000
 allow_short_selling = false
-description = A fictional market for a sample scenario
 tickers = ["NOVA", "ORBT", "LUMA"]
 ```
 
@@ -74,7 +100,7 @@ tickers = ["NOVA", "ORBT", "LUMA"]
 - Duplicate sections and duplicate keys are errors.
 - Dangerous object keys such as `__proto__`, `prototype` and `constructor` are rejected.
 
-INI is a data format, not a programming language. Values are parsed, validated and passed to engine-owned systems; they are never evaluated as code.
+INI is a data format, not a programming language. Values are parsed and validated; they are never evaluated as code.
 
 ## Safety limits
 
@@ -85,13 +111,4 @@ INI is a data format, not a programming language. Values are parsed, validated a
 - A malformed package is reported independently and does not hide other packages.
 - Unknown API versions are rejected.
 
-API v1 and v2 packages must be migrated to the v3 category layout. No compatibility path for executable Mod code exists.
-
-## Host API
-
-The preload bridge exposes:
-
-- `window.gameHost.mods.list()`: package metadata and validation errors.
-- `window.gameHost.mods.loadAll()`: discovered packages with parsed category data.
-- `window.gameHost.content.loadCore()`: validates and returns the required core package.
-- `window.gameHost.platform`: current operating-system platform.
+No compatibility path for executable Mod code exists. See [docs/ENGINE_ARCHITECTURE.md](docs/ENGINE_ARCHITECTURE.md) for how data enters the simulation engine.

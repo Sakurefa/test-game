@@ -1,0 +1,39 @@
+{
+  "schemaVersion": 1,
+  "universe": {
+    "id": "helios-reach",
+    "name": "赫利俄斯边境",
+    "description": "由四个相互连接的星系组成的边境星域。贸易航线、殖民地与军事力量共同塑造这里的局势。",
+    "startDate": "2478-04-01",
+    "defaultPlayerFactionId": "free-haven-league",
+    "defaultMarketId": "verdant-exchange"
+  },
+  "systems": [
+    {"id":"solace","name":"澄光星系","description":"边境贸易与矿业交通的交汇处。","position":{"x":0,"y":0},"links":["cinder","eos"],"locationIds":["solace-star","new-dawn","freeport"],"factionId":"helios-compact"},
+    {"id":"cinder","name":"烬环星系","description":"工业设施密集，长期处于军事紧张状态。","position":{"x":-1,"y":1},"links":["solace","veil"],"locationIds":["cinder-star","emberfall"],"factionId":"ember-syndicate"},
+    {"id":"eos","name":"曙星星系","description":"农业殖民地与民间贸易网络所在地。","position":{"x":1,"y":1},"links":["solace","veil"],"locationIds":["eos-star","verdant"],"factionId":"free-haven-league"},
+    {"id":"veil","name":"帷幕星系","description":"远离主要航道的边境区域，只有一座长期运行的通讯中继站。","position":{"x":0,"y":2},"links":["cinder","eos"],"locationIds":["veil-star","relay-13"],"factionId":"free-haven-league"}
+  ],
+  "locations": [
+    {"id":"solace-star","name":"澄光","type":"star","systemId":"solace","description":"澄光星系的主序恒星。"},
+    {"id":"new-dawn","name":"新曙光","type":"planet","systemId":"solace","factionId":"helios-compact","colonyId":"new-dawn-colony","description":"以矿业和水资源开采为基础的老牌工业殖民地。"},
+    {"id":"freeport","name":"自由港","type":"station","systemId":"solace","factionId":"free-haven-league","description":"跨势力商船经常停靠的自由贸易空间站。"},
+    {"id":"cinder-star","name":"烬环","type":"star","systemId":"cinder","description":"烬环星系的恒星。"},
+    {"id":"emberfall","name":"灰烬之落","type":"planet","systemId":"cinder","factionId":"ember-syndicate","colonyId":"emberfall-colony","description":"以精炼、燃料和重工业闻名的高污染世界。"},
+    {"id":"eos-star","name":"曙星","type":"star","systemId":"eos","description":"曙星星系的恒星。"},
+    {"id":"verdant","name":"翡翠","type":"planet","systemId":"eos","factionId":"free-haven-league","colonyId":"verdant-colony","description":"食物与精密电子产品的重要产地。"},
+    {"id":"veil-star","name":"帷幕之光","type":"star","systemId":"veil","description":"帷幕星系的暗淡恒星。"},
+    {"id":"relay-13","name":"十三号中继站","type":"station","systemId":"veil","factionId":"free-haven-league","description":"维护边境航线通讯的老旧中继站。"}
+  ],
+  "tradeRoutes": [
+    {"id":"solace-cinder","name":"灰烬航道","fromSystemId":"solace","toSystemId":"cinder","travelDays":3,"risk":0.32,"capacity":120},
+    {"id":"solace-eos","name":"晨星航道","fromSystemId":"solace","toSystemId":"eos","travelDays":2,"risk":0.12,"capacity":160},
+    {"id":"cinder-veil","name":"帷幕北线","fromSystemId":"cinder","toSystemId":"veil","travelDays":4,"risk":0.48,"capacity":80},
+    {"id":"eos-veil","name":"帷幕南线","fromSystemId":"eos","toSystemId":"veil","travelDays":3,"risk":0.2,"capacity":90}
+  ],
+  "colonies": [
+    {"id":"new-dawn-colony","name":"新曙光殖民地","locationId":"new-dawn","factionId":"helios-compact","population":2100000,"stability":74,"stockpiles":{"ore":145,"water":110,"food":120,"alloys":28,"fuel":45,"electronics":8},"industries":[{"recipeId":"ore-extraction","level":2,"companyId":"helios-extraction"},{"recipeId":"water-extraction","level":1,"companyId":"helios-extraction"}]},
+    {"id":"verdant-colony","name":"翡翠殖民地","locationId":"verdant","factionId":"free-haven-league","population":1450000,"stability":82,"stockpiles":{"ore":12,"water":130,"food":180,"alloys":18,"fuel":12,"electronics":24},"industries":[{"recipeId":"food-production","level":2,"companyId":"verdant-agriworks"},{"recipeId":"electronics-fabrication","level":1,"companyId":"verdant-agriworks"}]},
+    {"id":"emberfall-colony","name":"灰烬之落殖民地","locationId":"emberfall","factionId":"ember-syndicate","population":930000,"stability":61,"stockpiles":{"ore":95,"water":42,"food":55,"alloys":72,"fuel":38,"electronics":10},"industries":[{"recipeId":"alloy-refining","level":2,"companyId":"ember-foundries"},{"recipeId":"fuel-synthesis","level":1,"companyId":"ember-foundries"}]}
+  ]
+}

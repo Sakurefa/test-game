@@ -1,0 +1,8 @@
+{
+  "schemaVersion": 1,
+  "factions": [
+    {"id":"helios-compact","name":"赫利俄斯协约","government":"联合议会","color":"#6e9dc5","description":"控制澄光星系的老牌工业联盟。"},
+    {"id":"ember-syndicate","name":"烬环财团","government":"企业理事会","color":"#bf806d","description":"以资源、军工和航道控制维持影响力的企业集团。"},
+    {"id":"free-haven-league","name":"自由港同盟","government":"自治共同体","color":"#8ebc9b","description":"由独立殖民地、商站和民间组织组成的松散联盟。"}
+  ]
+}

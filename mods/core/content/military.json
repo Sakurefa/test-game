@@ -1,0 +1,16 @@
+{
+  "schemaVersion": 1,
+  "shipClasses": [
+    {"id":"scout","name":"侦察艇","role":"recon","strength":2,"crew":18,"speed":1.45,"supplyUse":0.3},
+    {"id":"frigate","name":"护卫舰","role":"escort","strength":8,"crew":95,"speed":1.1,"supplyUse":1.1},
+    {"id":"destroyer","name":"驱逐舰","role":"line","strength":22,"crew":260,"speed":0.82,"supplyUse":2.8},
+    {"id":"logistics-ship","name":"补给舰","role":"support","strength":1,"crew":70,"speed":0.72,"supplyUse":0.6}
+  ],
+  "fleets": [
+    {"id":"helios-border-fleet","name":"赫利俄斯边境舰队","factionId":"helios-compact","locationId":"new-dawn","readiness":86,"morale":72,"stance":"defensive","ships":[{"shipClassId":"frigate","quantity":4},{"shipClassId":"destroyer","quantity":1},{"shipClassId":"logistics-ship","quantity":1}]},
+    {"id":"ember-strike-fleet","name":"烬环突击舰队","factionId":"ember-syndicate","locationId":"emberfall","readiness":93,"morale":81,"stance":"aggressive","ships":[{"shipClassId":"frigate","quantity":3},{"shipClassId":"destroyer","quantity":2},{"shipClassId":"scout","quantity":2}]}
+  ],
+  "wars": [
+    {"id":"cinder-conflict","name":"烬环边境冲突","status":"active","participants":["helios-compact","ember-syndicate"],"startedOn":"2478-03-17","fleetIds":["helios-border-fleet","ember-strike-fleet"],"description":"围绕灰烬航道通行权与边境矿区控制权的长期对峙。"}
+  ]
+}

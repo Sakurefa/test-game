@@ -10,6 +10,13 @@ contextBridge.exposeInMainWorld("gameHost", {
   content: {
     loadCore: () => ipcRenderer.invoke("content:load-core")
   },
+  world: {
+    startNew: () => ipcRenderer.invoke("world:start-new"),
+    loadSave: (saveId) => ipcRenderer.invoke("world:load-save", saveId),
+    advanceDay: () => ipcRenderer.invoke("world:advance-day"),
+    save: () => ipcRenderer.invoke("world:save"),
+    leave: () => ipcRenderer.invoke("world:leave")
+  },
   settings: {
     read: () => ipcRenderer.invoke("settings:read"),
     write: (patch) => ipcRenderer.invoke("settings:write", patch)

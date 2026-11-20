@@ -6,7 +6,7 @@ const path = require("node:path");
 const { createLogger } = require("../electron/logger.cjs");
 const {
   initializeStorage, readSettings, writeSettings, listSaveSlots,
-  createSaveSlot, removeSaveSlot
+  createSaveSlot, readGameState, writeGameState, removeSaveSlot
 } = require("../electron/storage.cjs");
 
 async function fixture(t) {
@@ -81,4 +81,32 @@ test("reports damaged save metadata instead of hiding the slot", async (t) => {
   await fs.writeFile(path.join(root, "save", "slot_broken", "metadata.ini"), "not an ini");
   const [slot] = await listSaveSlots(root);
   assert.equal(slot.status, "damaged");
+});
+
+
+test("writes and restores a versioned game world inside its save slot", async (t) => {
+  const root = await fixture(t);
+  await initializeStorage(root);
+  await createSaveSlot(root, "slot_world", "Frontier Test");
+  const state = {
+    schemaVersion: 1,
+    contentHash: "test-content",
+    universeId: "test-universe",
+    clock: { date: "2478-04-01", day: 0 },
+    rng: { seed: 42, state: 42 },
+    colonies: { "test-colony": { stockpiles: { ore: 10 } } }
+  };
+  await writeGameState(root, "slot_world", state);
+  assert.deepEqual(await readGameState(root, "slot_world"), state);
+  const [slot] = await listSaveSlots(root);
+  assert.equal(slot.metadata.name, "Frontier Test");
+  assert.ok(slot.metadata.updated_at);
+});
+
+test("game-state storage rejects unsafe slot IDs and unsupported schemas", async (t) => {
+  const root = await fixture(t);
+  await initializeStorage(root);
+  await assert.rejects(() => readGameState(root, "../outside"), /Invalid save slot ID/);
+  await createSaveSlot(root, "slot_bad", "Bad Save");
+  await assert.rejects(() => writeGameState(root, "slot_bad", { schemaVersion: 999 }), /unsupported game state/i);
 });

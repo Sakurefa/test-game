@@ -1,6 +1,6 @@
-# Market Simulator
+# Frontier Simulation
 
-A moddable desktop stock-market simulation project built with Electron, Vite and plain web technologies.
+A moddable desktop simulation about a connected frontier of star systems, colonies, production networks, markets, fleets and wars. Built with Electron, Vite and plain web technologies.
 
 ## Run from source
 
@@ -18,18 +18,28 @@ For portable play, extract the repository ZIP, place the separately distributed 
 
 The game creates and uses these directories beside the executable:
 
-- `Logs/`: startup log plus four rotating runtime log files.
-- `setting/`: editable INI settings (`general.ini`, `graphics.ini`, `audio.ini`, `mods.ini`).
-- `save/`: save slots and save data.
+- `Logs/`: startup log plus rotating runtime logs.
+- `setting/`: editable INI settings.
+- `save/`: save slots and world data.
 
 The game directory must be writable. The application will show an error rather than silently moving these files into an unrelated user profile directory.
 
+## Simulation architecture
+
+The world simulation is the center of the project. Markets and securities are only one part of a larger world that also contains star systems, colonies, resources, industries, companies, fleets and wars.
+
+The authoritative simulation is plain Node.js under `engine/`, separate from Electron and the renderer. The initial daily simulation runs colony production, adjusts local commodity prices from stock levels, updates seeded random state and advances the chronology of active wars.
+
+See [docs/ENGINE_ARCHITECTURE.md](docs/ENGINE_ARCHITECTURE.md) for subsystem boundaries and the current prototype limits.
+
 ## Modding
 
-Mods are data-only packages. The required `mods/core/` package contains registry, content and localization data. Community packages use the same structure. Mod packages cannot execute scripts or alter engine code.
+Mods are data-only packages. The required `mods/core/` package declares the base universe and core definitions. Community packages use the same registry/content/localization structure. Mod packages cannot execute scripts or alter engine code.
 
 See [MOD_API.md](MOD_API.md) for the API v3 format and safety limits.
 
-## Project status
+## Current prototype status
 
-The project currently has its portable runtime architecture, data-only Mod loader, root-level storage services, logging foundation and title menu. Actual world simulation and gameplay systems are still under construction.
+Implemented foundations include multi-system universe data, cross-reference validation, deterministic game time and random state, colony production, market repricing, save-state validation, fleet/wars definitions and automated engine tests.
+
+This is an early simulation slice, not a finished strategy game. Real-time tactical battles, fleet movement, inter-colony logistics, diplomacy, taxation, debt, player trading orders and long-term colony development remain future systems.

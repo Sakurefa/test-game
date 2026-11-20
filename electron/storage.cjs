@@ -3,6 +3,7 @@ const path = require("node:path");
 const { parseIni } = require("./ini-parser.cjs");
 
 const STORAGE_VERSION = 1;
+const MAX_GAME_STATE_BYTES = 16 * 1024 * 1024;
 const DEFAULT_SETTINGS = {
   general: { schema_version: STORAGE_VERSION, language: "zh-CN", window_mode: "windowed" },
   graphics: { schema_version: STORAGE_VERSION, ui_scale: 100 },
@@ -90,17 +91,6 @@ function validateGroup(group, value) {
   return result;
 }
 
-async function readIniOrDefault(file, defaults) {
-  try {
-    const parsed = parseIni(await fs.readFile(file, "utf8"));
-    const section = Object.keys(parsed)[0];
-    return validateGroup(Object.keys(defaults)[0], parsed);
-  } catch (error) {
-    if (error.code === "ENOENT") return defaults;
-    throw new Error(`Cannot read settings file ${file}: ${error.message}`);
-  }
-}
-
 async function initializeStorage(root) {
   const settingDirectory = path.join(root, "setting");
   const saveDirectory = path.join(root, "save");
@@ -170,9 +160,22 @@ function isSafeSlotId(id) {
   return typeof id === "string" && /^slot_[a-zA-Z0-9_-]{1,48}$/.test(id);
 }
 
+async function getSafeSlotDirectory(root, id) {
+  if (!isSafeSlotId(id)) throw new Error("Invalid save slot ID");
+  const saveRoot = path.join(root, "save");
+  const rootStat = await fs.lstat(saveRoot);
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error("Save root is linked or invalid");
+  const directory = path.join(saveRoot, id);
+  const stat = await fs.lstat(directory);
+  if (!stat.isDirectory() || stat.isSymbolicLink()) throw new Error("Save slot is not a regular directory");
+  return directory;
+}
+
 async function listSaveSlots(root) {
   const directory = path.join(root, "save");
   await fs.mkdir(directory, { recursive: true });
+  const rootStat = await fs.lstat(directory);
+  if (!rootStat.isDirectory() || rootStat.isSymbolicLink()) throw new Error("Save root is linked or invalid");
   const entries = await fs.readdir(directory, { withFileTypes: true });
   const slots = [];
   for (const entry of entries) {
@@ -212,12 +215,54 @@ async function createSaveSlot(root, id, name = "New Save") {
   return { id, metadata, status: "ok" };
 }
 
+async function writeGameState(root, id, state) {
+  if (!state || typeof state !== "object" || Array.isArray(state) || state.schemaVersion !== 1) {
+    throw new Error("Invalid or unsupported game state");
+  }
+  const directory = await getSafeSlotDirectory(root, id);
+  const dataDirectory = path.join(directory, "data");
+  await fs.mkdir(dataDirectory, { recursive: true });
+  const dataStat = await fs.lstat(dataDirectory);
+  if (!dataStat.isDirectory() || dataStat.isSymbolicLink()) throw new Error("Save data directory is linked or invalid");
+  const serialized = JSON.stringify(state, null, 2);
+  if (Buffer.byteLength(serialized, "utf8") > MAX_GAME_STATE_BYTES) throw new Error("Game state exceeds the 16 MiB save limit");
+  await atomicWrite(path.join(dataDirectory, "world.json"), serialized);
+
+  const metadataPath = path.join(directory, "metadata.ini");
+  const metadataStat = await fs.lstat(metadataPath);
+  if (!metadataStat.isFile() || metadataStat.isSymbolicLink() || metadataStat.size > 64 * 1024) {
+    throw new Error("Save metadata is linked or invalid");
+  }
+  const parsed = parseIni(await fs.readFile(metadataPath, "utf8"));
+  if (!parsed.save) throw new Error("Save metadata is missing its [save] section");
+  parsed.save.updated_at = new Date().toISOString();
+  await atomicWrite(metadataPath, serializeIni(parsed));
+  return true;
+}
+
+async function readGameState(root, id) {
+  const directory = await getSafeSlotDirectory(root, id);
+  const dataDirectory = path.join(directory, "data");
+  const dataStat = await fs.lstat(dataDirectory);
+  if (!dataStat.isDirectory() || dataStat.isSymbolicLink()) throw new Error("Save data directory is linked or invalid");
+  const file = path.join(dataDirectory, "world.json");
+  const stat = await fs.lstat(file);
+  if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_GAME_STATE_BYTES) {
+    throw new Error("Game-state file is missing, linked or too large");
+  }
+  const state = JSON.parse(await fs.readFile(file, "utf8"));
+  if (!state || typeof state !== "object" || state.schemaVersion !== 1) throw new Error("Unsupported game-state schema");
+  return state;
+}
+
 async function removeSaveSlot(root, id) {
   if (!isSafeSlotId(id)) throw new Error("Invalid save slot ID");
-  await fs.rm(path.join(root, "save", id), { recursive: true, force: true });
+  const directory = path.join(root, "save", id);
+  await fs.rm(directory, { recursive: true, force: true });
 }
 
 module.exports = {
-  STORAGE_VERSION, DEFAULT_SETTINGS, serializeIni, atomicWrite, initializeStorage,
-  readSettings, writeSettings, listSaveSlots, createSaveSlot, removeSaveSlot, isSafeSlotId
+  STORAGE_VERSION, MAX_GAME_STATE_BYTES, DEFAULT_SETTINGS, serializeIni, atomicWrite,
+  initializeStorage, readSettings, writeSettings, listSaveSlots, createSaveSlot,
+  readGameState, writeGameState, removeSaveSlot, isSafeSlotId
 };

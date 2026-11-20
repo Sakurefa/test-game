@@ -4,8 +4,10 @@ const fs = require("node:fs/promises");
 const { readModPackages, loadCoreContent } = require("./mod-loader.cjs");
 const {
   initializeStorage, readSettings, writeSettings, listSaveSlots,
-  createSaveSlot, removeSaveSlot
+  createSaveSlot, readGameState, writeGameState, removeSaveSlot, isSafeSlotId
 } = require("./storage.cjs");
+const { compileCatalog } = require("../engine/catalog.cjs");
+const { createWorld, advanceDay, createSnapshot, validateWorldState } = require("../engine/simulation.cjs");
 const { getLogger } = require("./logger.cjs");
 
 const DEV_URL = process.env.VITE_DEV_SERVER_URL;
@@ -14,6 +16,9 @@ const logger = getLogger(GAME_ROOT);
 let coreContentPromise;
 let storageReady = false;
 let quitting = false;
+let activeWorld = null;
+let activeCatalog = null;
+let activeSaveId = null;
 const cleanupTasks = new Set();
 
 function getModsDirectory() {
@@ -49,11 +54,6 @@ function handleIpc(channel, handler) {
   });
 }
 
-if (!app.isPackaged) {
-  process.on("uncaughtException", (error) => logger.error("process.uncaughtException", error));
-  process.on("unhandledRejection", (reason) => logger.error("process.unhandledRejection", reason));
-}
-
 handleIpc("mods:list", async () => {
   await ensureStorage();
   const settings = await readSettings(GAME_ROOT);
@@ -81,6 +81,62 @@ function getCoreContent() {
   return coreContentPromise;
 }
 handleIpc("content:load-core", async () => getCoreContent());
+
+async function loadWorldCatalog() {
+  await ensureStorage();
+  const settings = await readSettings(GAME_ROOT);
+  const mods = await readModPackages(getModsDirectory(), { enabledMods: settings.mods.enabled });
+  const result = compileCatalog(mods);
+  if (!result.ok) throw new Error(`World content validation failed: ${result.error}`);
+  return result.catalog;
+}
+
+function getActiveWorldSnapshot() {
+  if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
+  return { ...createSnapshot(activeWorld, activeCatalog), saveId: activeSaveId };
+}
+
+handleIpc("world:start-new", async () => {
+  activeCatalog = await loadWorldCatalog();
+  activeWorld = createWorld(activeCatalog, { seed: Date.now() });
+  activeSaveId = `slot_demo_${Date.now().toString(36)}`;
+  await createSaveSlot(GAME_ROOT, activeSaveId, activeWorld.metadata.name);
+  await writeGameState(GAME_ROOT, activeSaveId, activeWorld);
+  logger.info("world", `Started world ${activeWorld.universeId} in ${activeSaveId}`);
+  return getActiveWorldSnapshot();
+});
+
+handleIpc("world:load-save", async (_event, saveId) => {
+  if (!isSafeSlotId(saveId)) throw new Error("Invalid save slot ID");
+  activeCatalog = await loadWorldCatalog();
+  activeWorld = await readGameState(GAME_ROOT, saveId);
+  validateWorldState(activeWorld, activeCatalog);
+  activeSaveId = saveId;
+  logger.info("world", `Loaded world from ${saveId}`);
+  return getActiveWorldSnapshot();
+});
+
+handleIpc("world:advance-day", async () => {
+  if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
+  advanceDay(activeWorld, activeCatalog);
+  logger.info("world", `Advanced to day ${activeWorld.clock.day} (${activeWorld.clock.date})`);
+  return getActiveWorldSnapshot();
+});
+
+handleIpc("world:save", async () => {
+  if (!activeWorld || !activeSaveId) throw new Error("No active world is loaded");
+  await writeGameState(GAME_ROOT, activeSaveId, activeWorld);
+  logger.info("world", `Saved world to ${activeSaveId}`);
+  return { saveId: activeSaveId, savedAt: new Date().toISOString() };
+});
+
+handleIpc("world:leave", async () => {
+  logger.info("world", `Leaving active world ${activeSaveId || "unknown"}`);
+  activeWorld = null;
+  activeCatalog = null;
+  activeSaveId = null;
+  return true;
+});
 
 handleIpc("app:quit", async () => {
   logger.info("shutdown", "Quit requested from title menu");
@@ -176,7 +232,7 @@ function createWindow(settings) {
     minHeight: 640,
     frame: true,
     backgroundColor: "#101722",
-    title: "Market — 随机证券市场",
+    title: "FRONTIER — 赫利俄斯边境",
     webPreferences: {
       preload: path.join(__dirname, "preload.cjs"),
       contextIsolation: true,

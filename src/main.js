@@ -1,7 +1,11 @@
 import "./styles.css";
+import { renderWorld } from "./world.js";
 
 const app = document.querySelector("#app");
-const state = { page: "home", settings: null, slots: [], mods: [], error: "", busy: false };
+const state = {
+  page: "home", settings: null, slots: [], mods: [], error: "",
+  busy: false, world: null, worldTab: "overview", worldNotice: ""
+};
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -18,32 +22,33 @@ function shell(content) {
     <main class="title-screen">
       <div class="ambient ambient-one"></div><div class="ambient ambient-two"></div>
       <header class="title-bar">
-        <div class="wordmark"><span class="mark">M</span><span>MARKET</span></div>
-        <span class="build-label">DESKTOP EDITION <i></i></span>
+        <div class="wordmark"><span class="mark">F</span><span>FRONTIER</span></div>
+        <span class="build-label">STAR SYSTEMS SIMULATION <i></i></span>
       </header>
       <div class="main-layout">
         <section class="hero">
-          <div class="overline"><span></span> A PRIVATE MARKET SIMULATION <span></span></div>
-          <h1>MARKET</h1>
-          <p class="subtitle">随机证券市场</p>
+          <div class="overline"><span></span> A LIVING FRONTIER <span></span></div>
+          <h1>FRONTIER</h1>
+          <p class="subtitle">星域经营与战争模拟</p>
           <div class="rule"></div>
-          <p class="tagline">每一次波动，都是一个新的故事。</p>
+          <p class="tagline">殖民地、生产、贸易与舰队，共同构成一个世界。</p>
         </section>
         <section class="menu-panel">${content}</section>
       </div>
       <footer class="title-footer">
         <span>INDEPENDENT DESKTOP EXPERIENCE</span>
-        <span>VERSION 0.1.0</span>
+        <span>ENGINE PROTOTYPE 0.2</span>
       </footer>
     </main>`;
 }
 
 function homePage() {
+  state.page = "home";
   shell(`
     <div class="menu-heading"><span class="eyebrow">MAIN MENU</span><h2>主菜单</h2><p>选择一个入口继续。</p></div>
     <nav class="main-menu">
-      <button class="menu-button primary" data-action="new"><span class="menu-index">01</span><span><b>新存档</b><small>开始一段新的市场旅程</small></span><span class="menu-arrow">→</span></button>
-      <button class="menu-button" data-action="saves"><span class="menu-index">02</span><span><b>读取存档</b><small>浏览已有的存档槽位</small></span><span class="menu-arrow">→</span></button>
+      <button class="menu-button primary" data-action="new"><span class="menu-index">01</span><span><b>开始新航程</b><small>进入赫利俄斯边境的演示世界</small></span><span class="menu-arrow">→</span></button>
+      <button class="menu-button" data-action="saves"><span class="menu-index">02</span><span><b>读取存档</b><small>浏览并恢复已有的世界</small></span><span class="menu-arrow">→</span></button>
       <button class="menu-button" data-action="settings"><span class="menu-index">03</span><span><b>设置</b><small>调整窗口、界面与声音</small></span><span class="menu-arrow">→</span></button>
       <button class="menu-button" data-action="mods"><span class="menu-index">04</span><span><b>模组管理</b><small>管理已安装的数据模组</small></span><span class="menu-arrow">→</span></button>
       <button class="menu-button exit" data-action="quit"><span class="menu-index">05</span><span><b>退出</b><small>关闭游戏并释放运行资源</small></span><span class="menu-arrow">↗</span></button>
@@ -54,9 +59,40 @@ function homePage() {
 
 function subPage(title, subtitle, body) {
   shell(`
-    <div class="subpage-heading"><button class="back-button" data-action="home">← 返回</button><span class="eyebrow">MARKET / ${title}</span><h2>${title}</h2><p>${subtitle}</p></div>
+    <div class="subpage-heading"><button class="back-button" data-action="home">← 返回</button><span class="eyebrow">FRONTIER / ${escapeHtml(title)}</span><h2>${escapeHtml(title)}</h2><p>${escapeHtml(subtitle)}</p></div>
     <div class="subpage-body">${body}</div>
   `);
+}
+
+function renderActiveWorld() {
+  if (!state.world) return homePage();
+  state.page = "world";
+  app.innerHTML = renderWorld(state.world, state.worldTab, state.worldNotice);
+}
+
+async function enterNewWorld() {
+  if (!hostAvailable()) {
+    return subPage("开始新航程", "需要桌面运行环境。", '<p class="empty-state">请通过独立启动器打开游戏，浏览器预览不具备存档和模拟接口。</p>');
+  }
+  try {
+    state.world = await window.gameHost.world.startNew();
+    state.worldTab = "overview";
+    state.worldNotice = "新航程已建立。你可以切换栏目查看世界，或推进一天观察生产与价格变化。";
+    renderActiveWorld();
+  } catch (error) {
+    subPage("无法启动世界", "核心内容未通过验证，或者存档目录不可写。", `<p class="error-state">${escapeHtml(error.message)}</p>`);
+  }
+}
+
+async function loadWorld(saveId) {
+  try {
+    state.world = await window.gameHost.world.loadSave(saveId);
+    state.worldTab = "overview";
+    state.worldNotice = "存档载入成功。随机数状态与模拟日期已从存档恢复。";
+    renderActiveWorld();
+  } catch (error) {
+    subPage("无法载入存档", "该存档可能不是世界存档，或者所需 Mod 内容已经发生变化。", `<p class="error-state">${escapeHtml(error.message)}</p>`);
+  }
 }
 
 async function showSaves() {
@@ -66,10 +102,10 @@ async function showSaves() {
     state.slots = await window.gameHost.save.listSlots();
     const cards = state.slots.map(slot => `
       <article class="data-card">
-        <div class="card-main"><span class="card-kicker">${escapeHtml(slot.id)}</span><h3>${escapeHtml(slot.metadata?.name || "无法读取的存档")}</h3><p>${slot.status === "ok" ? "存档元数据正常 · 游戏载入功能尚未接入" : slot.status === "incompatible" ? "存档版本不兼容" : "存档元数据损坏：" + escapeHtml(slot.error)}</p><small>${escapeHtml(slot.metadata?.updated_at || slot.metadata?.created_at || "无时间信息")}</small></div>
-        <div class="card-actions"><span class="status-pill ${slot.status}">${slot.status === "ok" ? "正常" : slot.status === "incompatible" ? "不兼容" : "损坏"}</span><button class="small-button danger" data-action="delete-save" data-id="${escapeHtml(slot.id)}">删除</button></div>
+        <div class="card-main"><span class="card-kicker">${escapeHtml(slot.id)}</span><h3>${escapeHtml(slot.metadata?.name || "无法读取的存档")}</h3><p>${slot.status === "ok" ? "存档元数据正常 · 世界存档载入时会校验内容版本" : slot.status === "incompatible" ? "存档版本不兼容" : "存档元数据损坏：" + escapeHtml(slot.error)}</p><small>${escapeHtml(slot.metadata?.updated_at || slot.metadata?.created_at || "无时间信息")}</small></div>
+        <div class="card-actions"><span class="status-pill ${slot.status}">${slot.status === "ok" ? "正常" : slot.status === "incompatible" ? "不兼容" : "损坏"}</span>${slot.status === "ok" ? `<button class="small-button" data-action="load-save" data-id="${escapeHtml(slot.id)}">载入</button>` : ""}<button class="small-button danger" data-action="delete-save" data-id="${escapeHtml(slot.id)}">删除</button></div>
       </article>`).join("");
-    subPage("读取存档", "存档保存在游戏根目录的 save/ 文件夹。", cards || '<p class="empty-state">还没有存档。游戏世界内容引擎接入后，这里将显示可读取的存档。</p>');
+    subPage("读取存档", "世界状态保存在游戏根目录 save/ 对应槽位的 data/world.json 中。", cards || '<p class="empty-state">还没有存档。开始一段新航程即可创建第一个世界。</p>');
   } catch (error) {
     subPage("读取存档", "读取存档列表时发生错误。", `<p class="error-state">${escapeHtml(error.message)}</p>`);
   }
@@ -119,12 +155,44 @@ async function navigate(page) {
   if (page === "saves") return showSaves();
   if (page === "settings") return showSettings();
   if (page === "mods") return showMods();
-  if (page === "new") {
-    subPage("新存档", "游戏世界内容引擎尚未就绪。", '<p class="empty-state">目前不会创建空壳存档，也不会伪装成可以进入游戏。等世界生成与模拟系统接入后，这个入口才会开放。</p>');
-  }
+  if (page === "new") return enterNewWorld();
 }
 
 app.addEventListener("click", async (event) => {
+  const worldTab = event.target.closest("[data-world-tab]");
+  if (worldTab && state.world) {
+    state.worldTab = worldTab.dataset.worldTab;
+    state.worldNotice = "";
+    return renderActiveWorld();
+  }
+
+  const worldAction = event.target.closest("[data-world-action]");
+  if (worldAction && state.world && !state.busy) {
+    state.busy = true;
+    try {
+      const action = worldAction.dataset.worldAction;
+      if (action === "advance") {
+        state.world = await window.gameHost.world.advanceDay();
+        state.worldNotice = "时间已推进一天。殖民地生产、市场报价与战争纪年均已更新。";
+      } else if (action === "save") {
+        const result = await window.gameHost.world.save();
+        state.worldNotice = `世界已保存：${result.saveId}`;
+      } else if (action === "leave") {
+        await window.gameHost.world.leave();
+        state.world = null;
+        state.worldNotice = "";
+        return homePage();
+      }
+      renderActiveWorld();
+    } catch (error) {
+      state.worldNotice = `操作失败：${error.message}`;
+      renderActiveWorld();
+    } finally {
+      state.busy = false;
+    }
+    return;
+  }
+
   const button = event.target.closest("[data-action]");
   if (!button || state.busy) return;
   const action = button.dataset.action;
@@ -151,6 +219,7 @@ app.addEventListener("click", async (event) => {
       await window.gameHost.save.removeSlot(id);
       await showSaves();
     }
+    if (action === "load-save") return loadWorld(button.dataset.id);
     if (action === "toggle-mod") {
       const id = button.dataset.id;
       const enabled = button.dataset.enabled === "true";

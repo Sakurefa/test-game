@@ -1,0 +1,6 @@
+{
+  "schemaVersion": 1,
+  "entries": [
+    {"id":"example-positive-news","type":"event"}
+  ]
+}

@@ -1,11 +1,11 @@
 {
   "id": "core",
-  "name": "Core Game Content",
-  "version": "0.1.0",
-  "author": "Market Simulator",
-  "description": "Required first-party data package. It contains no executable code.",
+  "name": "Frontier Core",
+  "version": "0.2.0",
+  "author": "Sakurefa",
+  "description": "Required base content for the multi-system frontier simulation.",
   "apiVersion": 3,
-  "registryFiles": ["registry.ini"],
-  "contentFiles": ["core.ini"],
+  "registryFiles": ["registry.ini", "definitions.json"],
+  "contentFiles": ["core.ini", "universe.json", "economy.json", "factions.json", "military.json", "events.json"],
   "localizationFiles": ["zh-CN.ini"]
 }

@@ -46,11 +46,11 @@ function createLogger(root, options = {}) {
       if (error.code !== "ENOENT") throw error;
     }
     if (currentSize + incomingBytes <= maxBytes) return;
-    const oldest = path.join(logDirectory, `runtime.\${MAX_RUNTIME_ARCHIVES}.log`);
+    const oldest = path.join(logDirectory, `runtime.${MAX_RUNTIME_ARCHIVES}.log`);
     try { fs.rmSync(oldest, { force: true }); } catch {}
     for (let index = MAX_RUNTIME_ARCHIVES - 1; index >= 1; index -= 1) {
-      const from = path.join(logDirectory, `runtime.\${index}.log`);
-      const to = path.join(logDirectory, `runtime.\${index + 1}.log`);
+      const from = path.join(logDirectory, `runtime.${index}.log`);
+      const to = path.join(logDirectory, `runtime.${index + 1}.log`);
       if (fs.existsSync(from)) fs.renameSync(from, to);
     }
     if (fs.existsSync(runtimeFile)) fs.renameSync(runtimeFile, path.join(logDirectory, "runtime.1.log"));
@@ -83,7 +83,7 @@ function createLogger(root, options = {}) {
       rotateRuntime(bytes);
       fs.appendFileSync(runtimeFile, line, "utf8");
     } catch (error) {
-      try { process.stderr.write(`[logger failure] \${error.message}\n`); } catch {}
+      try { process.stderr.write(`[logger failure] ${error.message}\n`); } catch {}
     }
   }
 

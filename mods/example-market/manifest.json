@@ -3,10 +3,9 @@
   "name": "Example Market Pack",
   "version": "1.0.0",
   "author": "Market Simulator Community",
-  "description": "A tiny example Mod showing the API v1 folder and data format.",
-  "apiVersion": 2,
-  "dataFiles": [
-    "market-events.json"
-  ],
-  "iniFiles": []
+  "description": "A small example data-only Mod.",
+  "apiVersion": 3,
+  "registryFiles": [],
+  "contentFiles": ["market-events.json"],
+  "localizationFiles": []
 }

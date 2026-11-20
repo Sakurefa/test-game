@@ -116,3 +116,9 @@ test("command validators receive a read-only post-transition view",()=>{
  const outcome=dispatcher.dispatch({world,command:command(),context:{canControlWorld:true}});
  assert.equal(outcome.world.counter,7);assert.equal(world.counter,5);
 });
+
+test("replayed command IDs are reauthorized before returning a stored result",()=>{
+ const dispatcher=createDispatcher(),first=dispatcher.dispatch({world:worldFixture(),command:command(),context:{canControlWorld:true}});
+ assert.throws(()=>dispatcher.dispatch({world:first.world,command:command(),context:{canControlWorld:false}}),/authorization/);
+ assert.equal(first.world.counter,7);
+});

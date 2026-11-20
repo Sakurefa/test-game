@@ -32,12 +32,12 @@ A Mod may add registry entries and definitions through `registry/` and `content/
 
 Core definitions currently use:
 
-- `universe.json`: universe, systems, locations, colonies and trade routes.
-- `economy.json`: commodities, production recipes, companies, securities and markets.
-- `factions.json`: faction definitions.
-- `military.json`: ship classes, fleet compositions and active wars.
-- `events.json`: declarative event definitions.
-- `registry/definitions.json`: stable ID/type declarations.\n- `localization/zh-CN.ini`: Chinese display strings referenced by content keys.
+- `universeINI files`: universe, systems, locations, colonies and trade routes.
+- `economyINI files`: commodities, production recipes, companies, securities and markets.
+- `factionsINI files`: faction definitions.
+- `militaryINI files`: ship classes, fleet compositions and active wars.
+- `eventsINI files`: declarative event definitions.
+- `registry/definitionsINI files`: stable ID/type declarations.\n- `localization/zh-CN.ini`: Chinese display strings referenced by content keys.
 
 The initial implementation intentionally does not decide the final rules for taxation, credit, debt, labor markets, interstellar shipping, tactical damage models, diplomacy, or player trading. Those systems can evolve independently without changing the world-state contract.
 

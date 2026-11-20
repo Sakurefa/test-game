@@ -146,7 +146,10 @@ async function writeSettings(root, patch) {
     if (!DEFAULT_SETTINGS[group] || !values || typeof values !== "object" || Array.isArray(values)) {
       throw new Error(`Unknown settings group: ${group}`);
     }
-    const next = validateGroup(group, { [group]: { ...current[group], ...values } });
+    const merged = group === "mods"
+      ? { ...current[group], ...values, enabled: { ...current[group].enabled, ...(values.enabled || {}) } }
+      : { ...current[group], ...values };
+    const next = validateGroup(group, { [group]: merged });
     if (group === "mods") next.enabled.core = true;
     await atomicWrite(path.join(root, "setting", `${group}.ini`), serializeIni({ [group]: next }));
     current[group] = next;

@@ -1,7 +1,7 @@
 $ErrorActionPreference = "Stop"
 
 $projectRoot = Split-Path -Parent $PSScriptRoot
-$appDirectory = Join-Path $projectRoot "build\app"
+$appDirectory = Join-Path $projectRoot "electron-app"
 $electronSource = Join-Path $projectRoot "electron"
 $distSource = Join-Path $projectRoot "dist"
 

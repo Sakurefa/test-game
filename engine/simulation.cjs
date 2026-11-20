@@ -343,7 +343,6 @@ function advanceDay(world, catalog, { eventBus = null, onDaySettled = null } = {
 }
 
 function advanceCampaignTime(world, catalog, elapsedGameDays, options = {}) {
-  validateWorldState(world, catalog);
   const targetClock = advanceClockTime(world.clock, elapsedGameDays);
   const daysToAdvance = targetClock.day - world.clock.day;
   if (daysToAdvance > MAX_CAMPAIGN_CATCH_UP_DAYS) {
@@ -401,7 +400,6 @@ function advanceDays(world, catalog, days = 1, options = {}) {
 }
 
 function createSnapshot(world, catalog) {
-  validateWorldState(world, catalog);
   const systems = [...catalog.systems.values()].map((system) => ({
     ...system,
     locations: system.locationIds.map((id) => catalog.locations.get(id))

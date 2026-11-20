@@ -114,3 +114,35 @@ Long-term direction:
 - No source code changed in this review. No local tests/builds were run. Latest CI run at review time: [44770176048](https://github.com/Sakurefa/test-game/actions/runs/44770176048), completed successfully for commit `e97912c5ae19e7eab01491639317df6d8675e315`.
 - No Windows desktop test performed.
 - Next implementation phase should be staged: (A) schema/migration and campaign clock/event scheduler with pause/speed controls; (B) deterministic named RNG streams and calculation trace records; (C) 2D renderer shell and first actual star-map/market chart/colony scene; (D) tooltip/help and font catalogue/settings. Do not implement all four as one large change. First agree the base time rate and system cadence table before enabling continuous simulation.
+
+
+### 2026-11-21 — broadened foundation scope and contextual-help requirements
+
+- User refined the contextual-help contract: help text must explain both the fictional world and the actual game mechanics, not merely describe an abstract principle.
+- Standard help content should contain two or three semantic sections/paragraphs:
+  1. **World and principle:** immersive in-world explanation of what the system represents and why it behaves that way.
+  2. **Player-facing mechanics:** concrete gameplay rules, relevant values, modifiers, thresholds and calculation effects; formula IDs must resolve to the actual implementation.
+  3. **Player guidance (when useful):** actionable navigation such as where to inspect, configure or influence the mechanic in the UI.
+- Tooltip content should remain localization-backed and data-driven. The renderer should support optional sections rather than forcing every tooltip to contain three paragraphs. Bold styling is reserved for labels that genuinely have contextual help.
+- User explicitly deferred tactical combat implementation. Do not build battle simulation, ship combat AI, battle scene or battle-specific time loop during the current foundation expansion. Preserve a clean future seam for an independently stepped real-time battle runtime, but do not let it dictate the current campaign scheduler.
+- User expanded the architecture goal: the foundation must support future ideas beyond the currently listed time, RNG, 2D, tooltip and font work. This includes audio, visual/art assets, richer 2D scenes, animation, particles, and more modular subsystem composition.
+- Adopt the following cross-cutting architecture principles before expanding feature code:
+  - **Authoritative simulation boundary:** engine state and deterministic simulation remain independent of Electron, DOM, rendering, audio playback and wall-clock frame timing.
+  - **Subsystem contracts and lifecycle:** systems register through explicit metadata/dependencies/cadence/phase contracts; initialization, update, snapshot, save/load and disposal responsibilities are explicit. Avoid one giant central switch statement.
+  - **Event and command boundaries:** player/AI intent enters through validated commands; simulation emits typed domain events; presentation consumes immutable snapshots/events and cannot mutate authoritative state.
+  - **Capability-based services:** time, named random streams, formulas/audit traces, localization/help, assets, audio, fonts, input and rendering are exposed through narrow services/adapters so new implementations can be added without coupling gameplay code to a particular library.
+  - **Asset pipeline:** stable asset IDs and metadata, centralized resolution/loading/caching/lifecycle, separate image/texture, audio, font and animation/sprite resources, with future Mod asset namespaces and validation. No executable Mod scripts or code hooks; asset support must not weaken the data-only Mod security contract.
+  - **Presentation composition:** DOM remains suitable for menus, panels and accessible controls; a scene/rendering adapter owns 2D world views, layers, cameras, animation and particles. Prefer a renderer-neutral scene contract so PixiJS or another backend can be evaluated/swapped without changing simulation rules.
+  - **Observability and determinism:** calculation traces, structured logs, domain events and replay-friendly state are first-class services. Visibility/debug toggles must never alter simulation results or random consumption.
+  - **Extensibility without premature complexity:** define stable interfaces and test them with small real implementations; do not install multiple rendering/audio frameworks or build speculative generic plugin machinery without a concrete use case.
+- Revised work sequence:
+  A. **Foundation contracts and campaign time:** inspect current interfaces, define system lifecycle/dependency/cadence contracts, implement main-process-owned pause/1x–4x campaign clock and daily/weekly scheduler, preserve old-save migration and deterministic catch-up.
+  B. **Deterministic calculation services:** stable named random streams, formula registry/versioning, structured calculation traces and bounded audit history.
+  C. **Presentation and asset foundation:** renderer-neutral scene/asset contracts, 2D renderer adapter evaluation, initial star-map/market-history/colony scene integration, plus audio resource/playback interface (without requiring a full soundtrack or large asset set).
+  D. **Help, fonts and UI services:** semantic 2–3-part help content, delayed tooltip manager, separate interface/floating-text fonts and safe font discovery.
+  E. **Integration hardening:** save migration, Mod asset validation boundaries, localization coverage, performance tests, documentation and Windows package smoke-test instructions.
+- Combat remains a later independent project phase. Future battle runtime must have its own fixed-step clock and exchange validated campaign commands/events; it is not part of this current foundation sequence.
+- Repository state at start of this session: default branch latest commit f79049d1d311737c1ae33344b9838c487247f1a6. Re-read root AGENTS.md and the complete work log. Inspected package.json, engine/clock.cjs, engine/simulation.cjs, engine/random.cjs, electron/main.cjs (partial fetch), src/styles.css and docs/ENGINE_ARCHITECTURE.md. The source still has a day-step-only simulation, one global PRNG stream and DOM/CSS card presentation. setting/graphics.ini was not found at that path; locate the actual settings schema path before changing it.
+- GitHub Actions lookup for commit f79049d1d311737c1ae33344b9838c487247f1a6 returned no PR-triggered workflow runs. The previous log records successful CI run 44770176048 for e97912c5ae19e7eab01491639317df6d8675e315; that is historical evidence, not verification of the current commit.
+- No source code was changed in this session. No local tests/builds were run. No Windows desktop test was performed.
+- Next concrete task: locate current settings/config schema and inspect complete main/preload/renderer interfaces, then implement Phase A through small testable commits. Before introducing any renderer/audio dependencies, establish the subsystem and asset service contracts. Update this log after each work session.

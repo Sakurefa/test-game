@@ -57,9 +57,15 @@ function validateCommandReceiptState(world){
   if(!isRecord(receipt)||typeof receipt.commandId!=="string"||!COMMAND_ID_PATTERN.test(receipt.commandId)
    ||typeof receipt.type!=="string"||!COMMAND_TYPE_PATTERN.test(receipt.type)
    ||typeof receipt.signature!=="string"||receipt.signature.length>MAX_COMMAND_PAYLOAD_BYTES+160
-   ||!Number.isInteger(receipt.day)||receipt.day<0||seen.has(receipt.commandId)){
+   ||!Number.isInteger(receipt.day)||receipt.day<0||!Object.hasOwn(receipt,"result")||seen.has(receipt.commandId)){
    throw new Error("Save contains an invalid command receipt");
   }
+  const separator=receipt.signature.indexOf("\\n");
+  if(separator<1||receipt.signature.slice(0,separator)!==receipt.type)throw new Error("Save contains an invalid command receipt signature");
+  let payload;
+  try{payload=JSON.parse(receipt.signature.slice(separator+1));}catch{throw new Error("Save contains an invalid command receipt payload signature");}
+  const canonical=normalizeJson(payload,"Command receipt payload",MAX_COMMAND_PAYLOAD_BYTES);
+  if(canonical.serialized!==receipt.signature.slice(separator+1))throw new Error("Save contains a non-canonical command receipt signature");
   normalizeJson(receipt.result,"Command receipt result",MAX_COMMAND_RESULT_BYTES);
   seen.add(receipt.commandId);
  }
@@ -86,6 +92,7 @@ function normalizeCommandEvents(events,commandId){
 
 function createCommandDispatcher(definitions=[],options={}){
  if(!Array.isArray(definitions))throw new TypeError("Command definitions must be an array");
+ if(options.validateWorld!==undefined&&typeof options.validateWorld!=="function")throw new TypeError("Command world validator must be a function");
  const handlers=new Map();
  function register(definition){
   if(!isRecord(definition)||typeof definition.id!=="string"||!COMMAND_TYPE_PATTERN.test(definition.id))throw new TypeError("Every command requires a stable lowercase ID");

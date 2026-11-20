@@ -27,7 +27,7 @@
     "productName": "Market Simulator",
     "directories": {
       "output": "release",
-      "app": "build/app"
+      "app": "electron-app"
     },
     "artifactName": "Market-Simulator-${version}-Windows-${arch}.${ext}",
     "extraFiles": [

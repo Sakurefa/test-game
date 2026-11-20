@@ -110,10 +110,12 @@ function recordBalancedTransaction(ledger,{day,date,type,entries,commandId=null,
  }
  const sequence=ledger.sequence+1;
  const transaction={id:"ledger-"+sequence,sequence,day,date,type,commandId,reference,entries:deltas};
- for(const [id,balance] of nextBalances)ledger.accounts[id].balanceMinor=balance;
- ledger.transactions.push(transaction);
- ledger.sequence=sequence;
- validateFinancialLedger(ledger);
+ const candidate=structuredClone(ledger);
+ for(const [id,balance] of nextBalances)candidate.accounts[id].balanceMinor=balance;
+ candidate.transactions.push(transaction);
+ candidate.sequence=sequence;
+ validateFinancialLedger(candidate);
+ Object.assign(ledger,candidate);
  return structuredClone(transaction);
 }
 function getAccountBalance(ledger,accountId){

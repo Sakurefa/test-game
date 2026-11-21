@@ -193,7 +193,7 @@ test("partial or malformed receipt metadata marks a save damaged", async (t) => 
   await writeGameState(root, "slot_bad_receipt", state);
   const metadataPath = path.join(root, "save", "slot_bad_receipt", "metadata.ini");
   let metadata = await fs.readFile(metadataPath, "utf8");
-  metadata = metadata.replace(/^world_receipt_fingerprint = .*\\r?\\n/m, "");
+  metadata = metadata.split(/\r?\n/).filter((line) => !line.startsWith("world_receipt_fingerprint = ")).join("\n");
   await fs.writeFile(metadataPath, metadata);
 
   const [slot] = await listSaveSlots(root);

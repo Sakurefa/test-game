@@ -710,3 +710,42 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 - Exact file changed by this audit: `ASTRA_WORKLOG.md` only. No game source, Mod, test, renderer output, build script, runtime dependency, save format or distribution behavior was changed. No local tests/builds were run. The cited CI run verifies the baseline `049c3c4b5cdd96fbc2b619fa1bc4a1569e5066ed`, not this subsequent work-log-only commit. No Windows GUI test was performed.
 - This audit establishes status; it does not approve any of the listed maintenance fixes or future gameplay domains. The next development slice remains for the user to choose. Preserve the current separate-launcher distribution contract and the AK engineering principle.
 - Windows desktop test: still required for the accumulated latest runtime/UI features; not performed in this audit.
+
+
+### 2026-11-21 — population and goods economy readiness audit (read-only)
+
+- Read root `AGENTS.md`, `Astra/README.txt`, the complete `Astra/WORKING_MEMORY.txt` and complete `ASTRA_WORKLOG.md`. Inspected the live `main` tree, current simulation/catalog/command/Mod/runtime code, Core INI content, economic tests and the domain/architecture/playtest docs. Main baseline: `8284d16645fbd737dff2c5465a7f8507cea4521f`.
+- Latest main Windows Actions run [44908873111](https://github.com/Sakurefa/test-game/actions/runs/44908873111) completed successfully on the baseline: Electron/engine syntax checks passed; `npm test` passed **172/172, 0 failed**; Vite Renderer build and generated-renderer commit step passed. No local tests/builds or user-side GUI test were performed in this audit.
+- User's confirmed high-level gameplay priority: establish a Victoria 3-inspired population supply/demand system connected to commodity production and consumption before expanding the other major world domains. This is a direction, not a finalized formula/data-model specification.
+- Current implemented economy:
+  - Each colony stores a scalar aggregate `population`, `stability`, shared commodity `stockpiles` and industry instances.
+  - INI commodity definitions may declare `daily_need_per_thousand`; Core currently sets food to 0.001 and water to 0.0015 commodity units per 1,000 residents per game day. All residents in a colony receive the same demand profile.
+  - `population.needs-consumption` runs daily. It calculates demand, caps consumption at available colony inventory, records satisfaction/shortfall and directly deducts stock. Shortfalls do not currently affect population, health or stability.
+  - `colonies.production` runs weekly. Recipes support multiple inputs/outputs and optional `workforce` metadata. Actual production is based on industry level, colony stability and available inputs; the formula does not currently use workforce, and there is no employment or wage state.
+  - The scheduler's shared day-7 boundary is ordered weekly production → daily population needs → daily market pricing. This is a useful existing cadence/dependency seam.
+  - Each market is associated with one colony and lists commodity/security quotes. Commodity pricing uses that colony's stock relative to a configured target, with seeded price variation and guardrails. This is inventory-pressure pricing, not market clearing: there are no household or industrial buy orders, sell orders, matching/fills or purchasing-power checks.
+  - Industry and households both use the same colony-level stockpile. Industry `companyId` is ownership metadata only; there is no operating company balance sheet or wage/input/output accounting.
+- Reusable foundations assessed as sufficient for an incremental implementation:
+  - INI catalog, stable IDs, cross-reference validation and localized data definitions.
+  - World save state/schema migration, content fingerprints and file integrity receipts.
+  - Daily/weekly deterministic system registry with dependencies and explicit ordering.
+  - Whole-day candidate clone/commit boundary; a failed system discards the candidate day.
+  - Named RNG streams, versioned formula service, typed events/idempotency and the existing audit/UI summaries.
+  - Validated command dispatcher, main-process gateway and detached read-only query projections.
+  - Existing commodity/recipe/industry/colony data can be extended without replacing the engine architecture.
+- Missing for the requested target:
+  1. Population groups/cohorts with independent size and stable identity; likely attributes such as profession/stratum and wealth/standard-of-living need deliberate selection rather than an over-detailed Victoria 3 clone.
+  2. Data-defined need baskets/categories and substitute goods, with demand varying by population group/wealth rather than one commodity-wide rate.
+  3. A household income/purchasing-power model if demand is to be affordability-sensitive and prices are to affect consumption/living standards.
+  4. Actual workforce availability/employment and wage costs; recipe `workforce` exists in content but is currently unused by production.
+  5. Explicit supply/demand accounting across household needs and industrial inputs, including shortage allocation and the relationship between available goods, fulfilled consumption and remaining stock.
+  6. A market settlement/price model that sees relevant demand as well as supply, rather than only a colony stock-vs-target signal. Player/NPC orders and full order books may be a later layer; a minimal aggregate market model can come first.
+  7. Feedback from satisfaction/affordability into wealth, standard of living and eventually population/health/stability. These consequences need confirmed rules and should not be invented as incidental side effects.
+  8. Save schema migration for the new cohort/economic state, plus deterministic tests for production/consumption conservation, shortage allocation, save-resume equivalence and market outcomes.
+- Scope caution: true inter-colony trade, freight, route capacity/travel and company ownership are not required to build the first local population/production/consumption loop. Existing trade-route definitions are static catalog data and currently do not move stock. The first loop can remain local to each colony/market; logistics can later connect these local economies.
+- Important code finding: the Core recipes carry `workforce` fields (90–220 in the current content), catalog validation accepts them, but `produceForColony` passes only level, stability, recipe inputs and outputs to `economy.colony-production`. The workforce values are currently decorative metadata, not a functioning labor mechanic.
+- Victoria 3 reference points used only to clarify the requested design inspiration: population wealth/standard of living influences needs and purchasing power; need baskets allocate demand across goods and may allow substitution; production methods combine input goods and workforce/professions. These references do not mean the project should clone every mechanic. The current-source reference used for needs is the extracted 1.15.0 data overview; the wiki mirror describes the wealth/standard-of-living connection and production-method workforce effects.
+- Documentation drift surfaced during this targeted review: `docs/ENGINE_ARCHITECTURE.md` still says colony UI refresh is only on weekly production boundaries although `src/world-refresh.mjs` refreshes the colony region daily; it describes only three localized calculation summaries while four formulas are registered, and an early schema paragraph still says migration to schema 6 although the current schema is 7. `docs/PLAYTEST_GUIDE.md` still cites 137 tests while current CI passes 172. No docs outside Astra records were changed.
+- Exact files changed by this status/design record: `Astra/WORKING_MEMORY.txt`, `Astra/DIARY/2026-11-21.txt` and `ASTRA_WORKLOG.md`. No game source, Mods, tests, renderer, save fields/schema, build scripts or distribution files were changed. No local build/test and no GUI test were run. CI evidence applies to the baseline `8284d16645fbd737dff2c5465a7f8507cea4521f`, not to this documentation-only commit.
+- The working memory now records the user's high-level population-and-goods economy priority while explicitly leaving detailed simulation rules open. Next step is a design discussion to define the smallest coherent loop and its assumptions; no implementation task is implicitly authorized by this audit.
+- Windows desktop test: not performed; remains necessary after a sufficiently accumulated implementation batch.

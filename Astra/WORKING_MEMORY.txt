@@ -98,14 +98,33 @@ and easy to modify.
   current branch, code and CI, and honor the user's latest instruction before
   acting on them.
 
-6. CURRENT SESSION GUARDRAIL
+6. CURRENT GAMEPLAY PRIORITY
+-----------------------------
+
+The user has stated that the next major gameplay priority is a Victoria 3-
+inspired population supply/demand and goods production/consumption economy.
+The goal is to make populations meaningful economic actors and connect their
+needs with industrial production, local goods supply, market prices and
+consumption before expanding into the broader logistics, political and
+military domains.
+
+This is a confirmed high-level direction, not a finalized design. The exact
+population groups, wealth/income model, need baskets and substitutions,
+employment/wage rules, market-clearing model, stock allocation and settlement
+cadence remain open design questions. Do not silently invent those rules or
+implement them merely from this summary. First establish which current
+foundations can be reused and agree on the smallest coherent economic loop.
+
+7. CURRENT SESSION GUARDRAIL
 ----------------------------
 
-The immediate purpose of this memory reset is to stabilize collaboration,
-not to resume gameplay development. The latest full-repository audit's
-maintenance findings are recorded in ASTRA_WORKLOG.md, but they are not
-automatically authorized work. Do not modify game source, Mods, build scripts,
-save formats or distribution design until the user gives a concrete task.
+The recent repository reviews are audits, not implementation authorization.
+Their maintenance findings remain recorded in ASTRA_WORKLOG.md and are not
+automatically approved tasks. The user has now identified the population and
+goods economy as the next gameplay priority, but this note authorizes design
+alignment only; implementation scope must still follow the user's explicit
+instructions. Preserve the existing launcher distribution, Mod format and
+AK engineering principles.
 
 END
 ---

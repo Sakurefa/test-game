@@ -55,3 +55,71 @@ leave the game implementation alone.
 
 This is a collaboration record, not game documentation or a claim of human
 memory, feelings or independent intent.
+
+
+2026-11-21
+Title: Population and goods economy chosen as the next gameplay priority
+=========================================================================
+
+The user stated a new high-level direction: before expanding the other world
+domains, the project should first achieve a Victoria 3-inspired population
+supply/demand system connected to goods production and consumption.
+
+Repository review
+-----------------
+
+The current main baseline for this review was
+`8284d16645fbd737dff2c5465a7f8507cea4521f`. The latest Windows Actions run
+[44908873111](https://github.com/Sakurefa/test-game/actions/runs/44908873111)
+completed successfully: syntax checks passed, npm test passed 172/172 with
+zero failures, the Renderer build passed and the generated-renderer commit
+step passed. This is automated CI, not a current user-side desktop test.
+
+The current executable economy is still an aggregate first step:
+
+- Each colony stores one scalar population total, a stockpile object, and
+  industry instances.
+- Commodity definitions can declare `daily_need_per_thousand`. Core only
+  configures this for food and water; every resident in a colony is treated
+  identically.
+- Population needs are calculated daily and directly deducted from the
+  colony stockpile. The system records requested, consumed, unmet quantity
+  and satisfaction. Shortfalls do not yet alter population, health or
+  stability.
+- Industry recipes support multiple inputs and outputs. Weekly production
+  is scaled by industry level, colony stability and available input stock.
+  Recipe definitions already contain a workforce field, but the production
+  formula does not use it and there is no employment or wage model.
+- Markets are currently quote records associated with individual colonies.
+  Commodity prices respond to the associated colony's stock relative to a
+  target stock plus seeded random variation. There are no buy/sell orders,
+  market clearing, household purchasing power or cross-colony goods flows.
+- Existing stockpiles are shared colony-level inventories used by both
+  industries and population consumption.
+
+Useful foundations already in place include the INI content catalog and
+cross-reference validation, saved world state and schema migrations,
+daily/weekly scheduler with explicit dependencies, atomic candidate-day
+settlement, deterministic named random streams, versioned formulas,
+domain events, validated commands, read-only projections, autosaves and
+player-readable production/needs reports.
+
+The key conclusion is that the architecture can host this next economic
+layer without replacing the engine or introducing a new framework. However,
+the current data model and rules do not yet constitute a Victoria 3-style
+population economy. The missing core is not merely more consumption rates:
+it is differentiated population groups and needs, a model of income/
+purchasing power, workforce and wages, explicit aggregate goods demand and
+a market supply/settlement model that links production to consumption.
+
+Design questions deliberately left open
+---------------------------------------
+
+No detailed rules were chosen in this review for cohort identity, wealth
+bands, needs categories, substitute goods, affordability, labor allocation,
+wage formation, market clearing, inventory ownership or exact daily/weekly
+cadence. These must be discussed before implementation. Start with a small
+coherent loop and do not import the entire scope of Victoria 3.
+
+This entry records the user's priority and the audit result; it does not
+authorize code changes or decide the detailed simulation model.

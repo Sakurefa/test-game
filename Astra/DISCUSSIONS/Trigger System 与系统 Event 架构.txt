@@ -76,3 +76,10 @@ Presentation 以后可以把已提交事实转换为玩家可见通知、报告�
 - Effect executor 仍由 Engine 注入，复用 `applyModEffect` 和现有白名单；Settlement 不接受任意 Mod callback。
 
 这样 Trigger 是一个调度来源，而 Settlement 是可复用的执行管线；其他经批准的 System Event 来源以后可直接复用 Settlement，不必进入 Trigger Queue 内部。
+
+## Settlement runner 实现与验证状态（2026-11-22）
+
+- `engine/settlement.cjs` 已从 Trigger Queue 拆出并由 Engine index 导出。
+- 源码 CI [44953518426](https://github.com/Sakurefa/test-game/actions/runs/44953518426) 成功，221/221 tests、语法检查与 Renderer build 全部通过。
+- Windows Runtime/Launcher workflow [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367) 成功；Artifact `Market-Simulator-Launcher-EXE` 已上传。
+- Settlement 本身不拥有 Trigger Queue、Domain Event history、receipt 或 Presentation；这些仍由调用它的上层系统负责。

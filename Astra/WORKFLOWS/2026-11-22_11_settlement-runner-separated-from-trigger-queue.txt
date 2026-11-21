@@ -48,10 +48,13 @@
 
 验证状态
 --------
+- 实现提交：`e4340796e78d7aafc18899f27f4a84d5b86f334d`。
+- Runtime 工作流自动生成依赖配置提交：`0f2d9a5fc41c34dfd1c669d043a19bfd08743aeb`（仅更新 `resources/app/package.json`）。
 - 本地测试/构建：未执行；未在本地克隆运行 npm。
-- GitHub Windows CI：本轮代码提交后待触发，结果后续补记。
-- 用户 Windows GUI：未执行。
-- Electron Runtime/Launcher 独立打包：本轮未执行。
+- GitHub Windows 源码 CI：[44953518426](https://github.com/Sakurefa/test-game/actions/runs/44953518426) 成功：语法检查、221/221 tests、Renderer build 和 generated-renderer 步骤全部通过。
+- GitHub Windows Runtime/Launcher：[44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367) 成功：Mod loader tests、Renderer build、最小 Electron 应用准备、Windows Electron Runtime 构建、依赖复制、自动提交和 EXE Artifact 上传全部通过。
+- Artifact：`Market-Simulator-Launcher-EXE`，GitHub Artifact ID `14726491849`，大小约 92.7 MB，保留至 2026-12-05 21:50 UTC。
+- 用户 Windows GUI：未执行；CI 构建/上传成功不等同于在用户设备上启动和验收。
 
 后续方向
 --------

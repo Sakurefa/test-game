@@ -41,6 +41,6 @@ See [MOD_API.md](MOD_API.md) for package layout, hook points, effect types, reso
 
 ## Current prototype status
 
-Implemented foundations include multi-system universe data, cross-reference validation, a pause/1x–4x continuous campaign clock, dependency-ordered daily/weekly simulation systems, versioned world-save migration through schema 6, deterministic named random state, formula audit, typed domain events, a validated command/event pipeline, a trusted main-process command gateway, a balanced player finance ledger, colony production and market repricing.
+Implemented foundations include multi-system universe data, cross-reference validation, a pause/1x–4x continuous campaign clock, dependency-ordered daily/weekly simulation systems, versioned world-save migration through schema 7, deterministic named random state, formula audit, typed domain events, a validated command/event pipeline, a trusted main-process command gateway, a balanced player finance ledger, colony production and market repricing.
 
 This is an early simulation slice, not a finished strategy game. Real-time tactical battles, fleet movement, inter-colony logistics, diplomacy, taxation, debt, market buy/sell orders and long-term colony development remain future systems. The finance.transfer command is currently an engine/gateway capability without a dedicated in-game transfer interface.

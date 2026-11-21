@@ -476,3 +476,20 @@ test("sub-mill population demand does not round or mutate untouched stockpiles",
  assert.equal(w.colonies[colonyId].lastNeedsReport.shortageCount,0);
  assert.ok(w.colonies[colonyId].lastNeedsReport.needs.every((need)=>need.requested===0));
 });
+
+test("world clock validation rejects impossible calendar dates and negative day indices", async () => {
+  const c = await catalog();
+  const base = createWorld(c, { seed: "invalid-world-clock" });
+
+  const invalidDate = structuredClone(base);
+  invalidDate.clock.date = "2480-02-30";
+  assert.throws(() => validateWorldState(invalidDate, c), /Invalid game date: 2480-02-30/);
+  const beforeInvalidAdvance = structuredClone(invalidDate);
+  assert.throws(() => advanceDay(invalidDate, c), /Invalid game date: 2480-02-30/);
+  assert.deepEqual(invalidDate, beforeInvalidAdvance);
+
+  const negativeDay = structuredClone(base);
+  negativeDay.clock.day = -1;
+  assert.throws(() => validateWorldState(negativeDay, c), /invalid game clock/);
+  assert.throws(() => advanceDay(negativeDay, c), /DAY_INPUT world.clock.day\/date is missing or invalid/);
+});

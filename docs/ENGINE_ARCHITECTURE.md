@@ -178,3 +178,44 @@ The renderer exposes a read-only calculation inspector over the latest 30 persis
 - A day is settled on a detached candidate world. The live world is replaced only after all due systems finish successfully. If a required value/reference is missing or a system throws, the candidate is discarded.
 - Each completed game day queues a daily autosave. Days divisible by seven also queue a weekly autosave. Daily and weekly autosaves have separate two-slot rotations: `slot_auto_daily_1/2` and `slot_auto_weekly_1/2`. Slot 1 is newest; slot 2 is the previous snapshot. Manual saves remain independent.
 - A failed world-time/day operation pauses the campaign, discards the active world from runtime, and returns the renderer to the title menu. The fatal dialog includes the failure source/message and a copyable text area containing the matching JSONL error record plus up to five records before and after it. Process-level uncaught exceptions and unhandled rejections are logged and terminate the process rather than continuing in an unknown state.
+
+
+## Extensible simulation and mixed Mod API v4
+
+The project now has a documented long-range domain map in docs/SIMULATION_DOMAIN_MAP.md. It covers the shared world kernel and the intended seams for political society, population and labor, public finance, industrial production, companies and ownership, markets, logistics and cargo, exploration, diplomacy, strategic war, research, tactical battle isolation, rendering, assets and audio. The map distinguishes current implementation from future contracts; it is not a claim that every subsystem exists.
+
+### Mod package compatibility
+
+- API v3 remains supported as the original INI-only, data-only format.
+- API v4 adds optional declared JavaScript files under each Mod's scripts/ directory and an explicit [hooks] table in manifest.ini.
+- Registry declarations, content definitions, localization and manifests remain INI. Inline JSON and JSON Mod files remain forbidden.
+- Enabled JavaScript source and hook declarations contribute to the deterministic catalog content fingerprint. A save created with different enabled behavior scripts is not treated as the same content set.
+- Scripts are loaded only from declared simple .js filenames. The loader rejects script symlinks, oversized scripts, undeclared JavaScript files, invalid hook IDs and unsupported API versions.
+
+### Current hook sequence
+
+Campaign hooks wrap the candidate day settlement. Colony hooks execute around each colony's weekly production. Market hooks execute around each market's daily price update. War hooks execute after each active war's daily chronology update:
+
+- campaign.before-day
+- colony.before-production
+- colony.after-production
+- market.before-pricing
+- market.after-pricing
+- war.after-chronology
+- campaign.after-day
+
+Hook input is JSON-serialized and detached. The Mod sees a recursively frozen copy, not the mutable candidate world reference. Mod order is sorted by stable Mod ID; hook order follows the engine-defined invocation point. Randomness is derived independently per Mod, hook, campaign day and entity scope, so draws in one Mod or colony do not consume another stream.
+
+### Approved Mod result contract
+
+A hook returns only effects and events. Current registered effects are colony population, stability and stockpile deltas; listed-market quote multipliers; fleet readiness and morale deltas; and participating-faction war-weariness deltas. Each effect has a strict payload field whitelist, checks its entity references, and applies bounded business rules. Unsupported effects reject the day.
+
+Custom Mod events are namespaced under mod.<mod-id>.<event-type>. Effect application itself emits mod.effect-applied, recording Mod ID, hook ID, entity scope, input payload and actual applied result. These facts enter the normal domain-event history and diagnostic logging path.
+
+The current Mod runtime uses Node vm with a fresh context, disabled dynamic string/WASM code generation, synchronous execution timeouts, and bounded input/output sizes. It removes ordinary Node/Electron capabilities and disables global Date and Math.random; the only supplied helper API is deterministic random, clamp and round. However, Node vm is not a hardened security boundary against deliberately hostile JavaScript. The present API is for trusted/opt-in community code. Fully untrusted Mod execution requires a separately permissioned operating-system process or Electron utility-process sandbox; do not market this wrapper as safe for arbitrary downloaded scripts.
+
+### Deliberately unimplemented rails
+
+The long-range design anticipates future hooks and command/event contracts for population needs and workforce, law and government transitions, company finance, market orders/fills, cargo loading/delivery, fleet movement, diplomacy, research and missions. These should be added as the corresponding core domain commands and effects are implemented. Do not turn the Mod runtime into a general world-patching API.
+
+Tactical combat remains outside the campaign scheduler. Future battles use a separate fixed-step simulation instance and return only a validated campaign outcome command.

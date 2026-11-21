@@ -121,6 +121,9 @@ test("writes and restores a versioned game world inside its save slot", async (t
   const restored = await readGameStateWithReceipt(root, "slot_world");
   assert.deepEqual(restored.state, state);
   assert.equal(writtenReceipt.status, "written");
+  const repeatedReceipt = await writeGameState(root, "slot_world", state);
+  assert.equal(repeatedReceipt.fingerprint, writtenReceipt.fingerprint);
+  assert.equal(repeatedReceipt.bytes, writtenReceipt.bytes);
   assert.equal(restored.receipt.status, "verified");
   assert.equal(restored.receipt.fingerprint, writtenReceipt.fingerprint);
   assert.equal(restored.receipt.bytes, writtenReceipt.bytes);

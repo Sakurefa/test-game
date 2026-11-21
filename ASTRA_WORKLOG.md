@@ -491,6 +491,13 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 - Corrected README.md, docs/PLAYTEST_GUIDE.md and docs/ENGINE_ARCHITECTURE.md to describe the current authoritative integer account balances, schema 7, mixed INI/JS API v4, the actual months-observed Mod state key, exact log locations, autosave rotation and a controlled fatal-hook test in a disposable copy.
 - Replaced the stale top-level Current work queue with priorities based on the actual current state: combined Windows acceptance, player-readable observability, query/renderer integration, actual population/logistics/company/diplomacy/war domains and later presentation/combat work. Older verification headings were renamed as historical snapshots so they no longer appear to describe current main.
 - Files changed in this review: README.md, docs/PLAYTEST_GUIDE.md, docs/ENGINE_ARCHITECTURE.md and ASTRA_WORKLOG.md. No simulation or Electron runtime code changed.
-- Baseline test status remains the successful 89d123eabd159dd733df33a6b072b9dbdb51467c run 44858411636 (137/137, syntax and web build passed). The documentation-only commits triggered a fresh main CI run; final CI status for the final worklog commit must be checked before marking this documentation batch verified.
+- Baseline test status was the successful 89d123eabd159dd733df33a6b072b9dbdb51467c run 44858411636 (137/137, syntax and web build passed). The documentation-only main head 271b49d4405da63c91cc5a59187928e11031e2f6 was then verified by Windows GitHub Actions run 44888753957: syntax passed, npm test passed 137/137 with 0 failures, Vite build passed, and the generated-renderer commit step passed. This validates the documentation-correction head; this worklog-only commit will trigger a final repeat run.
 - User Windows GUI status: earlier continuous clock/progress/scroll behavior was confirmed by the user on a prior revision. Newer autosave rotation, fatal dialog, schema-7 migration and Mod API v4 persistence have not yet received a combined user desktop test.
 - Next: finish the pending documentation CI check, then ask the user to download the latest main ZIP and run the consolidated steps in docs/PLAYTEST_GUIDE.md. Do not ask for separate micro-tests.
+
+
+### Documentation handoff verification — 2026-11-21
+
+- Windows Actions run 44888753957 completed successfully for main head 271b49d4405da63c91cc5a59187928e11031e2f6. Results: syntax SUCCESS; npm test 137 passed / 0 failed; Vite renderer build SUCCESS; generated-renderer commit step SUCCESS.
+- This worklog entry is a documentation-only follow-up. No simulation, Electron runtime or Mod source was changed.
+- Current playtest guide is docs/PLAYTEST_GUIDE.md. It is now the authoritative consolidated checklist for main/schema 7; older historical verification notes in this file are preserved as history, not current status.

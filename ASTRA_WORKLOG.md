@@ -51,7 +51,7 @@ Long-term direction:
 5. Separate real-time tactical combat from strategic world time.
 6. Add dynamic events, diplomacy and systemic world changes.
 
-## Latest verified repository state — 2026-11-21
+## Historical verification snapshot — earlier UI foundation (2026-11-21)
 
 - Latest source commit: `5a4d8103e673b589aeab5b7596bba0c8c99bf13b`.
 - Latest main branch commit including generated renderer files: `f843b1f5e177d09ca7e48cf930201ed2a309bc88`.
@@ -71,7 +71,7 @@ Long-term direction:
 - Root `AGENTS.md` and this work log establish the mandatory start/end session protocol.
 - **No Windows desktop test has been performed for this exact revision.** The user previously launched an earlier build and observed a day advance, but has not validated the correctness of the simulation numbers.
 
-## Latest verified repository update — 2026-11-21
+## Historical verification snapshot — incremental view refresh (2026-11-21)
 
 - Latest source commit for incremental view refresh, weekly progress and live week-day metadata: `c8bbe13d19a3bd7b6f3caed90deac8d625d2f05b`.
 - Latest `main` commit including CI-generated renderer output: `73a2387a14f8f7946c9cf4ef6400513646fddc14`.
@@ -82,7 +82,7 @@ Long-term direction:
   - CI generated updated `dist/index.html` and hashed JS/CSS assets in `f096593`.
 - The user confirmed the previous clock interpolation is now smooth. The new incremental rendering and weekly progress changes have CI coverage, but have not yet received a Windows desktop GUI test.
 
-## Latest verified repository update — Phase B calculation foundation — 2026-11-21
+## Historical verification snapshot — Phase B calculation foundation (2026-11-21)
 
 - Phase B source commit: `e494e401bbbea8dff3d08b009480439a85e46823`.
 - Latest `main` head after verification: `e494e401bbbea8dff3d08b009480439a85e46823`.
@@ -94,31 +94,46 @@ Long-term direction:
 
 ## Current work queue
 
-### Priority 1 — deterministic calculations and simulation correctness
-- The time kernel now runs continuously and has ordered daily/weekly systems. The engine still uses one shared PRNG stream and does not yet emit structured calculation traces.
-- Implement named random streams per stable subsystem/entity scope so new systems cannot perturb unrelated random sequences.
-- Add a versioned formula registry and structured audit records with inputs, modifiers, intermediate values, random draws (only when actually used), and results.
-- Add deterministic expected-value tests for production inputs/outputs and market repricing; audit stockpile underflow, unbounded prices and supply/demand coupling.
-- The calculation visibility toggle must never change RNG consumption or simulation results.
+### Priority 1 — one consolidated Windows desktop acceptance pass
+The previous clock interpolation, incremental daily region refresh, scroll retention and seven-segment weekly progress were confirmed by the user on an earlier revision. The current main branch adds autosaves, fail-fast world handling, Mod API v4, per-Mod persistent state/schema 7 and query projections. These newer runtime paths still need one combined desktop pass:
 
-### Priority 2 — presentation and assets
-- Establish renderer-neutral scene and asset contracts before choosing/locking a 2D renderer dependency.
-- Add resource identity, validation, cache and lifecycle boundaries for textures/images, animation/sprites, particles, audio and fonts.
-- Keep DOM for menus/panels and allow a scene backend for the star map, colonies and later other non-combat scenes. Tactical combat is explicitly deferred.
+- Daily autosaves at elapsed days 1 and 2; weekly autosaves at days 7 and 14; verify both two-slot rotations.
+- Load an automatic save and make a manual save; confirm the manual save uses its own slot.
+- Verify the fatal report from a deliberately failing hook in a disposable copy, not by editing a real save.
+- Verify example-market API v4 hook and persistent state at days 30 and 60; reload between boundaries.
+- Migrate a copied schema-6 save to schema 7 and compare its important gameplay state.
+- Check that Logs/runtime.log is line-oriented JSONL and preserve the entire Logs folder if anything fails.
 
-### Priority 3 — help, accessibility and localization
-- Implement localization-backed contextual help with 2–3 content sections: immersive world principle, actual gameplay/numeric mechanics, and contextual navigation when useful.
-- Ensure formula IDs in help resolve to real calculation implementations.
-- Add delayed tooltip handling, separate interface/floating-text font settings and safe font discovery.
-- Audit all player-visible text and localization completeness.
+### Priority 2 — make observability player-readable
+- The calculation and event inspectors are useful diagnostics but still expose technical fields that are not always understandable as gameplay explanations.
+- Add localized plain-language summaries for colony production, requested/actual output and limiting inputs; show an explicit no-shortage state.
+- Keep raw calculation/event details as an advanced disclosure instead of making users interpret raw JSON.
+- Add a compact save/load state fingerprint/receipt so persistence can be compared without inspecting every field.
 
-### Priority 4 — world systems and content
-1. Colony simulation: workforce, population needs, facility upkeep, stability, construction and development.
-2. Logistics: freighters and convoys move physical stock through route graphs using travel time, capacity and risk.
-3. Economic agency: company accounts, operating costs/revenue, player orders, ownership, fees, debt and reporting.
-4. Strategic warfare: fleet movement/orders, supply, fronts, objectives, faction AI and territorial change.
-5. Living world: events, diplomacy, policies, missions and community scenarios.
-6. Tactical combat is a separate later project with its own fixed-step clock and explicit campaign outcomes; do not put it in the current campaign scheduler.
+### Priority 3 — complete the common observation boundary
+- engine/queries.cjs currently provides detached projections for world overview, faction, colony, market, fleet and war.
+- It is not yet connected to Renderer IPC. Migrate UI panels and future AI consumers to these named projections only when their query requirements are clear.
+- Preserve the rule that read projections cannot mutate the authoritative world.
+
+### Priority 4 — build actual world simulation domains
+1. Population cohorts, needs, workforce, wages, migration and demographic change.
+2. Facilities, upkeep, storage capacity, construction and colony development.
+3. Physical logistics: freighters, cargo manifests, routes, travel time, capacity, risk, loading/unloading and delivery.
+4. Company operating state and financial statements, then market orders/fills, ownership and settlement.
+5. Faction relations, diplomacy, treaties, laws, interest groups and public finance.
+6. Fleet movement, supply, fronts, objectives, occupation and strategic AI.
+7. Research, incidents, missions and scenario content.
+
+### Priority 5 — presentation and independent combat
+- Establish the renderer-neutral scene/asset contracts before choosing a 2D scene backend. Actual world scenes, animation, particles and audio are not implemented yet.
+- Keep DOM for accessible menus and panels; scenes consume snapshots and events only.
+- Tactical combat remains a later independent fixed-step simulation and must not enter the campaign day scheduler.
+
+### Current implementation boundaries
+- Named random streams, versioned price/production formulas, domain events, validated commands, the main-process gateway, authoritative finance balances, JSONL logs, daily/weekly autosaves, atomic day settlement and Mod API v4 are implemented.
+- API v3 INI-only Mods remain compatible. API v4 permits explicitly declared JS hooks; content/manifests/localization remain INI.
+- Node vm is not a hardened security boundary for malicious JS. JS Mods remain trusted/opt-in until process-level sandboxing exists.
+- The finance transfer command has no dedicated in-game UI. Market orders, actual freight, fleet movement, population simulation, diplomacy, taxes and tactical combat are not implemented.
 
 ## Session log
 
@@ -466,3 +481,16 @@ Long-term direction:
 - Final post-fix main CI 44858299067 on code head 9336e5540b36603aef4083e265d50e3b7a1d4da0 passed syntax, all 137 tests, renderer build and commit step.
 - Windows desktop GUI validation has not been performed. All new runtime/gameplay paths still require the single consolidated manual test documented in docs/PLAYTEST_GUIDE.md.
 - Remaining architecture limits: JS Mod VM wrapper is not a hardened sandbox for hostile code; Mods remain trusted/opt-in. Renderer has not migrated to the new query registry. Domain areas not yet implemented are explicitly listed as future phases in docs/SIMULATION_DOMAIN_MAP.md.
+
+
+### 2026-11-21 — wake-up handoff review and playtest guide correction
+
+- Re-read root AGENTS.md and the complete ASTRA_WORKLOG.md before reviewing the current state. Initial verified main baseline before this review: 89d123eabd159dd733df33a6b072b9dbdb51467c. GitHub Actions run 44858411636 completed successfully on that baseline: syntax checks passed, npm test reported 137 passed / 0 failed, Vite renderer build passed, and the generated-renderer commit step passed.
+- Re-checked the current main ref, PR #2 merge state, source CI, runtime CI and Windows launcher artifact. PR #2 is closed/merged as 8b20e97a81f2809a004978ce23efc99d19952e9a. Runtime workflow 44858154248 succeeded, prepared the Windows Electron runtime and uploaded the separate Market-Simulator-Launcher-EXE artifact (92,728,532 bytes; expiry 2026-12-05T02:52:37Z). The EXE is not in the source repository.
+- Inspected the full playtest guide, README, architecture guide, Mod API, domain map, logger, autosave manager, fatal UI path and current schema/effect code. Found stale documentation claims: README described an append-only replay ledger; playtest instructions still referred to schema 6 and the old camelCase Mod state key; architecture guidance still called Mods data-only and described ledger replay.
+- Corrected README.md, docs/PLAYTEST_GUIDE.md and docs/ENGINE_ARCHITECTURE.md to describe the current authoritative integer account balances, schema 7, mixed INI/JS API v4, the actual months-observed Mod state key, exact log locations, autosave rotation and a controlled fatal-hook test in a disposable copy.
+- Replaced the stale top-level Current work queue with priorities based on the actual current state: combined Windows acceptance, player-readable observability, query/renderer integration, actual population/logistics/company/diplomacy/war domains and later presentation/combat work. Older verification headings were renamed as historical snapshots so they no longer appear to describe current main.
+- Files changed in this review: README.md, docs/PLAYTEST_GUIDE.md, docs/ENGINE_ARCHITECTURE.md and ASTRA_WORKLOG.md. No simulation or Electron runtime code changed.
+- Baseline test status remains the successful 89d123eabd159dd733df33a6b072b9dbdb51467c run 44858411636 (137/137, syntax and web build passed). The documentation-only commits triggered a fresh main CI run; final CI status for the final worklog commit must be checked before marking this documentation batch verified.
+- User Windows GUI status: earlier continuous clock/progress/scroll behavior was confirmed by the user on a prior revision. Newer autosave rotation, fatal dialog, schema-7 migration and Mod API v4 persistence have not yet received a combined user desktop test.
+- Next: finish the pending documentation CI check, then ask the user to download the latest main ZIP and run the consolidated steps in docs/PLAYTEST_GUIDE.md. Do not ask for separate micro-tests.

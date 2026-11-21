@@ -31,6 +31,7 @@ and easy to modify.
 
 - Prefer direct, understandable code and a small number of proven seams.
 - Add an abstraction only when a concrete current consumer needs it.
+- The AK principle and the Mod principle are complementary: simulation logic stays generic and direct, while game-specific definitions and balance values belong in Mod data. Core must provide the required baseline definitions in INI; optional Mods may extend them. Do not hard-code professions, wealth tiers, need baskets, consumption rates, wages, recipe content or economic tuning into engine/Renderer logic. API v4 JavaScript remains for explicitly declared behavior hooks, not as a replacement for INI content.
 - Do not build speculative frameworks for hypothetical future features.
 - The program is a machine that executes defined work and records what
   happened; it is not an autonomous agent that must constantly inspect,

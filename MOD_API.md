@@ -62,7 +62,17 @@ Registry declarations use INI section suffixes:
     [entry.my-colony]
     type = colony
 
-Supported content types currently include universe, star_system, location, trade_route, faction, colony, commodity, recipe, market, company, security, ship_class, fleet, war and event.
+Supported content types currently include universe, star_system, location, trade_route, faction, colony, commodity, recipe, market, company, security, ship_class, fleet, war, event, profession and wealth_tier.
+
+Population classification is defined on two independent axes. A profession describes an occupation; a wealth tier describes an economic position. A population group can later reference one of each, so the model does not need a hard-coded profession/wealth combination.
+
+    [profession.miner]
+    name_key = population.profession.miner.name
+
+    [wealth_tier.low]
+    name_key = population.wealth_tier.low.name
+
+Core currently supplies only the neutral `unassigned` profession and `unclassified` wealth tier as compatibility placeholders. These definitions do not yet create population cohorts or activate employment, wages, wealth, needs baskets or market settlement. Those mechanics must remain data-driven through Mod INI definitions when introduced.
 
 ## Content definitions
 

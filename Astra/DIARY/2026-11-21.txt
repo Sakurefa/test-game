@@ -123,3 +123,24 @@ coherent loop and do not import the entire scope of Victoria 3.
 
 This entry records the user's priority and the audit result; it does not
 authorize code changes or decide the detailed simulation model.
+
+
+2026-11-21
+Title: The population model must remain moddable
+=================================================
+
+The user confirmed that the population economy should keep profession and
+wealth as separate dimensions, then emphasized that the AK engineering
+principle must be paired with a Mod-first content principle.
+
+The practical boundary is now explicit: engine code should provide generic
+simulation rules, while game-specific definitions and balance values belong
+in Mod content. Core must contain the baseline INI definitions, and optional
+Mods must be able to extend them. Profession lists, wealth tiers, need baskets,
+consumption rates, wages and other economic content must not quietly become
+hard-coded engine or Renderer data.
+
+The first implementation slice therefore adds profession and wealth-tier
+content types to the INI Mod loader/catalog and gives Core neutral placeholder
+definitions. It does not invent a demographic composition, split any
+existing colony population, or enable unfinished economic behavior.

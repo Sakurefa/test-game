@@ -15,7 +15,9 @@ const DEFINITION_TYPES = Object.freeze({
   ship_class: "shipClasses",
   fleet: "fleets",
   war: "wars",
-  event: "events"
+  event: "events",
+  profession: "professions",
+  wealth_tier: "wealthTiers"
 });
 
 function isRecord(value) {

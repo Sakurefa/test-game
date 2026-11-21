@@ -5,6 +5,16 @@ async function fixture(t){const r=await fs.mkdtemp(path.join(os.tmpdir(),"fronti
 function manifest(id="example-mod",content="sample.ini"){return `[mod]\nid = ${id}\nname = "Example Mod"\nversion = 1.0.0\nauthor = "Test"\napi_version = 3\n\n[files]\nregistry =\ncontent = ${content}\nlocalization =\n`;}
 async function write(root,id,m=manifest(id),files={}){const d=path.join(root,id);await fs.mkdir(d,{recursive:true});await fs.writeFile(path.join(d,"manifest.ini"),m);for(const [cat,items]of Object.entries(files)){const p=path.join(d,cat);await fs.mkdir(p,{recursive:true});for(const [n,v]of Object.entries(items))await fs.writeFile(path.join(p,n),v);}return d;}
 test("loads declared INI content and normalizes entity sections",async t=>{const r=await fixture(t);await write(r,"example-mod",manifest(),{content:{"sample.ini":"[event.market-open]\nname_key = event.market-open.name\nweight = 1\n"}});const [m]=await readModPackages(r);assert.equal(m.error,undefined);assert.deepEqual(m.data.content["sample.ini"].events[0],{id:"market-open",nameKey:"event.market-open.name",weight:1});});
+test("loads profession and wealth tier definitions as independent INI content types",async t=>{
+ const r=await fixture(t);
+ const content="[profession.unassigned]\nname_key=population.profession.unassigned.name\n\n[wealth_tier.unclassified]\nname_key=population.wealth_tier.unclassified.name\n";
+ await write(r,"example-mod",manifest("example-mod","sample.ini"),{content:{"sample.ini":content}});
+ const [mod]=await readModPackages(r);
+ assert.equal(mod.error,undefined);
+ assert.deepEqual(mod.data.content["sample.ini"].professions,[{id:"unassigned",nameKey:"population.profession.unassigned.name"}]);
+ assert.deepEqual(mod.data.content["sample.ini"].wealthTiers,[{id:"unclassified",nameKey:"population.wealth_tier.unclassified.name"}]);
+});
+
 test("Core cannot be disabled; optional Mods can",async t=>{const r=await fixture(t);await write(r,"core",manifest("core",""));await write(r,"example-mod",manifest());const m=await readModPackages(r,{enabledMods:{core:false,"example-mod":false}});assert.equal(m.find(x=>x.id==="core").enabled,true);assert.equal(m.find(x=>x.id==="example-mod").enabled,false);});
 test("malformed package does not hide valid package",async t=>{const r=await fixture(t);await write(r,"good",manifest("good"),{content:{"sample.ini":"[event.good]\nweight=1"}});await write(r,"bad",manifest("bad"),{content:{"sample.ini":"[event.bad]\nvalue=[1,2]"}});const m=await readModPackages(r);assert.equal(m.find(x=>x.id==="good").error,undefined);assert.match(m.find(x=>x.id==="bad").error,/Inline JSON/);});
 test("rejects unsupported API versions and executable code declarations",async t=>{const r=await fixture(t);await write(r,"old",manifest("old").replace("api_version = 3","api_version = 999"));await write(r,"code",manifest("code").replace("api_version = 3","api_version = 3\ncode_files = main.js"));const m=await readModPackages(r);assert.match(m.find(x=>x.id==="old").error,/unsupported.*API version/i);assert.match(m.find(x=>x.id==="code").error,/Executable code declarations/);});

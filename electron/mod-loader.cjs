@@ -26,7 +26,9 @@ const TYPE_FILES = {
   ship_class: "shipClasses",
   fleet: "fleets",
   war: "wars",
-  event: "events"
+  event: "events",
+  profession: "professions",
+  wealth_tier: "wealthTiers"
 };
 const LIST_FIELDS = new Set([
   "links", "location_ids", "colony_ids", "commodity_ids", "security_ids",

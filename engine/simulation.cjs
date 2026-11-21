@@ -378,6 +378,9 @@ function validateDayInputs(world, catalog) {
   if (!world.rng || !Number.isInteger(world.rng.seed) || !world.rng.streams || typeof world.rng.streams !== "object") {
     throw new Error("DAY_INPUT world.rng seed/streams is missing or invalid");
   }
+  if (!world.modState || typeof world.modState !== "object" || Array.isArray(world.modState)) {
+    throw new Error("DAY_INPUT world.modState is missing or invalid");
+  }
   if (!world.scheduler?.lastRunDayBySystem || typeof world.scheduler.lastRunDayBySystem !== "object") {
     throw new Error("DAY_INPUT world.scheduler.lastRunDayBySystem is missing");
   }

@@ -279,3 +279,20 @@ A practical build order that keeps each layer playable:
 11. Expand asset, audio, animation and scene adapters in response to actual scenes and content needs.
 
 The goal is a large number of stable attachment points, not a large abstract framework. Add each rail as a real consumer needs it, retain clear ownership of state, and keep every transition inspectable through commands, events and logs.
+
+
+## Read-only world query contracts
+
+The engine also exposes a small query registry, separate from commands and events. Queries return detached, recursively frozen JSON projections; they are suitable as a common observation shape for UI, AI and other trusted engine consumers. They do not provide a write path.
+
+Current core query IDs:
+- world.overview
+- faction.summary
+- colony.summary
+- market.summary
+- fleet.summary
+- war.summary
+
+A query accepts a JSON object payload, reads the authoritative world/catalog through its registered engine handler, and returns a detached value. Unknown IDs, invalid input and oversized input/output are rejected. Query handlers are internal trusted engine code; they are not user-supplied JavaScript callbacks.
+
+The query registry is exported from engine/index.cjs. The renderer is not yet migrated to request all of its data through these queries; its current world snapshot interface remains in place. New UI panels, AI routines and domain modules should prefer stable named projections over reaching into another subsystem's internal data shape.

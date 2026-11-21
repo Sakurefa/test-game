@@ -11,10 +11,10 @@
 - 每日结算在 detached candidate world 上运行；所有触发动作、系统、Hook 和 Domain Event 写入都在候选世界内，成功后提交，失败则丢弃候选。Event Bus 只在提交后发布新 Domain Event。
 - 已有命名随机流、版本化计算服务、typed Domain Event 历史、只读 Event Bus、命令分发器、主进程命令网关、财务账本、Mod API v4 与只读查询投影。
 
-## Trigger System 第一阶段
+## Trigger System 当前实现
 
 - 新增独立的持久化 Trigger Queue，保存待执行实例及最近处理回执；不替代 recurring simulation-system cadence。
-- 当前 due source 仅支持有效日历日期与经过整数个完整 campaign day；日期规则复用 `engine/clock.cjs`，不支持子日触发。
+- 当前 due source 支持有效日历日期、经过整数个完整 campaign day，以及 Domain Event 新事实精确匹配（type 必填，scope/subjectId 可选）；不支持子日触发和历史回溯。
 - Mod API v4 hook 可以返回 `triggers`。Trigger ID 由所属 Mod 命名空间约束；同 ID、同定义重复创建会去重，同 ID、不同定义会报错。
 - 每个完整日结算开始时，Engine 先推进时钟，再处理已有到期 Trigger，随后执行 `campaign.before-day`、年度/月度/周度/日度系统，最后执行 `campaign.after-day`。本次结算期间新建的 Trigger 最早在下一个完整日边界运行，避免同一边界递归触发。
 - Trigger 到期时创建短生命周期 System Event。当前注册 `effect.apply` 与 `formula.effect` 两种 Resolution；它们都返回 `{ result, effects }` 计划。独立 `engine/settlement.cjs` 接收 System Event 并执行 Resolution/Effect 计划；Trigger Runner 只负责调度、事实记录、出队与回执。`formula.effect` 只调用已有版本化 Engine 公式，以 Trigger ID 生成独立随机流，并用顶层 `resultFields` 映射公式结果。Trigger 不能存储任意 JS 函数、Mod callback 或 world patch。
@@ -36,7 +36,7 @@
 
 ## 尚未实现
 
-- 条件/阈值触发与 Domain-Event-driven Trigger source。
+- 条件/阈值触发来源。
 - 除 `effect.apply` 与 `formula.effect` 外的 Command/Event 等 Resolution 类型。
 - 临时效果状态、生命周期与对应到期动作；通用 source/target/operation/value 数值修改器。
 - 建筑实际雇佣 workforce 数据、结算快照与条件效果稳定期。
@@ -47,3 +47,13 @@
 第一阶段 Trigger System Windows CI [44949943031](https://github.com/Sakurefa/test-game/actions/runs/44949943031) 成功，215/215 测试通过。第二阶段 Resolution/Effect 分离与 `formula.effect` Windows CI [44953041332](https://github.com/Sakurefa/test-game/actions/runs/44953041332) 成功，219/219 测试通过。第三阶段 Settlement 执行管线抽离 Windows 源码 CI [44953518426](https://github.com/Sakurefa/test-game/actions/runs/44953518426) 成功：语法检查、221/221 测试、Renderer build 和 generated-renderer 步骤全部通过。
 独立 Windows Runtime/Launcher 工作流 [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367) 成功，EXE Artifact `Market-Simulator-Launcher-EXE` 已上传（约 92.7 MB，保留至 2026-12-05 21:50 UTC）。Runtime 工作流自动生成依赖配置提交 `0f2d9a5fc41c34dfd1c669d043a19bfd08743aeb`。Electron storage 仍读取 schema 1–9、只写 schema 9；本轮未改变存档 schema。
 未执行本地测试/构建，也未在用户 Windows 设备上启动 GUI 验收；Artifact 上传成功不等同于用户设备验收。
+
+
+## Domain Event Trigger 扩展（2026-11-22）
+
+- `domain-event` due source 已实现：按新写入 Domain Event 的精确 type 与可选 scope/subjectId 匹配。
+- 订阅建立前发生的历史事实不会回放；匹配事实在写入 candidate world 时激活 Trigger，并把来源快照持久化在 pending Trigger。
+- 激活日不执行，dueDay 为来源事实日 + 1；下一完整游戏日复用既有 Trigger → System Event → Settlement 路径。
+- 不扫描 300 条 Domain Event history，不使用 Event Bus 驱动权威世界变更；只扫描有上限的 pending Trigger Queue。EventBus 仍然仅在 world commit 后发布事实。
+- World schema 保持 9，旧 date/elapsed Trigger 的签名/存档格式语义保持兼容。
+- 源码提交：`6804bc9e394abada2dad48dd398fae68636df027`；源码 CI [44957849824](https://github.com/Sakurefa/test-game/actions/runs/44957849824) 成功：223/223 tests、语法检查与 Renderer build 全部通过。

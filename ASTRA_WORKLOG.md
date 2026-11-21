@@ -5,8 +5,8 @@
 ## Repository snapshot
 
 - Repository: https://github.com/Sakurefa/test-game
-- Branch: `main`; latest Engine source/test revision: `e4340796e78d7aafc18899f27f4a84d5b86f334d` (Settlement runner extracted from Trigger Queue). The Runtime workflow's generated `resources/app/package.json` sync is recorded in `0f2d9a5fc41c34dfd1c669d043a19bfd08743aeb`; subsequent Astra documentation commits are separate.
-- Latest successful Windows source CI: [44953518426](https://github.com/Sakurefa/test-game/actions/runs/44953518426). Engine/Electron syntax checks passed; `npm test` passed **221/221** with 0 failures; Renderer build and generated-renderer step succeeded.
+- Branch: `main`; latest Engine source/test revision: `6804bc9e394abada2dad48dd398fae68636df027` (Domain Event-driven one-shot Trigger source). The Runtime workflow's generated `resources/app/package.json` sync is recorded in `0f2d9a5fc41c34dfd1c669d04319bfd08743aeb`; subsequent Astra documentation commits are separate.
+- Latest successful Windows source CI: [44957849824](https://github.com/Sakurefa/test-game/actions/runs/44957849824). Engine/Electron syntax checks passed; `npm test` passed **223/223** with 0 failures; Renderer build and generated-renderer step succeeded.
 - Latest successful Windows Runtime/Launcher workflow: [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367). Mod loader tests, Renderer build, minimal Electron app preparation, Windows Electron Runtime build, dependency sync, generated-file commit and Launcher EXE upload all succeeded.
 - Launcher artifact: `Market-Simulator-Launcher-EXE`, Artifact ID `14726491849`, about 92.7 MB, expires 2026-12-05 21:50 UTC. This confirms CI packaging/upload, not user-device launch verification.
 - No local full test suite/build was run. User-side Windows GUI acceptance remains outstanding.
@@ -27,9 +27,9 @@ Files use `YYYY-MM-DD_NN_topic.txt`. NN is one shared chronological sequence for
 
 - 2026-11-20: 01
 - 2026-11-21: 01–08
-- 2026-11-22: 01–11
+- 2026-11-22: 01–12
 
-Latest focused record: `Astra/WORKFLOWS/2026-11-22_11_settlement-runner-separated-from-trigger-queue.txt`.
+Latest focused record: `Astra/WORKFLOWS/2026-11-22_12_domain-event-trigger-source.txt`.
 
 ## Current foundation state
 
@@ -56,7 +56,7 @@ Recurring systems run annual → monthly → weekly → daily. Existing consumer
 - Recurring simulation-system cadence still owns repeated work; persisted Trigger instances are single-shot actions and do not replace the cadence registry.
 - World contains a persisted Trigger Queue with pending instances and the latest 256 receipts.
 - Mod API v4 hooks can return bounded `triggers` descriptors. The Engine injects owner Mod ID; Trigger IDs must be owner-namespaced. Same-ID/same-definition resubmission is idempotent while the pending entry/recent receipt exists; conflicting reuse fails.
-- Due sources currently support valid future campaign dates and positive integer elapsed campaign days only. No dayFraction/sub-day, condition or Domain-Event-driven triggers.
+- Due sources support valid future campaign dates, positive integer elapsed campaign days and one-shot Domain Event matching. A Domain Event Trigger matches newly appended facts by exact type and optional exact scope/subject filters; it captures the source fact in the pending entry, does not scan/backfill history, and becomes due on the next completed day. No dayFraction/sub-day or condition/threshold triggers.
 - At each completed day, after clock advance and before `campaign.before-day`, the Engine processes already-due triggers. Hook-created triggers wait until the next full day boundary. Recurring annual/monthly/weekly/daily systems then run in their existing order.
 - System Event is a transient internal request. Resolution handlers receive a detached snapshot and return a JSON-safe `{ result, effects }` plan (maximum 16 Effects). Current built-in Resolutions are `effect.apply` and `formula.effect`; the latter uses an existing versioned Engine formula, scheduling-time input snapshot, per-Trigger deterministic random stream and top-level result-field mapping.
 - `engine/settlement.cjs` provides a reusable `settleSystemEvent()` pipeline: it runs the Resolution plan and applies Effects through the injected validated Effect executor. It does not own Trigger scheduling, Domain Event history or Presentation.
@@ -64,11 +64,11 @@ Recurring systems run annual → monthly → weekly → daily. Existing consumer
 - Domain Event is a completed fact delivered via the read-only Event Bus only after candidate-world commit. Presentation/UI remains separate.
 - Trigger resolution, calculation audit/random state, approved Effect mutation, Domain Events, queue removal and receipts share the candidate-world daily transaction. A failure discards the entire candidate day.
 
-Not yet implemented: condition/threshold and Domain-Event-driven sources; Command/Event Resolution types; generic numeric modifiers and temporary-effect lifecycle; random result pools; Presentation/UI for committed facts.
+Not yet implemented: condition/threshold sources; Command/Event Resolution types; generic numeric modifiers and temporary-effect lifecycle; random result pools; Presentation/UI for committed facts.
 
 ## Next Engine foundation step
 
-Choose a Trigger source backed by existing authoritative data, then define its evaluation frequency, replay/cursor semantics and candidate-world commit boundary. Condition/threshold and Domain-Event-driven sources should be designed separately; do not add a general expression language or scan the full Domain Event history. Keep each step backed by a real consumer and focused failure/atomicity tests.
+The Domain Event source is now in place. The next independent Trigger source, condition/threshold, still needs a real authoritative consumer before design; define its evaluation point, edge/level semantics and re-arm behavior from that consumer rather than adding a generic expression language or polling every day without need. Keep each step backed by a real consumer and focused failure/atomicity tests.
 
 ## Relevant project records
 

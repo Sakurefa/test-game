@@ -1,0 +1,59 @@
+【工作流记录】Domain Event 驱动的单次 Trigger source
+======================================================
+
+工作日期：2026-11-22
+当日序号：12
+仓库：Sakurefa/test-game
+分支：main
+
+基线与目标
+----------
+- 基线 main：`b1fdb0a757edcbb3c3dbdbec250789dace6f9622`。
+- 基线源码 CI [44953845513](https://github.com/Sakurefa/test-game/actions/runs/44953845513) 成功。
+- 目标：为持久化 Trigger 增加一次性 Domain Event due source；只响应订阅建立后的新事实，复用既有 Trigger Queue、System Event 与 Settlement，不扫描事件历史、不建立 EventBus gameplay listener，不新增 World schema。
+
+实现内容
+--------
+1. 新增 due descriptor：`{ kind: "domain-event", type, scope?, subjectId? }`。type 必填；scope/subjectId 若提供则精确匹配。
+2. Domain Event emitter 在 candidate world 新增事实时检查 pending Trigger。重复 idempotency key 返回旧事实、sequence 不前进时不会再次激活。
+3. 命中后将 JSON-safe source event snapshot 存入 pending Trigger，并将 dueDay 设为 sourceEvent.day + 1；只在下一完整日边界结算。
+4. Source snapshot 随 System Event、`trigger.resolved` 和 receipt 传递；bounded Domain Event history 即使裁剪旧事实，也不会抹去 Trigger 的来源上下文。
+5. 只扫描 bounded Trigger Queue（上限 4096），不扫描 Domain Event history（保留上限 300）。Event Bus 继续只在 world commit 后发布已提交事实。
+6. 既有 date/elapsed Trigger signature 保持原语义；Domain Event due 的 signature 不依赖激活后变化的 dueDay。未增加 schema 字段或升级版本，World schema 仍为 9。
+
+精确代码变更
+------------
+- `engine/triggers.cjs`
+- `engine/system-events.cjs`
+- `engine/simulation.cjs`
+- `tests/triggers.test.cjs`
+
+测试覆盖
+--------
+- 新增 Domain Event Trigger 单元测试：精确匹配、无关事实不触发、source snapshot、激活后重复发射不重复激活、队列验证与相同定义去重。
+- 新增集成测试：Mod Hook 创建市场报价结算订阅；市场系统当日写入 `market.prices-settled` 后，Trigger 获得 source snapshot；第二个完整日复用既有 `effect.apply` 把殖民地稳定度提高 5；receipt、resolved fact 与 source event 对应关系通过验证。
+- 源码 CI [44957849824](https://github.com/Sakurefa/test-game/actions/runs/44957849824) 成功：Engine/Electron syntax、测试 **223/223**、Renderer build、generated-renderer 全部成功。
+- 本地测试/构建：未执行；未在本地克隆运行 npm。
+- Runtime/Launcher：本轮未重新构建；本轮变更集中在 Engine 与测试，既有 Runtime workflow [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367) 曾成功，但不代表本轮在用户设备验收。
+- 用户 Windows GUI：仍未执行，需要用户设备验收。
+
+精确文档变更
+------------
+- `MOD_API.md`
+- `docs/ENGINE_ARCHITECTURE.md`
+- `docs/SIMULATION_DOMAIN_MAP.md`
+- `Astra/DISCUSSIONS/Trigger System 与系统 Event 架构.txt`
+- `Astra/DISCUSSIONS/关于现状.txt`
+- `Astra/DISCUSSIONS/关于接下来的工作.txt`
+- `Astra/WORKING_MEMORY.txt`
+- `Astra/WORKFLOWS/2026-11-22_12_domain-event-trigger-source.txt`
+- `ASTRA_WORKLOG.md`
+
+提交
+----
+- Engine 与测试提交：`6804bc9e394abada2dad48dd398fae68636df027`。
+- 文档与 Astra 记录随本工作流提交。
+
+后续边界
+--------
+条件/阈值 due source 仍未实现。Command/Event Resolution、通用数值 modifier、临时效果生命周期、随机结果池与 Presentation 仍分别保持独立边界。本次没有把它们混入 Domain Event Trigger。

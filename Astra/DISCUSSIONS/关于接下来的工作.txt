@@ -134,3 +134,19 @@
 本次只是将已有一条实际执行路径抽成可复用 Engine 模块，没有新增存档字段、触发源、Effect 类型或具体玩法。CI 结果以工作流记录 2026-11-22_11 为准。
 
 下一步：在 Settlement 可复用入口稳定后，再选择一个有权威数据消费者的非日期/经过时间 Trigger source；先明确其检测频率、重复/游标语义和事务边界，避免把事件历史扫描或通用表达式引擎塞进该模块。
+
+
+## 2026-11-22_12 实现结果：Domain Event 驱动的单次 Trigger
+
+本次在现有 Trigger Queue 与 Settlement 之上，新增第三种 due source：`domain-event`。
+
+- Trigger 订阅一个精确 Domain Event type，可选精确 scope 和 subjectId。
+- 仅观察订阅创建之后新写入的事实；不读取/扫描 bounded Domain Event history，不回放历史，不支持 payload predicate、wildcard 或自动重复订阅。
+- 新事实写入 candidate world 时，Domain Event emitter 检查待处理 Trigger Queue 并激活匹配项。Pending Queue 仍受 4096 条上限约束。
+- 命中后保存来源事件 JSON-safe snapshot，并设定 dueDay = sourceEvent.day + 1。当天不执行；下一完整日边界使用既有 System Event、Settlement 和 Resolution 链。
+- Source snapshot 随 Trigger receipt 与 `trigger.resolved` 保存，因此 Domain Event history 后续淘汰旧记录不会丢失这次触发的来源上下文。
+- Event Bus 继续只在 candidate world 成功提交后发布事实，不承担 Trigger 激活或权威状态变更。
+- 未新增 World schema 字段；schema 保持 9。既有 date/elapsed Trigger 的定义、签名和处理规则保持兼容。
+- 新增测试覆盖过滤匹配、source snapshot、去重、下一日结算和现有 Effect 链。实现提交为 `6804bc9e394abada2dad48dd398fae68636df027`；源码 CI [44957849824](https://github.com/Sakurefa/test-game/actions/runs/44957849824) 成功：223/223 tests。
+
+当前仍未实现：条件/阈值 due source、由 Trigger 调用 Command 或生成 Domain Event 的 Resolution、通用数值 modifier、临时效果生命周期和 Presentation。下一步继续检查 Trigger 与 Effect 的边界，不把这些不同职责一次性塞进同一机制。

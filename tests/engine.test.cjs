@@ -493,3 +493,20 @@ test("world clock validation rejects impossible calendar dates and negative day 
   assert.throws(() => validateWorldState(negativeDay, c), /invalid game clock/);
   assert.throws(() => advanceDay(negativeDay, c), /DAY_INPUT world.clock.day\/date is missing or invalid/);
 });
+
+test("world clock validation rejects date and elapsed-day mismatches", async () => {
+  const c = await catalog();
+  const base = createWorld(c, { seed: "mismatched-world-clock" });
+
+  const dayMismatch = structuredClone(base);
+  dayMismatch.clock.day = 1;
+  assert.throws(() => validateWorldState(dayMismatch, c), /campaign date\/day mismatch/);
+  const beforeDayMismatch = structuredClone(dayMismatch);
+  assert.throws(() => advanceDay(dayMismatch, c), /campaign date\/day mismatch/);
+  assert.deepEqual(dayMismatch, beforeDayMismatch);
+
+  const dateMismatch = structuredClone(base);
+  dateMismatch.clock.date = "2478-04-02";
+  assert.throws(() => validateWorldState(dateMismatch, c), /campaign date\/day mismatch/);
+  assert.throws(() => advanceDay(dateMismatch, c), /campaign date\/day mismatch/);
+});

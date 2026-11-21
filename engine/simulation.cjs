@@ -5,7 +5,7 @@ const { createSystemRegistry } = require("./system-registry.cjs");
 const { createDomainEventEmitter, validateDomainEventState } = require("./domain-events.cjs");
 const { validateCommandReceiptState } = require("./commands.cjs");
 const { createFinancialLedger, validateWorldFinancialState } = require("./ledger.cjs");
-const { createModExtensionRuntime, applyModHookResults } = require("./mod-runtime.cjs");
+const { createModExtensionRuntime, applyModHookResults, validateModState } = require("./mod-runtime.cjs");
 
 const modRuntimeCache = new WeakMap();
 
@@ -17,11 +17,14 @@ function getModRuntime(catalog) {
 }
 
 function runModHook(modRuntime, hookId, input, { world, catalog, day, subjectKey = "world", emitDomainEvent }) {
-  const outcomes = modRuntime.run(hookId, input, { randomScope: subjectKey });
+  const outcomes = modRuntime.run(hookId, input, {
+    randomScope: subjectKey,
+    modStateById: world.modState || {}
+  });
   return applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey, emitDomainEvent });
 }
 
-const GAME_STATE_SCHEMA_VERSION = 6;
+const GAME_STATE_SCHEMA_VERSION = 7;
 const MAX_ADVANCE_DAYS = 30;
 const MAX_CAMPAIGN_CATCH_UP_DAYS = 3650;
 const LOG_LIMIT = 100;
@@ -112,6 +115,7 @@ function createWorld(catalog, options = {}) {
     domainEventSequence: 0,
     domainEvents: [],
     commandReceipts: [],
+    modState: {},
     player: { factionId: playerFactionId, accountId: "player-main" },
     finance,
     colonies,
@@ -283,6 +287,7 @@ function validateWorldState(world, catalog) {
   if (!world.audit || !Array.isArray(world.audit.calculations)) throw new Error("Save has an invalid calculation audit");
   validateDomainEventState(world);
   validateCommandReceiptState(world);
+  validateModState(world.modState);
   if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)
     || !Number.isFinite(world.clock.dayFraction) || world.clock.dayFraction < 0 || world.clock.dayFraction >= 1) {
     throw new Error("Save has an invalid game clock");
@@ -315,6 +320,7 @@ function validateWorldState(world, catalog) {
     for (const factionId of definition.participants) if (!Number.isFinite(war.warWeariness[factionId]) || war.warWeariness[factionId] < 0) throw new Error(`Save has invalid war weariness: ${id}.${factionId}`);
   }
   validateWorldFinancialState(world);
+  validateModState(world.modState);
   return true;
 }
 
@@ -458,7 +464,7 @@ function advanceCampaignTime(world, catalog, elapsedGameDays, options = {}) {
 
 function migrateWorldState(world) {
   if (!world || typeof world !== "object" || Array.isArray(world)) throw new TypeError("Invalid saved world");
-  if (![1, 2, 3, 4, 5, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
+  if (![1, 2, 3, 4, 5, 6, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
     throw new Error("Unsupported or invalid game-state schema: " + world.schemaVersion);
   }
   if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)) {
@@ -490,6 +496,11 @@ function migrateWorldState(world) {
     world.player.accountId = "player-main";
     delete world.player.account;
     world.schemaVersion = 6;
+  }
+  if (world.schemaVersion < 7) {
+    if (world.modState === undefined) world.modState = {};
+    validateModState(world.modState);
+    world.schemaVersion = 7;
   }
   return world;
 }

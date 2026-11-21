@@ -73,8 +73,9 @@
 .audit-readable-summary{display:grid;gap:8px}
 .audit-explanation{margin:0;color:#aebfd3;font-size:9px;line-height:1.65}
 .audit-status{display:inline-flex;align-self:start;width:max-content;padding:4px 7px;border:1px solid rgba(147,174,211,.18);border-radius:4px;color:#c2d2e5;font-size:8px;font-weight:500}
-.audit-status.commodity-price,.audit-status.security-price{color:#9ebbd7}
-.audit-status.colony-production{color:#a9cfb6}
+.audit-status.production_normal,.audit-status.stock_balanced,.audit-status.price_steady{color:#a9cfb6}
+.audit-status.production_limited,.audit-status.no_output,.audit-status.stock_scarce{color:#d7b08d}
+.audit-status.price_up,.audit-status.price_down,.audit-status.stock_surplus{color:#9ebbd7}
 .audit-fact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
 .audit-fact-grid span{display:flex;justify-content:space-between;gap:7px;padding:7px 8px;background:rgba(7,14,23,.35)}
 .audit-fact-grid small{color:#7d91aa;font-size:8px}

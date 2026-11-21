@@ -50,6 +50,7 @@ function createDomainEventEmitter(world,clock){
   if(world.domainEvents.length>DOMAIN_EVENT_HISTORY_LIMIT)world.domainEvents.splice(0,world.domainEvents.length-DOMAIN_EVENT_HISTORY_LIMIT);
   world.domainEventSequence=sequence;
   return JSON.parse(JSON.stringify(record));
+ };
 }
 function validateDomainEventState(world){
  if(!isRecord(world)||!Array.isArray(world.domainEvents)||!Number.isInteger(world.domainEventSequence)||world.domainEventSequence<0)throw new Error("Save has an invalid domain-event history");

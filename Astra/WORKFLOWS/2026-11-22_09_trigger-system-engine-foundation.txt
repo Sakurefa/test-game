@@ -10,7 +10,9 @@
 ----
 - 本轮实现基线：b32a35d1ed9ac09861edbc0f75c084be9c5e14cb。
 - 该基线最新相关验证来自前一代码提交 5efd1b35b6b90fea11ee8456e06248c6786a3bb7 的 Windows CI [44942765033](https://github.com/Sakurefa/test-game/actions/runs/44942765033)：209/209 tests、syntax check、Renderer build 和 generated-renderer 步骤均成功。
-- 本轮新实现提交与 CI 结果将在提交后补记；在得到真实 Actions 结果前不得标记通过。
+- Trigger Engine 初始实现提交：`bb6acf70d3cf2b7fa658933e751f9ec093f62b19`。
+- 后续修正依次为：存档 schema 9 写入/读取边界 `afb2d5d46177f923962439e26e04787ef5234a1f`；校验顺序和 Trigger/迁移测试修正 `2d087b72f20e572a6180a35a48dc1b67924821a2`；autosave/存档测试按 schema 9 对齐 `adf9e417dcbbcd13645aa668e23296e446e89152`；将 Electron 存档语法检查加入检查脚本 `751f96c05422ff9ca6c4d42e18d904c7bc7e1ab4`。
+- 最终 Windows CI：[44949943031](https://github.com/Sakurefa/test-game/actions/runs/44949943031) 成功。语法检查（包含 `electron/storage.cjs`）、215/215 测试、Renderer build 和 generated-renderer 步骤均通过，0 failures。
 - 本轮没有在用户 Windows 设备上做 GUI 验收。
 
 用户授权与目标
@@ -51,18 +53,20 @@
 - `engine/simulation.cjs`：schema 9、队列迁移/验证、日结算接入。
 - `engine/mod-runtime.cjs`：API v4 Hook 可返回有限的 triggers；Owner 由 Engine 注入。
 - `engine/catalog.cjs`：暴露已启用 Mod ID，供队列来源校验。
-- `engine/index.cjs`、`package.json`。
-- `tests/triggers.test.cjs`、`tests/engine.test.cjs`、`tests/mod-runtime.test.cjs`。
+- `engine/index.cjs`、`package.json`；`electron/storage.cjs` 同步只允许写 schema 9，并继续读取 schema 1–8。
+- `tests/triggers.test.cjs`、`tests/engine.test.cjs`、`tests/mod-runtime.test.cjs`、`tests/storage.test.cjs`、`tests/autosave.test.cjs`。
 - `MOD_API.md`、`docs/ENGINE_ARCHITECTURE.md`、`docs/SIMULATION_DOMAIN_MAP.md`。
 - `Astra/WORKING_MEMORY.txt` 与讨论档案。
 
 验证状态
 --------
-- 本地语法检查：未执行（当前通过 GitHub 仓库编辑接口直接提交；未在本地克隆运行时）。
+- 本地语法检查：未执行；当前环境没有本地克隆并运行 npm 的工作目录。
 - 本地测试：未执行。
-- GitHub Windows CI：待提交后触发，结果补记。
+- GitHub Windows CI：[44949943031](https://github.com/Sakurefa/test-game/actions/runs/44949943031) 成功：语法检查通过（含 Electron 存档模块）、215/215 tests、Renderer build、generated-renderer 步骤全部成功。
+- CI 调试过程：初始运行暴露 schema 8 旧断言、校验顺序、Trigger 测试时钟与存档写入门槛问题；已按真实失败日志逐项修正。后续成功运行确认这些问题已关闭。
+- Electron Runtime/Launcher 独立打包：初始运行 [44949471572](https://github.com/Sakurefa/test-game/actions/runs/44949471572) 在 npm test 阶段失败并跳过打包；最终修正后未取得该 workflow 的新运行结果，因此本轮不声称 Launcher/Runtime 已重新打包验证。
 - 用户 Windows GUI：未执行，仍待真实桌面验收。
 
 后续建议
 --------
-CI 成功且代码审查通过后，再根据真实消费者确定第二个 Resolution 类型或触发源；不应先同时加入条件表达式、Domain Event cursor、随机事件池与通用数值 modifier。
+保持第一阶段边界。下一步先明确 Resolution/Settlement 中“结果计算”与“Effect 执行”的契约，再以一个有真实数据来源的通用消费者验证；条件表达式、Domain Event cursor、随机事件池和通用数值 modifier 不要一次性堆入。

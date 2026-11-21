@@ -40,4 +40,5 @@
 
 ## 验证边界
 
-本轮 Engine 变更的完整语法检查、测试和 Renderer build 结果以对应 GitHub Windows CI 为准；未执行的本地测试/构建不会标记为通过。CI 也不等同于用户设备上的 Windows GUI 综合验收；该桌面验收仍待完成。
+本轮 GitHub Windows CI [44949943031](https://github.com/Sakurefa/test-game/actions/runs/44949943031) 成功：语法检查（包含 `electron/storage.cjs`）、215/215 测试、Renderer build 和 generated-renderer 步骤全部通过。Electron storage 读取接受 schema 1–9，写入只接受 schema 9；Engine 在主进程加载存档时先迁移 schema 1–8。
+未执行本地测试/构建；CI 也不等同于用户设备上的 Windows GUI 综合验收。独立 Electron Runtime/Launcher 打包 workflow 本轮未在最终修正后重新取得成功结果，因此不视为已验证。

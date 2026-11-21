@@ -104,4 +104,5 @@
 
 本阶段仍未实现：条件/阈值来源、Domain Event 驱动来源、Command/Event Resolution 类型、通用数值 modifier、临时效果生命周期以及 UI Presentation。也没有加入人口、建筑、经济等具体玩法。
 
-下一步建议：先运行并审查本阶段 Windows CI，再继续完善 System Event/Resolution 的第二个真实通用消费者；只有在对应数据和契约明确后，再增加条件触发或 Domain Event 驱动。
+第一阶段源码 Windows CI 已通过：[44949943031](https://github.com/Sakurefa/test-game/actions/runs/44949943031)，215/215 tests、语法检查和 Renderer build 全部成功；Electron 存档 schema 9 写入/旧版读取边界也已接通。
+下一步建议：先明确 Resolution/Settlement 的“结果计算”与“Effect 执行”契约，再根据真实数据和消费者决定第二个通用 Resolution。条件触发、Domain Event 驱动、随机结算池与 UI Presentation 应分别设计，不要为了完整感一次性扩大框架。

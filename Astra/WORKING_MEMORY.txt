@@ -110,4 +110,6 @@ The existing `colony.population.delta` effect remains compatible: positive delta
 - Player-facing descriptions, icons, notifications, reports and popups belong to Presentation. A System Event does not itself represent text shown to the player.
 - The first implemented Trigger Resolution is `effect.apply`, which delegates to the Engine's existing approved Mod Effect handler. Other resolution types need a real consumer and explicit validation contract before being added.
 
+- Electron storage accepts schema 1–9 for reads and only schema 9 for new writes; main-process loading migrates legacy saves before activation.
+
 END

@@ -305,7 +305,7 @@ test("applies population group split, merge and dimension effects with cause rec
     emitDomainEvent: createDomainEventEmitter(world, world.clock)
   });
 
-  assert.deepEqual(emitted, { effectCount: 3, eventCount: 0 });
+  assert.deepEqual(emitted, { effectCount: 3, eventCount: 0, triggerCount: 0 });
   assert.equal(world.colonies.colonyOne.population, 140);
   assert.equal(world.colonies.colonyOne.populationGroups.workers.population, 120);
   assert.deepEqual(world.colonies.colonyOne.populationGroups.workers.dimensions.profession, {

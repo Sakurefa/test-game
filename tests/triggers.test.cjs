@@ -44,10 +44,12 @@ test("date and elapsed Triggers share the campaign calendar and process in due o
 
   const emissions = [];
   const emit = (event) => { emissions.push(event); return event; };
+  world.clock = { day: 11, date: "2480-02-29" };
   assert.equal(processDueTriggers(world, {
     day: 11, date: "2480-02-29", catalog, resolutions, emitDomainEvent: emit
   }).length, 1);
   assert.equal(world.triggerQueue.pending[0].id, "test-mod.calendar");
+  world.clock = { day: 12, date: "2480-03-01" };
   assert.equal(processDueTriggers(world, {
     day: 12, date: "2480-03-01", catalog, resolutions, emitDomainEvent: emit
   }).length, 1);

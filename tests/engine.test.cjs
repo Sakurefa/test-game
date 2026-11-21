@@ -341,7 +341,7 @@ test("schema-six saves gain an empty per-Mod state namespace during migration", 
   legacy.schemaVersion = 6;
   delete legacy.modState;
   const migrated = migrateWorldState(legacy);
-  assert.equal(migrated.schemaVersion, 8);
+  assert.equal(migrated.schemaVersion, 9);
   assert.deepEqual(migrated.modState, {});
   assert.equal(validateWorldState(migrated, c), true);
 });
@@ -367,7 +367,7 @@ test("schema-six saves upgrade the legacy INI fingerprint when the enabled v4 Mo
   delete legacy.modState;
 
   const migrated = migrateWorldState(legacy);
-  assert.equal(migrated.schemaVersion, 8);
+  assert.equal(migrated.schemaVersion, 9);
   assert.equal(migrated.contentHashUpgradePending, true);
   assert.equal(validateWorldState(migrated, c), true);
   assert.equal(migrated.contentHash, c.contentHash);

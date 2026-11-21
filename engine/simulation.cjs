@@ -287,7 +287,6 @@ function validateWorldState(world, catalog) {
   if (!world.audit || !Array.isArray(world.audit.calculations)) throw new Error("Save has an invalid calculation audit");
   validateDomainEventState(world);
   validateCommandReceiptState(world);
-  validateModState(world.modState);
   if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)
     || !Number.isFinite(world.clock.dayFraction) || world.clock.dayFraction < 0 || world.clock.dayFraction >= 1) {
     throw new Error("Save has an invalid game clock");

@@ -17,3 +17,14 @@
 World schema 8 已加入通用持久化 `populationGroups`。殖民地继续保留 scalar `population`；新世界暂时全部初始化为 `unclassified`。群体包含稳定 ID、人口数量和独立维度的类别比例。群体人口总和必须与殖民地总人口一致，各维度内部比例必须合计为 1；不同维度不推导联合分布。
 
 旧 `colony.population.delta` 已兼容：正增量进入 `unclassified`，负增量按现有群体人数比例扣减。schema 1–7 存档迁移时，如果没有群体数据，就从旧总人口创建中性群体。当前每日需求仍按殖民地总人口聚合结算，尚未改成逐群体需求；也没有写入任何具体人口构成或平衡数值。
+
+
+Mod INI 初始化契约与当前实现（2026-11-21）
+-------------------------------------------
+通用 `population_group` 内容类型已接入 Mod loader、Catalog 与新世界初始化。Mod 使用 `[population_group.<stable-id>]` 段，并在 registry 中用 `[entry.<same-id>]` / `type = population_group` 注册。字段为 `colony_id`、非负 `population`，以及零个或多个 `dimension.<dimension-id>` 分布。每个维度用 `category-id:proportion` 列表表示，比例总和必须为 1。
+
+同一殖民地在所有启用 Mod 中声明的群体人口之和必须匹配该殖民地配置的总人口；不会在部分定义外再叠加默认群体。若没有任何 Mod 为某殖民地定义群体，Engine 自动创建单一 `unclassified` 群体。职业与财富维度的分类 ID 分别引用对应的 profession / wealth_tier Catalog；其他维度使用通用稳定 ID。人口群体是内部初始化数据，不强制要求玩家可见名称。
+
+空的 populationGroups Catalog 集合不加入内容指纹，以保持既有 schema 8 存档在没有新增人口群体内容时的兼容性；一旦 Mod 声明了实际群体，定义就进入正常内容指纹，保存的世界仍绑定对应 Mod 内容。
+
+本次只通过测试 Mod fixture 验证数据装载与初始化，没有在 `mods/core` 写入任何实际人口组成或比例。新世界仍由 Engine 提供中性 fallback；每日需求仍按殖民地总人口聚合结算，并非群体级需求。

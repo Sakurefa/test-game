@@ -3,10 +3,14 @@
 
 当前阶段是通用 Engine 开发，不是直接实现人口经济玩法。所有可运行的游戏内容都由 `mods/` 下的 Mod 提供；`mods/core` 是必需的基础内容 Mod，本身不属于 Engine。Engine 负责可复用的数据表示、装载、验证、结算、持久化与扩展接口；具体分类、规则、效果配置和数值由 Core/可选 Mod 通过 INI 提供。
 
-已完成的 Engine 地基：world schema 8 的通用聚合人口群体存储。殖民地保留 scalar `population`，并保存 `populationGroups`；每组包含稳定 ID、人口数量和独立统计维度。群体人口总和与殖民地总人口必须一致；每个维度的类别比例之和必须为 1；不同维度不生成隐含联合分布。旧 `colony.population.delta` 正增量进入 `unclassified`，负增量按现有群体比例扣减。schema 1–7 存档迁移时，如果缺少群体数据，就从旧标量总人口创建中性群体。
+已完成的 Engine 地基：
+1. World schema 8 的通用聚合人口群体存储。殖民地保留 scalar `population`，并保存 `populationGroups`；每组包含稳定 ID、人口数量和独立统计维度。群体人口总和必须匹配殖民地总人口；每个维度的类别比例之和为 1；不同维度不生成隐含联合分布。旧 `colony.population.delta` 正增量进入 `unclassified`，负增量按现有群体比例扣减。schema 1–7 存档迁移时，缺少群体数据则从旧总人口创建中性群体。
+2. Mod INI 初始群体声明契约。Mod 注册 `population_group`，使用 `colony_id`、`population` 和 `dimension.<id>` 定义数据。单个殖民地来自所有启用 Mod 的群体人口必须合计到配置总人口；没有定义的殖民地自动使用一个中性群体。职业与财富类别验证现有分类 Catalog，其他维度保持通用 ID。空群体集合不改变既有内容指纹；实际群体数据参与指纹。
 
-下一项 Engine 地基方向：设计 Mod INI 对初始人口群体和独立维度分布的声明契约。Engine 只负责通用字段装载、稳定 ID 引用、校验、初始化与持久化；实际群体、类别和比例由 `mods/core` 或可选 Mod 定义。先使用测试用 Mod fixture 验证 API，不在 Core 中擅自添加实际人口组成或平衡值。
+验证：Windows GitHub Actions run [44921871092](https://github.com/Sakurefa/test-game/actions/runs/44921871092) 对 commit `6d17b9b86cdc9589aa71bb3f3ef58c37763ac06c` 成功：语法检查、`npm test` **188/188**、Renderer build 和生成 Renderer 步骤全部通过。没有运行本地完整测试/构建，也没有执行 Windows 桌面 GUI 验收。Runtime 打包工作流未被此次改动触发；不能声称 Electron Runtime 或单独 Launcher 已重新打包。
 
-当前限制：新世界全部人口仍为 `unclassified`；每日需求系统继续按殖民地 scalar 总人口聚合结算，尚未按群体分别计算。不要把存储地基误称为完整人口系统，也不提前补齐需求篮子、工资、市场清算等玩法规则。
+当前限制：Core 没有实际人口构成；新世界仍全部为 `unclassified`，除非某个 Mod 声明初始群体。每日需求仍按殖民地 scalar 总人口聚合结算，不是群体级需求。不要将存储与初始化能力描述成完整人口经济系统，也不要自行补齐需求篮子、工资或市场清算规则。
+
+下一项待设计的 Engine 基础：检查现有 Mod effect、command、domain event 和群体存储接口，先明确运行时群体变化的通用语义——哪些系统可以创建/删除群体、是否允许拆分/合并、如何更改某个维度分布，以及怎样保证总人口不变量和 Mod 可追踪性。先检查现有契约，区分纯人口增减与群体重新分类；在这些语义明确前不添加臆造的 mutation API 或玩法规则。
 
 每一步保持小而可测试，并同时遵守 AK 原则与 MOD 化原则。

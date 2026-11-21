@@ -1,0 +1,45 @@
+【工作流记录】Mod INI 声明人口群体与 Engine 初始化
+================================================
+
+工作日期：2026-11-21
+当日序号：08
+工作基线：900c43cfb796e2341d5ef6b06a8b30a083889bd4
+
+目标
+----
+让 Engine 能从启用 Mod 的 INI 定义读取初始人口群体，而不是把任何人口构成硬编码进 Core 或 Engine。保留旧殖民地标量人口兼容、独立统计维度和 AK / MOD 化边界。
+
+实现
+----
+- `electron/mod-loader.cjs`：新增 `population_group` 内容类型。读取 `[population_group.<id>]`、`colony_id`、`population` 与 `dimension.<dimension-id>`；维度值采用分号分隔的 `category-id:proportion` 列表，解析时检查 ID、重复类别与数值结构。
+- `engine/catalog.cjs`：注册 `populationGroups` Catalog；验证殖民地引用、群体人口、维度 ID、类别 ID、比例范围和维度合计；`profession` / `wealth_tier` 分类引用各自现有 Catalog；逐殖民地汇总所有启用 Mod 的群体并验证其人口合计等于殖民地配置总人口。
+- `engine/population.cjs`：扩展初始化函数，使其接受已验证的 Mod 群体定义。没有 Mod 为某殖民地定义群体时，仍创建单个中性 `unclassified` 群体；存在定义时不额外叠加默认群体。
+- `engine/simulation.cjs`：新世界创建时按殖民地收集 Catalog 群体并初始化运行时 `populationGroups`。
+- 指纹兼容：当 populationGroups Catalog 为空时，序列化内容指纹时省略空集合，从而保留既有 schema 8 存档的原指纹；实际 Mod 群体存在时，群体定义进入正常内容指纹。
+- 测试：Mod loader fixture 覆盖 population_group INI 解析；Engine fixture 覆盖两个 Mod 定义群体的初始化、独立维度和无定义殖民地的中性 fallback；负向测试覆盖未解析职业 ID 和群体人口总量不匹配。
+- 文档：更新 `MOD_API.md`、`mods/README.md`、`docs/ENGINE_ARCHITECTURE.md` 与 Core population.ini 注释。Core 仍只有中性的 profession / wealth_tier 分类，没有加入实际人口群体、人口组成或比例。
+
+INI 契约
+--------
+在任一启用 Mod 的已声明 content INI 文件中：
+
+    [population_group.new-dawn-workers]
+    colony_id = new-dawn-colony
+    population = 2100000
+    dimension.profession = unassigned:0.75;miner:0.25
+    dimension.wealth_tier = low:1
+    dimension.capability = trained:0.4;untrained:0.6
+
+同时在该 Mod 的 registry 中注册相同 ID，类型为 `population_group`。人口群体属于内部初始化数据，不要求玩家可见 name_key。所有启用 Mod 给同一殖民地定义的群体人口必须合计到殖民地配置人口；无任何群体定义才使用 Engine 中性 fallback。职业和财富分类引用各自 catalog；其他维度使用通用稳定 ID。各维度是独立边际数据，不推断联合比例或笛卡尔积。
+
+验证
+----
+- 实现提交：`6d17b9b86cdc9589aa71bb3f3ef58c37763ac06c`。
+- Windows GitHub Actions run [44921871092](https://github.com/Sakurefa/test-game/actions/runs/44921871092) 成功：Engine/Electron syntax 检查通过；`npm test` **188/188，0 失败**；Renderer build 成功；生成 Renderer 步骤成功。
+- 本地完整测试/构建未运行；未进行用户设备 Windows GUI 验收。
+- Runtime / launcher 打包工作流没有被本批路径变化触发，因此没有声称 Electron Runtime 或独立 Launcher 已重新打包。
+- 本次没有向 `mods/core` 写入实际人口构成，也没有改动人口余额/经济平衡。
+
+下一项待设计
+------------
+检查现有 Mod effect、command、domain event 和群体存储接口，先明确运行时群体变化的通用语义（创建、删除、拆分、合并、维度调整及总人口守恒/追踪约束）。这些语义尚未决定；在确认前不添加臆造的 mutation API 或人口玩法规则。

@@ -231,3 +231,8 @@ Never add native modules, executable binaries, arbitrary host callbacks or direc
 - Maximum manifest size: 64 KiB; each INI file: 2 MiB.
 - Duplicate sections/keys, unsafe keys, symlinks and path traversal are rejected.
 - Game content, registry and localization remain INI; JavaScript is only for the optional behavior layer.
+
+
+### Legacy save content fingerprints
+
+When a schema 1–6 save is migrated to schema 7, the loader may recognize the previous INI-only content fingerprint if the current INI content is byte-for-byte equivalent. It then upgrades the stored fingerprint to include the currently enabled API v4 script sources and hook declarations. This is a one-time migration flag and is removed after validation. Schema 7 saves do not receive this compatibility exception: changing enabled JavaScript Mod content still causes a content fingerprint mismatch.

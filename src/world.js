@@ -268,7 +268,7 @@ function overview(snapshot) {
 function colonies(snapshot) {
   return `
     <section class="world-section" data-world-region="colony-production">
-      <div class="world-section-head"><div><span class="world-eyebrow">SETTLEMENTS</span><h3>殖民地与生产</h3></div><small>当前生产按殖民地库存结算，星际物流尚未接入</small></div>
+      <div class="world-section-head"><div><span class="world-eyebrow">SETTLEMENTS</span><h3>殖民地与生产</h3></div><small>人口每日消耗食物与水，设施每周按库存生产；星际物流尚未接入</small></div>
       <div class="colony-grid">
         ${snapshot.colonies.map((colony) => {
           const stock = Object.entries(colony.state.stockpiles).map(([id, amount]) => {

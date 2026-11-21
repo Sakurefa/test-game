@@ -137,11 +137,11 @@ Each Mod owns a persistent key/value state namespace stored in the world save. U
       return {
         effects: [{
           type: "mod.state.increment",
-          payload: { key: "monthsObserved", delta: 1 }
+          payload: { key: "months-observed", delta: 1 }
         }],
         events: [{
           type: "monthly-observation",
-          payload: { completedMonths: (input.modState.monthsObserved || 0) + 1 }
+          payload: { completedMonths: (input.modState.months-observed || 0) + 1 }
         }]
       };
     }

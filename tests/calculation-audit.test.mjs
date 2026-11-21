@@ -129,3 +129,15 @@ test("population needs explanation reports daily fulfillment and shortage amount
   assert.equal(summary.needs[0].unmet, 1.175);
   assert.equal(summary.facts.find((fact) => fact.labelKey === "audit.field.shortage_count").value, 1);
 });
+
+test("population needs calculation does not round the available input quantity up", () => {
+  const service = createCalculationService();
+  const { result } = service.evaluate("economy.population-needs", {
+    population: 1000000,
+    requirements: [{ commodityId: "water", dailyNeedPerThousand: 1, available: 0.12345 }]
+  });
+  assert.equal(result.requested.water, 1000);
+  assert.equal(result.consumed.water, 0.12345);
+  assert.equal(result.unmet.water, 999.87655);
+  assert.equal(result.satisfaction.water, 0.0001);
+});

@@ -28,7 +28,8 @@ const TYPE_FILES = {
   war: "wars",
   event: "events",
   profession: "professions",
-  wealth_tier: "wealthTiers"
+  wealth_tier: "wealthTiers",
+  population_group: "populationGroups"
 };
 const LIST_FIELDS = new Set([
   "links", "location_ids", "colony_ids", "commodity_ids", "security_ids",
@@ -73,13 +74,35 @@ function camel(key) {
 function normalizeEntity(section, id, type) {
   const entity = { id };
   for (const [key, value] of Object.entries(section)) {
-    if (/^(stockpile|industry|input|output|ship)\./.test(key)
+    if (/^(stockpile|industry|input|output|ship|dimension)\./.test(key)
       || key === "position_x" || key === "position_y") continue;
     entity[camel(key)] = LIST_FIELDS.has(key) ? splitList(value) : value;
   }
 
   if (section.position_x !== undefined || section.position_y !== undefined) {
     entity.position = { x: section.position_x, y: section.position_y };
+  }
+  if (type === "population_group") {
+    entity.dimensions = {};
+    for (const [key, value] of Object.entries(section)) {
+      if (!key.startsWith("dimension.")) continue;
+      const dimensionId = key.slice("dimension.".length);
+      if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(dimensionId)) {
+        throw new Error("Invalid population dimension ID in " + file + ": " + dimensionId);
+      }
+      const distribution = {};
+      for (const entry of splitList(value)) {
+        const [categoryId, rawProportion] = tuple(entry, 2, "population dimension").map((part) => part.trim());
+        if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(categoryId)) {
+          throw new Error("Invalid population category ID in " + file + ": " + categoryId);
+        }
+        if (Object.hasOwn(distribution, categoryId)) {
+          throw new Error("Duplicate population category in " + file + ": " + dimensionId + "." + categoryId);
+        }
+        distribution[categoryId] = Number(rawProportion);
+      }
+      entity.dimensions[dimensionId] = distribution;
+    }
   }
   if (type === "colony") {
     entity.stockpiles = {};

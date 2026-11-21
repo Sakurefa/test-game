@@ -15,6 +15,38 @@ test("loads profession and wealth tier definitions as independent INI content ty
  assert.deepEqual(mod.data.content["sample.ini"].wealthTiers,[{id:"unclassified",nameKey:"population.wealth_tier.unclassified.name"}]);
 });
 
+test("loads Mod-defined population groups and their independent dimension distributions", async t => {
+ const root = await fixture(t);
+ const ini = [
+  "[population_group.new-dawn-workers]",
+  "colony_id = new-dawn-colony",
+  "population = 70",
+  "dimension.profession = unassigned:0.75;specialist:0.25",
+  "dimension.wealth_tier = unclassified:1",
+  ""
+ ].join("\n");
+ const registry = "[entry.new-dawn-workers]\ntype = population_group\n";
+ const packageManifest = manifest("example-mod", "sample.ini").replace("registry =", "registry = definitions.ini");
+ await write(root, "example-mod", packageManifest, {
+  content: { "sample.ini": ini },
+  registry: { "definitions.ini": registry }
+ });
+ const [loaded] = await readModPackages(root);
+ assert.equal(loaded.error, undefined);
+ assert.deepEqual(loaded.data.content["sample.ini"].populationGroups, [{
+  id: "new-dawn-workers",
+  colonyId: "new-dawn-colony",
+  population: 70,
+  dimensions: {
+   profession: { unassigned: 0.75, specialist: 0.25 },
+   wealth_tier: { unclassified: 1 }
+  }
+ }]);
+ assert.deepEqual(loaded.data.registry["definitions.ini"].entries, [
+  { id: "new-dawn-workers", type: "population_group" }
+ ]);
+});
+
 test("Core cannot be disabled; optional Mods can",async t=>{const r=await fixture(t);await write(r,"core",manifest("core",""));await write(r,"example-mod",manifest());const m=await readModPackages(r,{enabledMods:{core:false,"example-mod":false}});assert.equal(m.find(x=>x.id==="core").enabled,true);assert.equal(m.find(x=>x.id==="example-mod").enabled,false);});
 test("malformed package does not hide valid package",async t=>{const r=await fixture(t);await write(r,"good",manifest("good"),{content:{"sample.ini":"[event.good]\nweight=1"}});await write(r,"bad",manifest("bad"),{content:{"sample.ini":"[event.bad]\nvalue=[1,2]"}});const m=await readModPackages(r);assert.equal(m.find(x=>x.id==="good").error,undefined);assert.match(m.find(x=>x.id==="bad").error,/Inline JSON/);});
 test("rejects unsupported API versions and executable code declarations",async t=>{const r=await fixture(t);await write(r,"old",manifest("old").replace("api_version = 3","api_version = 999"));await write(r,"code",manifest("code").replace("api_version = 3","api_version = 3\ncode_files = main.js"));const m=await readModPackages(r);assert.match(m.find(x=>x.id==="old").error,/unsupported.*API version/i);assert.match(m.find(x=>x.id==="code").error,/Executable code declarations/);});

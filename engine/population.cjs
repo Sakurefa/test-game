@@ -7,17 +7,44 @@ function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-function createPopulationGroups(population) {
+function createPopulationGroups(population, definitions = []) {
   if (!Number.isFinite(population) || population < 0) {
     throw new TypeError("Initial population must be a finite non-negative number");
   }
-  return {
-    unclassified: {
-      id: "unclassified",
-      population,
-      dimensions: {}
+  if (!Array.isArray(definitions)) {
+    throw new TypeError("Population group definitions must be an array");
+  }
+  if (definitions.length === 0) {
+    return {
+      unclassified: {
+        id: "unclassified",
+        population,
+        dimensions: {}
+      }
+    };
+  }
+
+  const groups = {};
+  for (const definition of definitions) {
+    if (!isRecord(definition) || typeof definition.id !== "string" || !POPULATION_ID_PATTERN.test(definition.id)) {
+      throw new Error("Initial population group has an invalid ID");
     }
-  };
+    if (Object.hasOwn(groups, definition.id)) {
+      throw new Error("Duplicate initial population group: " + definition.id);
+    }
+    if (!isRecord(definition.dimensions)) {
+      throw new Error("Initial population group has invalid dimensions: " + definition.id);
+    }
+    groups[definition.id] = {
+      id: definition.id,
+      population: definition.population,
+      dimensions: Object.fromEntries(
+        Object.entries(definition.dimensions).map(([dimensionId, distribution]) => [dimensionId, { ...distribution }])
+      )
+    };
+  }
+  validatePopulationGroups(groups, population, "initial population");
+  return groups;
 }
 
 function validatePopulationGroups(groups, totalPopulation, label = "population") {

@@ -173,6 +173,87 @@ test("Core keeps profession and wealth tier as separate catalog dimensions",asyn
  assert.equal(c.wealthTiers.get("unclassified").nameKey,"population.wealth_tier.unclassified.name");
 });
 
+test("Mod-defined population groups initialize the Engine world from INI data", async () => {
+ const packages = await mods();
+ const core = packages.find((item) => item.id === "core");
+ core.data.content["population.ini"].populationGroups = [
+  {
+   id: "new-dawn-workers",
+   colonyId: "new-dawn-colony",
+   population: 1500000,
+   dimensions: {
+    profession: { unassigned: 1 },
+    wealth_tier: { unclassified: 1 },
+    capability: { trained: 0.4, untrained: 0.6 }
+   }
+  },
+  {
+   id: "new-dawn-dependants",
+   colonyId: "new-dawn-colony",
+   population: 600000,
+   dimensions: {
+    profession: { unassigned: 1 },
+    wealth_tier: { unclassified: 1 }
+   }
+  }
+ ];
+ core.data.registry["definitions.ini"].entries.push(
+  { id: "new-dawn-workers", type: "population_group" },
+  { id: "new-dawn-dependants", type: "population_group" }
+ );
+ const result = compileCatalog(packages);
+ assert.equal(result.ok, true, result.error);
+ const world = createWorld(result.catalog, { seed: "mod-population-groups" });
+ assert.deepEqual(world.colonies["new-dawn-colony"].populationGroups, {
+  "new-dawn-workers": {
+   id: "new-dawn-workers",
+   population: 1500000,
+   dimensions: {
+    profession: { unassigned: 1 },
+    wealth_tier: { unclassified: 1 },
+    capability: { trained: 0.4, untrained: 0.6 }
+   }
+  },
+  "new-dawn-dependants": {
+   id: "new-dawn-dependants",
+   population: 600000,
+   dimensions: {
+    profession: { unassigned: 1 },
+    wealth_tier: { unclassified: 1 }
+   }
+  }
+ });
+ assert.equal(world.colonies["verdant-colony"].populationGroups.unclassified.population, 1450000);
+});
+
+test("catalog rejects population groups with mismatched totals or unresolved known dimension categories", async () => {
+ const packages = await mods();
+ const core = packages.find((item) => item.id === "core");
+ core.data.content["population.ini"].populationGroups = [{
+  id: "new-dawn-workers",
+  colonyId: "new-dawn-colony",
+  population: 2000000,
+  dimensions: { profession: { "missing-profession": 1 } }
+ }];
+ core.data.registry["definitions.ini"].entries.push({ id: "new-dawn-workers", type: "population_group" });
+ let result = compileCatalog(packages);
+ assert.equal(result.ok, false);
+ assert.match(result.error, /Unresolved reference population profession/);
+
+ const mismatched = await mods();
+ const mismatchedCore = mismatched.find((item) => item.id === "core");
+ mismatchedCore.data.content["population.ini"].populationGroups = [{
+  id: "new-dawn-workers",
+  colonyId: "new-dawn-colony",
+  population: 2000000,
+  dimensions: {}
+ }];
+ mismatchedCore.data.registry["definitions.ini"].entries.push({ id: "new-dawn-workers", type: "population_group" });
+ result = compileCatalog(mismatched);
+ assert.equal(result.ok, false);
+ assert.match(result.error, /population group total does not match/);
+});
+
 test("catalog rejects missing localized strings",async()=>{const m=await mods();delete m.find(x=>x.id==="core").data.localization["zh-CN.ini"].content["entity.solace.name"];const r=compileCatalog(m);assert.equal(r.ok,false);assert.match(r.error,/Missing localization key.*entity.solace.name/);});
 
 test("named random streams are stable and isolated from unrelated stream consumption",()=>{

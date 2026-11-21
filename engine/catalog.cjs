@@ -1,4 +1,5 @@
 const crypto = require("node:crypto");
+const { validatePopulationGroups } = require("./population.cjs");
 
 const DEFINITION_TYPES = Object.freeze({
   universe: "universes",
@@ -17,7 +18,8 @@ const DEFINITION_TYPES = Object.freeze({
   war: "wars",
   event: "events",
   profession: "professions",
-  wealth_tier: "wealthTiers"
+  wealth_tier: "wealthTiers",
+  population_group: "populationGroups"
 });
 
 function isRecord(value) {
@@ -153,6 +155,46 @@ function validateCatalog(catalog, registryEntries) {
       if (industry.companyId) requireReference(catalog.companies, industry.companyId, `industry operator ${colony.id}`);
     }
   }
+  const populationGroupsByColony = new Map();
+  for (const group of catalog.populationGroups.values()) {
+    requireReference(catalog.colonies, group.colonyId, "population group colony " + group.id);
+    requireFinite(group.population, "population group " + group.id + " population", { min: 0 });
+    if (!isRecord(group.dimensions)) {
+      throw new Error("Population group " + group.id + " requires a dimensions object");
+    }
+    for (const [dimensionId, distribution] of Object.entries(group.dimensions)) {
+      if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(dimensionId)
+        || !isRecord(distribution) || Object.keys(distribution).length === 0) {
+        throw new Error("Population group " + group.id + " has an invalid dimension: " + dimensionId);
+      }
+      let total = 0;
+      for (const [categoryId, proportion] of Object.entries(distribution)) {
+        if (!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(categoryId)) {
+          throw new Error("Population group " + group.id + " has an invalid category ID: " + categoryId);
+        }
+        requireFinite(proportion, "population group " + group.id + " dimension " + dimensionId + "." + categoryId, { min: 0, max: 1 });
+        total += proportion;
+        if (dimensionId === "profession") {
+          requireReference(catalog.professions, categoryId, "population profession " + group.id);
+        } else if (dimensionId === "wealth_tier") {
+          requireReference(catalog.wealthTiers, categoryId, "population wealth tier " + group.id);
+        }
+      }
+      if (Math.abs(total - 1) > 1e-9) {
+        throw new Error("Population group " + group.id + " dimension proportions must total 1: " + dimensionId);
+      }
+    }
+    if (!populationGroupsByColony.has(group.colonyId)) populationGroupsByColony.set(group.colonyId, {});
+    populationGroupsByColony.get(group.colonyId)[group.id] = {
+      id: group.id,
+      population: group.population,
+      dimensions: group.dimensions
+    };
+  }
+  for (const [colonyId, groups] of populationGroupsByColony) {
+    validatePopulationGroups(groups, catalog.colonies.get(colonyId).population, "colony " + colonyId);
+  }
+
   for (const commodity of catalog.commodities.values()) {
     requireFinite(commodity.basePrice, `commodity ${commodity.id} basePrice`, { min: 0, exclusiveMin: true });
     requireFinite(commodity.targetStock, `commodity ${commodity.id} targetStock`, { min: 0, exclusiveMin: true });
@@ -266,11 +308,11 @@ function collectLocalizations(modPackages) {
 
 function validateLocalizationReferences(catalog, localizations, locale) {
   const strings = localizations[locale] || {};
-  for (const collectionName of Object.values(DEFINITION_TYPES)) {
+  for (const [type, collectionName] of Object.entries(DEFINITION_TYPES)) {
     for (const entity of catalog[collectionName].values()) {
       for (const field of ["nameKey", "descriptionKey", "governmentKey", "unitKey"]) {
         const key = entity[field];
-        if (field === "nameKey" && (typeof key !== "string" || !key.trim())) {
+        if (field === "nameKey" && type !== "population_group" && (typeof key !== "string" || !key.trim())) {
           throw new Error(`Definition ${entity.id} requires a localization nameKey`);
         }
         if (key !== undefined && (typeof key !== "string" || !Object.hasOwn(strings, key))) {
@@ -324,6 +366,7 @@ function compileCatalog(modPackages) {
     validateLocalizationReferences(catalog, localizations, defaultLocale);
     const serializable = {};
     for (const [name, collection] of Object.entries(catalog)) {
+      if (name === "populationGroups" && collection.size === 0) continue;
       serializable[name] = [...collection.values()].map(({ _type, _source, ...entity }) => entity);
     }
     const extensions = enabled

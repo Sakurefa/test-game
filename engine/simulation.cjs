@@ -48,11 +48,16 @@ function createWorld(catalog, options = {}) {
   const seed = hashSeed(options.seed ?? Date.now());
   const randomStreams = new NamedRandomStreams(seed);
   const colonies = {};
+  const populationGroupsByColony = new Map();
+  for (const group of catalog.populationGroups?.values?.() || []) {
+    if (!populationGroupsByColony.has(group.colonyId)) populationGroupsByColony.set(group.colonyId, []);
+    populationGroupsByColony.get(group.colonyId).push(group);
+  }
   for (const definition of catalog.colonies.values()) {
     colonies[definition.id] = {
       id: definition.id,
       population: definition.population,
-      populationGroups: createPopulationGroups(definition.population),
+      populationGroups: createPopulationGroups(definition.population, populationGroupsByColony.get(definition.id) || []),
       stability: definition.stability,
       stockpiles: { ...definition.stockpiles },
       industries: definition.industries.map((industry) => ({ ...industry })),

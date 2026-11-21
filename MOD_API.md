@@ -62,7 +62,7 @@ Registry declarations use INI section suffixes:
     [entry.my-colony]
     type = colony
 
-Supported content types currently include universe, star_system, location, trade_route, faction, colony, commodity, recipe, market, company, security, ship_class, fleet, war, event, profession and wealth_tier.
+Supported content types currently include universe, star_system, location, trade_route, faction, colony, commodity, recipe, market, company, security, ship_class, fleet, war, event, profession, wealth_tier and population_group.
 
 Population classification is defined on two independent axes. A profession describes an occupation; a wealth tier describes an economic position. A population group can later reference one of each, so the model does not need a hard-coded profession/wealth combination.
 
@@ -72,7 +72,20 @@ Population classification is defined on two independent axes. A profession descr
     [wealth_tier.low]
     name_key = population.wealth_tier.low.name
 
-Core currently supplies only neutral `unassigned` and `unclassified` definitions reserved for the future cohort migration. They are not yet referenced by persisted population state and do not activate employment, wages, wealth, needs baskets or market settlement. Those mechanics must remain data-driven through Mod INI definitions when introduced.
+Core currently supplies only neutral `unassigned` and `unclassified` definitions and does not author a demographic composition. Any Mod may reference catalog categories from a `population_group` definition. Population groups are initialized from enabled Mod INI data; a colony with no group definitions still receives one neutral `unclassified` group. These definitions do not activate employment, wages, need baskets or market settlement.
+
+Population groups are internal initialization data and do not require a player-facing `name_key`. Register each group under `[entry.<group-id>]` with `type = population_group`. Define it in any declared content INI file using this structure:
+
+    [population_group.new-dawn-workers]
+    colony_id = new-dawn-colony
+    population = 2100000
+    dimension.profession = unassigned:0.75;miner:0.25
+    dimension.wealth_tier = low:1
+    dimension.capability = trained:0.4;untrained:0.6
+
+Each group has a stable ID, one colony reference, a non-negative population count and zero or more independent dimensions. A dimension is written as `dimension.<dimension-id>`; its semicolon-separated entries use `category-id:proportion`, with proportions between 0 and 1 and summing to 1. Profession and wealth-tier category IDs are checked against their respective registered definitions. Other dimension IDs remain generic stable IDs and are checked structurally.
+
+Across all enabled Mods, the population of all groups defined for a colony must add up exactly to that colony's existing `population` value (within the Engine's small floating-point tolerance). Do not add partial populations on top of an automatic default. When no Mod defines groups for a colony, the Engine creates one neutral `unclassified` group automatically. Group definitions from different Mods share one global stable-ID namespace.
 
 ## Content definitions
 

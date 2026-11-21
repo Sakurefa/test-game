@@ -78,6 +78,10 @@ The engine and main-process gateway are now connected, but no market buy/sell or
 ## Current prototype boundary
 
 The campaign world now runs continuously under pause and 1x–4x controls. Market repricing and war chronology are daily systems; colony production is weekly. Fleets, ship classes and war state remain static registered data. Tactical combat, fleet movement, logistics between colonies, diplomacy and player financial orders are not implemented. Tactical combat is explicitly deferred and will require its own independent real-time simulation rather than being added to the campaign scheduler.
+
+Each colony retains scalar `population` and persists a generic `populationGroups` map. The Engine validates stable group IDs, group-count totals and independent dimension proportions; it does not simulate residents individually or infer intersections between independent dimensions. Existing `colony.population.delta` effects keep their old payload and update both the total and group counts atomically: positive deltas enter `unclassified`, negative deltas are distributed proportionally. World schema 1–7 saves migrate to schema 8 by creating a neutral group when group data is absent.
+
+Mods may initialize groups through registered `population_group` INI definitions. Each definition names a colony, count and optional `dimension.<id>` category proportions. All declared groups for a colony across enabled Mods must sum to that colony's configured population. If no group definitions are supplied, the Engine initializes a single `unclassified` group. The empty group-definition collection is excluded from the content fingerprint, preserving existing schema-8 saves until a Mod actually adds initial group content. No actual demographic composition has been added to Core; daily needs still settle using the scalar colony total, not per-group demand.
  
 ## World model and future subsystem seams
 

@@ -218,8 +218,8 @@ test("runs the example Mod hook through real world day settlement", async () => 
   const reports = world.domainEvents.filter((event) => event.type === "mod.example-market.monthly-market-observation");
   assert.equal(reports.length, 2);
   assert.deepEqual(reports.map((event) => event.payload), [
-    { day: 30, marketCount: 3, quoteCount: 9, previousMonths: 0, modId: "example-market", eventType: "monthly-market-observation" },
-    { day: 60, marketCount: 3, quoteCount: 9, previousMonths: 1, modId: "example-market", eventType: "monthly-market-observation" }
+    { day: 30, marketCount: 3, quoteCount: 15, previousMonths: 0, modId: "example-market", eventType: "monthly-market-observation" },
+    { day: 60, marketCount: 3, quoteCount: 15, previousMonths: 1, modId: "example-market", eventType: "monthly-market-observation" }
   ]);
   assert.deepEqual(world.modState["example-market"], { "months-observed": 2 });
   assert.equal(world.schemaVersion, 7);

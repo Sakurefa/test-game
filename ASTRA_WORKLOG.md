@@ -501,3 +501,15 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 - Windows Actions run 44888753957 completed successfully for main head 271b49d4405da63c91cc5a59187928e11031e2f6. Results: syntax SUCCESS; npm test 137 passed / 0 failed; Vite renderer build SUCCESS; generated-renderer commit step SUCCESS.
 - This worklog entry is a documentation-only follow-up. No simulation, Electron runtime or Mod source was changed.
 - Current playtest guide is docs/PLAYTEST_GUIDE.md. It is now the authoritative consolidated checklist for main/schema 7; older historical verification notes in this file are preserved as history, not current status.
+
+### 2026-11-21 — campaign clock crash fix
+
+- Investigated the user's Windows crash after setting the base game day to 10 seconds, starting a new world and selecting 4x speed. The supplied JSONL log showed the failure originated in the Electron campaign-clock callback, not in the launcher bootstrap, Mod loader, save migration or renderer.
+- Root cause: `CampaignTimeController` correctly calls its `onAdvance` callback with the elapsed game-day number, but `electron/main.cjs` omitted that argument when calling `advanceCampaignTime`. The callback passed the options object in the elapsed-time position. `advanceClockTime` then rejected the non-finite value with `Elapsed game time must be between 0 and 36500 days`. The fatal cleanup called `pause()`, which ticked the same broken callback again and produced the secondary unhandled-rejection record seen in the user's log.
+- Fixed the Electron callback to pass `elapsedGameDays` as the third argument, leaving event-bus and day-settlement options as the fourth argument.
+- Added an integration regression test that drives a four-times-speed `CampaignTimeController` into `advanceCampaignTime` and verifies that 250 ms at a 1-second base day advances exactly one game day.
+- Exact files changed: `electron/main.cjs`, `tests/engine.test.cjs`, `ASTRA_WORKLOG.md`.
+- Starting main head: `dffc5f372fd459608eb150cc365570e3ddd66d9a`. Fix branch: `astra/fix-campaign-time-advance-2026-11-21`.
+- Automated verification: regression test added; full Windows CI is pending on the pull request. No local full test suite or local build was run. No assistant-run Windows desktop GUI test was performed.
+- User Windows test is required after the fix is merged and the latest source ZIP is downloaded. The separate launcher EXE does not need to be replaced for this source-only callback correction because it loads the adjacent repository's current `electron/main.cjs`.
+- Next: complete Windows CI, record its exact result here, then merge the fix and ask the user to repeat the 10-second / 4x start test before continuing the broader playtest checklist.

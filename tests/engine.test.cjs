@@ -1,6 +1,7 @@
 const test=require("node:test"),assert=require("node:assert/strict"),path=require("node:path");
 const {readModPackages}=require("../electron/mod-loader.cjs");
 const {SeededRandom,NamedRandomStreams,createCalculationService,addDays,compileCatalog,createWorld,advanceDay,advanceDays,advanceCampaignTime,migrateWorldState,validateWorldState}=require("../engine/index.cjs");
+const { CampaignTimeController } = require("../engine/campaign-time.cjs");
 async function mods(){return readModPackages(path.join(__dirname,"..","mods"));}
 async function catalog(){const r=compileCatalog(await mods());if(!r.ok)throw new Error(r.error);return r.catalog;}
 test("game clock handles month boundaries and leap years",()=>{assert.equal(addDays("2478-04-30",1),"2478-05-01");assert.equal(addDays("2480-02-28",1),"2480-02-29");assert.equal(addDays("2480-02-28",2),"2480-03-01");assert.throws(()=>addDays("2480-02-30",1),/Invalid game date/);});
@@ -136,4 +137,23 @@ test("schema-seven saves still reject changed JavaScript Mod content", async () 
   const world = createWorld(c, { seed: "strict-v4-fingerprint" });
   const changedCatalog = { ...c, contentHash: "changed-script-content-hash" };
   assert.throws(() => validateWorldState(world, changedCatalog), /different Mod content/);
+});
+
+
+test("campaign clock forwards elapsed game days into the simulation advance", async () => {
+  const c = await catalog();
+  const world = createWorld(c, { seed: "campaign-clock-integration" });
+  let now = 0;
+  const controller = new CampaignTimeController({
+    baseDayDurationMs: 1000,
+    now: () => now,
+    onAdvance: (elapsedGameDays) => advanceCampaignTime(world, c, elapsedGameDays)
+  });
+
+  controller.setSpeed(4);
+  now = 250;
+  controller.tick();
+
+  assert.equal(world.clock.day, 1);
+  assert.equal(world.clock.dayFraction, 0);
 });

@@ -104,7 +104,7 @@ const campaignTime = new CampaignTimeController({
   onAdvance: (elapsedGameDays) => {
     if (!activeWorld || !activeCatalog) return;
     const eventBus = activeCommandGateway ? { publish: (event) => activeCommandGateway.publishEvent(event) } : null;
-    const result = advanceCampaignTime(activeWorld, activeCatalog, {
+    const result = advanceCampaignTime(activeWorld, activeCatalog, elapsedGameDays, {
       ...(eventBus ? { eventBus } : {}), onDaySettled
     });
     if (result.daysAdvanced > 0 || result.dayFraction !== 0) activeWorldDirty = true;

@@ -23,9 +23,9 @@
 按 AGENTS.md 的流程读取 AGENTS、Astra/README、完整 WORKING_MEMORY、根索引、两项最高优先级原则，以及与当前系统相关的讨论和 2026-11-22 工作流记录。
 
 重点审查：
-- Engine：clock、campaign-time、system-registry、simulation、population、mod-runtime、domain-events、event-bus。
+- Engine：clock、campaign-time、system-registry、simulation、population、mod-runtime、domain-events、event-bus、ledger、commands、command-runtime、formulas。
 - Electron：main、storage、autosave、logger、world-command-gateway。
-- Tests：engine、campaign-time、system-registry、population、storage 及 Mod 运行时相关覆盖。
+- Tests：engine、campaign-time、system-registry、population、storage、命令/账本及 Mod 运行时相关覆盖。
 - 同时核对 main 分支 HEAD、最近提交差异与最新 Windows Actions。
 
 已确认并修复的问题

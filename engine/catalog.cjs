@@ -192,7 +192,7 @@ function validateCatalog(catalog, registryEntries) {
     };
   }
   for (const [colonyId, groups] of populationGroupsByColony) {
-    validatePopulationGroups(groups, catalog.colonies.get(colonyId).population, "colony " + colonyId);
+    validatePopulationGroups(groups, undefined, "initial population of colony " + colonyId);
   }
 
   for (const commodity of catalog.commodities.values()) {

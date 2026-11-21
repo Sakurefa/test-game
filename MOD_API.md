@@ -85,7 +85,7 @@ Population groups are internal initialization data and do not require a player-f
 
 Each group has a stable ID, one colony reference, a non-negative population count and zero or more independent dimensions. A dimension is written as `dimension.<dimension-id>`; its semicolon-separated entries use `category-id:proportion`, with proportions between 0 and 1 and summing to 1. Profession and wealth-tier category IDs are checked against their respective registered definitions. Other dimension IDs remain generic stable IDs and are checked structurally.
 
-Across all enabled Mods, the population of all groups defined for a colony must add up exactly to that colony's existing `population` value (within the Engine's small floating-point tolerance). Do not add partial populations on top of an automatic default. When no Mod defines groups for a colony, the Engine creates one neutral `unclassified` group automatically. Group definitions from different Mods share one global stable-ID namespace.
+The counts in the declared groups compose the colony's entire initial population; their sum becomes the runtime colony total. Do not add partial populations on top of an automatic default. When at least one enabled Mod defines groups for a colony, the Engine uses those group counts as the complete population and does not create an extra `unclassified` remainder. Only when no Mod defines any group for a colony does the Engine create one neutral `unclassified` group using the colony definition's `population` value as a fallback starting count. Group definitions from different Mods share one global stable-ID namespace.
 
 ## Content definitions
 
@@ -191,11 +191,14 @@ Hook errors fail the current day settlement. The engine runs day settlement on a
 
 ## Current approved effects
 
-Effects are requests, not arbitrary object mutations. The engine validates the target and applies the transition.
+Effects are requests, not arbitrary object mutations. The engine validates the target and applies the transition. Population group counts are the authoritative runtime population records; the scalar colony total is recalculated from their sum and is only a compatibility/read projection. Split and merge rearrange existing members and therefore preserve that total. A dimension update changes only the selected group's stored distribution; any gameplay rule deciding when such a reclassification occurs belongs in Mod behavior, not in the Engine.
 
 | Effect type | Payload keys | Behavior |
 | --- | --- | --- |
-| colony.population.delta | colonyId, delta | Adds population to the unclassified group; reductions are distributed proportionally across existing groups; total population cannot become negative |
+| colony.population.delta | colonyId, delta | Adds population to the unclassified group; reductions are distributed proportionally across existing groups; total is recalculated from group counts and cannot become negative |
+| colony.population.group.split | colonyId, sourceGroupId, newGroupId, population; optional sourceDimensions and newDimensions | Transfers part of one existing group into a new group; colony total is unchanged. If resulting dimensions are supplied, both maps are required and each dimension's category headcounts must be conserved across the two resulting groups |
+| colony.population.group.merge | colonyId, sourceGroupId, targetGroupId | Moves all source members into the target, combines each shared dimension using population-weighted proportions and removes the source group; colony total is unchanged |
+| colony.population.group.dimension.set | colonyId, groupId, dimensionId, distribution | Replaces one group's distribution for a dimension without changing its headcount or colony total |
 | colony.stability.delta | colonyId, delta | Adjusts stability, bounded to 0–100 |
 | colony.stockpile.delta | colonyId, commodityId, delta | Adds/removes stock; result cannot be negative |
 | market.price.multiplier | marketId, instrumentId, multiplier | Adjusts a listed quote, bounded to 0.1×–10× its base price |

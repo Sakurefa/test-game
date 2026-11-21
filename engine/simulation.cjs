@@ -6,7 +6,7 @@ const { createDomainEventEmitter, validateDomainEventState } = require("./domain
 const { validateCommandReceiptState } = require("./commands.cjs");
 const { createFinancialLedger, validateWorldFinancialState } = require("./ledger.cjs");
 const { createModExtensionRuntime, applyModHookResults, validateModState } = require("./mod-runtime.cjs");
-const { createPopulationGroups, validatePopulationGroups } = require("./population.cjs");
+const { createPopulationGroups, getPopulationTotal, validatePopulationGroups } = require("./population.cjs");
 
 const modRuntimeCache = new WeakMap();
 
@@ -54,10 +54,14 @@ function createWorld(catalog, options = {}) {
     populationGroupsByColony.get(group.colonyId).push(group);
   }
   for (const definition of catalog.colonies.values()) {
+    const populationGroups = createPopulationGroups(
+      definition.population,
+      populationGroupsByColony.get(definition.id) || []
+    );
     colonies[definition.id] = {
       id: definition.id,
-      population: definition.population,
-      populationGroups: createPopulationGroups(definition.population, populationGroupsByColony.get(definition.id) || []),
+      population: getPopulationTotal(populationGroups),
+      populationGroups,
       stability: definition.stability,
       stockpiles: { ...definition.stockpiles },
       industries: definition.industries.map((industry) => ({ ...industry })),
@@ -229,13 +233,18 @@ function settlePopulationNeeds(catalog, colonyState, calculations, day, emitDoma
       available: Math.max(0, colonyState.stockpiles[commodity.id] || 0)
     }));
 
+  const population = getPopulationTotal(colonyState.populationGroups);
+  if (population !== colonyState.population) {
+    throw new Error("Colony population projection does not match its population groups: " + colonyState.id);
+  }
+
   if (requirements.length === 0) {
-    colonyState.lastNeedsReport = { day, population: colonyState.population, needs: [] };
+    colonyState.lastNeedsReport = { day, population, needs: [] };
     return colonyState.lastNeedsReport;
   }
 
   const { result } = calculations.evaluate("economy.population-needs", {
-    population: colonyState.population,
+    population,
     requirements
   }, { day });
 
@@ -261,7 +270,7 @@ function settlePopulationNeeds(catalog, colonyState, calculations, day, emitDoma
   const shortageCount = needs.filter((item) => item.unmet > 0).length;
   colonyState.lastNeedsReport = {
     day,
-    population: colonyState.population,
+    population,
     needs,
     shortageCount
   };
@@ -433,7 +442,11 @@ function validateWorldState(world, catalog) {
     if (!Number.isFinite(colony.population) || colony.population < 0 || !Number.isFinite(colony.stability) || colony.stability < 0 || colony.stability > 100) {
       throw new Error(`Save has invalid colony population or stability: ${id}`);
     }
-    validatePopulationGroups(colony.populationGroups, colony.population, `colony ${id}`);
+    const population = getPopulationTotal(colony.populationGroups);
+    validatePopulationGroups(colony.populationGroups, undefined, `colony ${id}`);
+    if (colony.population !== population) {
+      throw new Error(`Save has a stale colony population projection: ${id}`);
+    }
     for (const [commodityId, quantity] of Object.entries(colony.stockpiles)) {
       if (!catalog.commodities.has(commodityId) || !Number.isFinite(quantity) || quantity < 0) throw new Error(`Save has invalid stockpile quantity: ${id}.${commodityId}`);
     }
@@ -528,7 +541,11 @@ function validateDayInputs(world, catalog) {
     if (!colony || !colony.stockpiles || !Array.isArray(colony.industries)) {
       throw new Error("DAY_INPUT required colony data is missing: " + id);
     }
-    if (!Number.isFinite(colony.population) || colony.population <= 0) {
+    const population = getPopulationTotal(colony.populationGroups);
+    if (colony.population !== population) {
+      throw new Error("DAY_INPUT colony population projection does not match its groups: " + id);
+    }
+    if (population <= 0) {
       throw new Error("DAY_INPUT colony population must be greater than zero: " + id);
     }
     if (!Number.isFinite(colony.stability) || colony.stability < 0 || colony.stability > 100) {
@@ -652,7 +669,12 @@ function migrateWorldState(world) {
       if (!Object.hasOwn(colony, "populationGroups")) {
         colony.populationGroups = createPopulationGroups(colony.population);
       }
-      validatePopulationGroups(colony.populationGroups, colony.population, "colony " + id);
+      const population = getPopulationTotal(colony.populationGroups);
+      validatePopulationGroups(colony.populationGroups, undefined, "colony " + id);
+      if (Object.hasOwn(colony, "population") && colony.population !== population) {
+        throw new Error("Saved colony population projection does not match its groups: " + id);
+      }
+      colony.population = population;
     }
     world.schemaVersion = 8;
   }

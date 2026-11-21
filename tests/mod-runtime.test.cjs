@@ -226,6 +226,157 @@ test("population delta effects remove people proportionally from existing groups
   assert.deepEqual(world.colonies.colonyOne.populationGroups["group-b"].dimensions, { profession: { engineer: 1 } });
 });
 
+test("applies population group split, merge and dimension effects with cause records", () => {
+  const world = {
+    clock: { day: 3, date: "2478-04-04" },
+    domainEventSequence: 0,
+    domainEvents: [],
+    colonies: {
+      colonyOne: {
+        id: "colonyOne",
+        population: 140,
+        populationGroups: {
+          workers: {
+            id: "workers",
+            population: 100,
+            dimensions: {
+              profession: { miner: 0.6, engineer: 0.4 },
+              wealth_tier: { low: 1 }
+            }
+          },
+          support: {
+            id: "support",
+            population: 40,
+            dimensions: {
+              profession: { engineer: 1 },
+              wealth_tier: { low: 1 }
+            }
+          }
+        }
+      }
+    }
+  };
+  const catalog = {
+    commodities: new Map(),
+    securities: new Map(),
+    professions: new Map([["miner", { id: "miner" }], ["engineer", { id: "engineer" }]]),
+    wealthTiers: new Map([["low", { id: "low" }]])
+  };
+  const emitted = applyModHookResults([{
+    modId: "test-mod",
+    effects: [
+      {
+        type: "colony.population.group.split",
+        payload: {
+          colonyId: "colonyOne",
+          sourceGroupId: "workers",
+          newGroupId: "specialists",
+          population: 20,
+          sourceDimensions: {
+            profession: { miner: 0.5, engineer: 0.5 },
+            wealth_tier: { low: 1 }
+          },
+          newDimensions: {
+            profession: { miner: 1, engineer: 0 },
+            wealth_tier: { low: 1 }
+          }
+        }
+      },
+      {
+        type: "colony.population.group.merge",
+        payload: { colonyId: "colonyOne", sourceGroupId: "support", targetGroupId: "workers" }
+      },
+      {
+        type: "colony.population.group.dimension.set",
+        payload: {
+          colonyId: "colonyOne",
+          groupId: "specialists",
+          dimensionId: "capability",
+          distribution: { trained: 0.8, untrained: 0.2 }
+        }
+      }
+    ],
+    events: []
+  }], {
+    world,
+    catalog,
+    day: 3,
+    hookId: "campaign.after-day",
+    emitDomainEvent: createDomainEventEmitter(world, world.clock)
+  });
+
+  assert.deepEqual(emitted, { effectCount: 3, eventCount: 0 });
+  assert.equal(world.colonies.colonyOne.population, 140);
+  assert.equal(world.colonies.colonyOne.populationGroups.workers.population, 120);
+  assert.deepEqual(world.colonies.colonyOne.populationGroups.workers.dimensions.profession, {
+    engineer: 2 / 3, miner: 1 / 3
+  });
+  assert.equal(world.colonies.colonyOne.populationGroups.specialists.population, 20);
+  assert.deepEqual(world.colonies.colonyOne.populationGroups.specialists.dimensions.capability, {
+    trained: 0.8, untrained: 0.2
+  });
+  assert.equal(Object.hasOwn(world.colonies.colonyOne.populationGroups, "support"), false);
+  assert.equal(world.domainEvents.length, 3);
+  assert.equal(world.domainEvents[0].type, "mod.effect-applied");
+  assert.equal(world.domainEvents[0].payload.effectType, "colony.population.group.split");
+  assert.deepEqual(world.domainEvents[0].payload.result.sourceDimensionsAfter, {
+    profession: { miner: 0.5, engineer: 0.5 },
+    wealth_tier: { low: 1 }
+  });
+  assert.deepEqual(world.domainEvents[0].payload.result.newDimensions, {
+    profession: { miner: 1, engineer: 0 },
+    wealth_tier: { low: 1 }
+  });
+  assert.equal(world.domainEvents[0].payload.result.newGroupId, "specialists");
+  assert.equal(world.domainEvents[1].payload.effectType, "colony.population.group.merge");
+  assert.deepEqual(world.domainEvents[1].payload.result.dimensions.profession, {
+    engineer: 2 / 3, miner: 1 / 3
+  });
+  assert.equal(world.domainEvents[2].payload.effectType, "colony.population.group.dimension.set");
+  assert.deepEqual(world.domainEvents[2].payload.result.before, null);
+});
+
+test("rejects group effects that reference unregistered profession categories", () => {
+  const colony = {
+    id: "colonyOne",
+    population: 10,
+    populationGroups: {
+      workers: {
+        id: "workers",
+        population: 10,
+        dimensions: { profession: { miner: 1 } }
+      }
+    }
+  };
+  const world = {
+    clock: { day: 1, date: "2478-04-02" },
+    domainEventSequence: 0,
+    domainEvents: [],
+    colonies: { colonyOne: colony }
+  };
+  const before = structuredClone(world);
+  assert.throws(() => applyModHookResults([{
+    modId: "test-mod",
+    effects: [{
+      type: "colony.population.group.dimension.set",
+      payload: {
+        colonyId: "colonyOne",
+        groupId: "workers",
+        dimensionId: "profession",
+        distribution: { unregistered: 1 }
+      }
+    }],
+    events: []
+  }], {
+    world,
+    catalog: { professions: new Map(), wealthTiers: new Map() },
+    day: 1,
+    hookId: "campaign.after-day",
+    emitDomainEvent: createDomainEventEmitter(world, { day: 1, date: "2478-04-02" })
+  }), /missing profession/);
+  assert.deepEqual(world, before);
+});
+
 test("refuses invalid targets, negative stockpiles and unlisted market instruments", () => {
   const world = {
     colonies: { colonyOne: { id: "colonyOne", population: 20, stability: 50, stockpiles: { ore: 1 } } },

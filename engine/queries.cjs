@@ -1,5 +1,7 @@
 "use strict";
 
+const { getPopulationTotal } = require("./population.cjs");
+
 const QUERY_ID_PATTERN = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
 const MAX_QUERY_INPUT_BYTES = 256 * 1024;
 const MAX_QUERY_OUTPUT_BYTES = 1024 * 1024;
@@ -109,7 +111,8 @@ function createDefaultWorldQueryRegistry() {
           nameKey: definition.nameKey,
           factionId: definition.factionId,
           locationId: definition.locationId,
-          population: state.population,
+          population: getPopulationTotal(state.populationGroups),
+          populationGroups: state.populationGroups,
           stability: state.stability,
           stockpiles: state.stockpiles,
           industries: state.industries,
@@ -182,7 +185,9 @@ function createDefaultWorldQueryRegistry() {
           nameKey: definition.nameKey,
           colonies: [...catalog.colonies.values()].filter((colony) => colony.factionId === definition.id).map((colony) => ({
             id: colony.id,
-            population: world.colonies[colony.id]?.population ?? 0,
+            population: world.colonies[colony.id]
+              ? getPopulationTotal(world.colonies[colony.id].populationGroups)
+              : 0,
             stability: world.colonies[colony.id]?.stability ?? 0
           })),
           fleets: [...catalog.fleets.values()].filter((fleet) => fleet.factionId === definition.id).map((fleet) => ({

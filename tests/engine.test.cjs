@@ -1,6 +1,6 @@
 const test=require("node:test"),assert=require("node:assert/strict"),path=require("node:path");
 const {readModPackages}=require("../electron/mod-loader.cjs");
-const {SeededRandom,NamedRandomStreams,createCalculationService,addDays,compileCatalog,createWorld,advanceDay,advanceDays,advanceCampaignTime,migrateWorldState,validateWorldState}=require("../engine/index.cjs");
+const {SeededRandom,NamedRandomStreams,createCalculationService,addDays,compileCatalog,createWorld,advanceDay,advanceDays,advanceCampaignTime,migrateWorldState,validateWorldState,applyPopulationDelta}=require("../engine/index.cjs");
 const { CampaignTimeController } = require("../engine/campaign-time.cjs");
 async function mods(){return readModPackages(path.join(__dirname,"..","mods"));}
 async function catalog(){const r=compileCatalog(await mods());if(!r.ok)throw new Error(r.error);return r.catalog;}
@@ -90,7 +90,7 @@ test("weekly production replenishes input stock before same-day population needs
 test("weekly production report explains limited inputs and matches the stockpile settlement",async()=>{
   const c=await catalog(),w=createWorld(c,{seed:"production-report-limited"});
   const colony=w.colonies["verdant-colony"],industry=colony.industries[0],recipe=c.recipes.get(industry.recipeId);
-  colony.population=1; // Keep this test focused on the weekly production input limit.
+  applyPopulationDelta(colony, 1 - colony.population); // Keep this test focused on the weekly production input limit.
   colony.industries=[structuredClone(industry)];
   const requestedBatches=industry.level*Math.max(.1,Math.min(1,colony.stability/100));
   const inputTotals=new Map();
@@ -121,7 +121,7 @@ test("weekly production report explains limited inputs and matches the stockpile
 test("weekly production report keeps zero-output facilities and identifies the empty limiting stockpile",async()=>{
   const c=await catalog(),w=createWorld(c,{seed:"production-report-empty"});
   const colony=w.colonies["verdant-colony"],industry=w.colonies["verdant-colony"].industries[0],recipe=c.recipes.get(industry.recipeId);
-  colony.population=1; // Keep this test focused on the empty production input.
+  applyPopulationDelta(colony, 1 - colony.population); // Keep this test focused on the empty production input.
   colony.industries=[structuredClone(industry)];
   const requestedBatches=industry.level*Math.max(.1,Math.min(1,colony.stability/100));
   const inputTotals=new Map();
@@ -226,32 +226,38 @@ test("Mod-defined population groups initialize the Engine world from INI data", 
  assert.equal(world.colonies["verdant-colony"].populationGroups.unclassified.population, 1450000);
 });
 
-test("catalog rejects population groups with mismatched totals or unresolved known dimension categories", async () => {
+test("Mod-defined groups compose the initial population and do not use the colony fallback total", async () => {
+ const invalidPackages = await mods();
+ const invalidCore = invalidPackages.find((item) => item.id === "core");
+ invalidCore.data.content["population.ini"].populationGroups = [{
+  id: "new-dawn-workers",
+  colonyId: "new-dawn-colony",
+  population: 2000000,
+  dimensions: { profession: { "missing-profession": 1 } }
+ }];
+ invalidCore.data.registry["definitions.ini"].entries.push({ id: "new-dawn-workers", type: "population_group" });
+ let result = compileCatalog(invalidPackages);
+ assert.equal(result.ok, false);
+ assert.match(result.error, /Unresolved reference population profession/);
+
  const packages = await mods();
  const core = packages.find((item) => item.id === "core");
  core.data.content["population.ini"].populationGroups = [{
   id: "new-dawn-workers",
   colonyId: "new-dawn-colony",
   population: 2000000,
-  dimensions: { profession: { "missing-profession": 1 } }
+  dimensions: { profession: { unassigned: 1 } }
  }];
  core.data.registry["definitions.ini"].entries.push({ id: "new-dawn-workers", type: "population_group" });
- let result = compileCatalog(packages);
- assert.equal(result.ok, false);
- assert.match(result.error, /Unresolved reference population profession/);
+ result = compileCatalog(packages);
+ assert.equal(result.ok, true, result.error);
 
- const mismatched = await mods();
- const mismatchedCore = mismatched.find((item) => item.id === "core");
- mismatchedCore.data.content["population.ini"].populationGroups = [{
-  id: "new-dawn-workers",
-  colonyId: "new-dawn-colony",
-  population: 2000000,
-  dimensions: {}
- }];
- mismatchedCore.data.registry["definitions.ini"].entries.push({ id: "new-dawn-workers", type: "population_group" });
- result = compileCatalog(mismatched);
- assert.equal(result.ok, false);
- assert.match(result.error, /population group total does not match/);
+ const world = createWorld(result.catalog, { seed: "groups-compose-total" });
+ assert.equal(world.colonies["new-dawn-colony"].population, 2000000);
+ assert.deepEqual(Object.keys(world.colonies["new-dawn-colony"].populationGroups), ["new-dawn-workers"]);
+ assert.equal(world.colonies["new-dawn-colony"].populationGroups["new-dawn-workers"].population, 2000000);
+ assert.equal(world.colonies["verdant-colony"].population, 1450000);
+ assert.deepEqual(Object.keys(world.colonies["verdant-colony"].populationGroups), ["unclassified"]);
 });
 
 test("catalog rejects missing localized strings",async()=>{const m=await mods();delete m.find(x=>x.id==="core").data.localization["zh-CN.ini"].content["entity.solace.name"];const r=compileCatalog(m);assert.equal(r.ok,false);assert.match(r.error,/Missing localization key.*entity.solace.name/);});
@@ -439,7 +445,7 @@ test("catalog rejects negative daily population need rates",async()=>{
 test("partial sub-mill population consumption records the exact shortage without over-consuming stock", async () => {
   const c = await catalog(), w = createWorld(c, { seed: "partial-sub-mill-population-stock" });
   const colony = w.colonies["new-dawn-colony"];
-  colony.population = 1000;
+  applyPopulationDelta(colony, 1000 - colony.population);
   colony.stockpiles.food = 0.0006;
 
   const settledWorld = advanceDay(w, c);
@@ -461,7 +467,7 @@ test("partial sub-mill population consumption records the exact shortage without
 test("sub-mill population demand does not round or mutate untouched stockpiles",async()=>{
  const c=await catalog(),w=createWorld(c,{seed:"zero-population-demand"});
  const colonyId="new-dawn-colony";
- w.colonies[colonyId].population=1;
+ applyPopulationDelta(w.colonies[colonyId], 1 - w.colonies[colonyId].population);
  w.colonies[colonyId].stockpiles.water=1.23456;
  w.colonies[colonyId].stockpiles.food=9.87654;
  advanceDay(w,c);

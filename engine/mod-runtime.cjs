@@ -1,7 +1,12 @@
 "use strict";
 
 const vm = require("node:vm");
-const { applyPopulationDelta } = require("./population.cjs");
+const {
+  applyPopulationDelta,
+  applyPopulationGroupSplit,
+  applyPopulationGroupMerge,
+  applyPopulationGroupDimensionSet
+} = require("./population.cjs");
 
 const MOD_HOOK_PATTERN = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
 const MOD_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,63}$/;
@@ -210,6 +215,18 @@ function getRequired(collection, id, label) {
   return value;
 }
 
+function validatePopulationDimensionReferences(catalog, dimensions, label) {
+  if (!isRecord(dimensions)) throw new TypeError(label + " dimensions must be an object");
+  for (const [dimensionId, distribution] of Object.entries(dimensions)) {
+    const collection = dimensionId === "profession" ? catalog.professions
+      : dimensionId === "wealth_tier" ? catalog.wealthTiers : null;
+    if (!collection) continue;
+    for (const categoryId of Object.keys(distribution)) {
+      getRequired(collection, categoryId, label + " " + dimensionId);
+    }
+  }
+}
+
 function getModState(world, modId) {
   if (!isRecord(world.modState)) throw new Error("World is missing its schema v8 Mod state namespace");
   if (!Object.hasOwn(world.modState, modId)) world.modState[modId] = {};
@@ -290,8 +307,48 @@ function applyModEffect(effect, world, catalog, modId) {
       requireKeys(payload, ["colonyId", "delta"], effect.type);
       const colony = world.colonies?.[payload.colonyId];
       if (!colony) throw new Error("Missing colony " + String(payload.colonyId));
-      applyPopulationDelta(colony, requireFinite(payload.delta, effect.type + ".delta"));
-      return { colonyId: colony.id, population: colony.population };
+      const result = applyPopulationDelta(colony, requireFinite(payload.delta, effect.type + ".delta"));
+      return { colonyId: colony.id, ...result };
+    }
+    case "colony.population.group.split": {
+      requireKeys(payload, [
+        "colonyId", "sourceGroupId", "newGroupId", "population", "sourceDimensions", "newDimensions"
+      ], effect.type);
+      const colony = world.colonies?.[payload.colonyId];
+      if (!colony) throw new Error("Missing colony " + String(payload.colonyId));
+      if (payload.sourceDimensions !== undefined && payload.newDimensions !== undefined) {
+        validatePopulationDimensionReferences(catalog, payload.sourceDimensions, effect.type);
+        validatePopulationDimensionReferences(catalog, payload.newDimensions, effect.type);
+      }
+      return applyPopulationGroupSplit(colony, {
+        sourceGroupId: payload.sourceGroupId,
+        newGroupId: payload.newGroupId,
+        population: requireFinite(payload.population, effect.type + ".population"),
+        ...(payload.sourceDimensions === undefined ? {} : { sourceDimensions: payload.sourceDimensions }),
+        ...(payload.newDimensions === undefined ? {} : { newDimensions: payload.newDimensions })
+      });
+    }
+    case "colony.population.group.merge": {
+      requireKeys(payload, ["colonyId", "sourceGroupId", "targetGroupId"], effect.type);
+      const colony = world.colonies?.[payload.colonyId];
+      if (!colony) throw new Error("Missing colony " + String(payload.colonyId));
+      return applyPopulationGroupMerge(colony, {
+        sourceGroupId: payload.sourceGroupId,
+        targetGroupId: payload.targetGroupId
+      });
+    }
+    case "colony.population.group.dimension.set": {
+      requireKeys(payload, ["colonyId", "groupId", "dimensionId", "distribution"], effect.type);
+      const colony = world.colonies?.[payload.colonyId];
+      if (!colony) throw new Error("Missing colony " + String(payload.colonyId));
+      validatePopulationDimensionReferences(catalog, {
+        [payload.dimensionId]: payload.distribution
+      }, effect.type);
+      return applyPopulationGroupDimensionSet(colony, {
+        groupId: payload.groupId,
+        dimensionId: payload.dimensionId,
+        distribution: payload.distribution
+      });
     }
     case "colony.stability.delta": {
       requireKeys(payload, ["colonyId", "delta"], effect.type);

@@ -48,6 +48,7 @@ test("default world query registry exposes stable overview and entity projection
   const colony = queries.execute("colony.summary", world, definitions, { colonyId: "new-dawn-colony" });
   assert.equal(colony.id, "new-dawn-colony");
   assert.equal(colony.population, world.colonies["new-dawn-colony"].population);
+  assert.deepEqual(colony.populationGroups, world.colonies["new-dawn-colony"].populationGroups);
 
   const market = queries.execute("market.summary", world, definitions, { marketId: "verdant-exchange" });
   assert.equal(market.id, "verdant-exchange");
@@ -67,6 +68,22 @@ test("default world query registry exposes stable overview and entity projection
   assert.ok(Array.isArray(faction.fleets));
 });
 
+test("colony summaries derive their total population from group counts", async () => {
+  const definitions = await catalog();
+  const world = createWorld(definitions, { seed: "query-derived-population" });
+  const queries = createDefaultWorldQueryRegistry();
+  const state = world.colonies["new-dawn-colony"];
+  const storedProjection = state.population;
+  const groupTotal = Object.values(state.populationGroups)
+    .reduce((total, group) => total + group.population, 0);
+
+  state.population = storedProjection + 999;
+  const result = queries.execute("colony.summary", world, definitions, { colonyId: state.id });
+  assert.equal(result.population, groupTotal);
+  assert.equal(result.population, state.populationGroups.unclassified.population);
+  state.population = storedProjection;
+});
+
 test("query projections are detached and recursively read-only", async () => {
   const definitions = await catalog();
   const world = createWorld(definitions, { seed: "query-detach" });
@@ -75,6 +92,8 @@ test("query projections are detached and recursively read-only", async () => {
 
   assert.equal(Object.isFrozen(result), true);
   assert.equal(Object.isFrozen(result.stockpiles), true);
+  assert.equal(Object.isFrozen(result.populationGroups), true);
+  assert.equal(Object.isFrozen(result.populationGroups.unclassified), true);
   assert.throws(() => {
     result.stockpiles.ore = 999999;
   }, TypeError);

@@ -112,3 +112,20 @@ test("population needs formula supports no population and duplicate commodity re
   assert.deepEqual(result.unmet, { food: 0 });
   assert.deepEqual(result.satisfaction, { food: 1 });
 });
+
+test("population needs explanation reports daily fulfillment and shortage amounts", () => {
+  const summary = summarizeCalculationRecord({
+    formulaId: "economy.population-needs",
+    inputs: { population: 1450000, requirements: [{ commodityId: "water", dailyNeedPerThousand: .0015, available: 1 }] },
+    result: {
+      requested: { water: 2.175 },
+      consumed: { water: 1 },
+      unmet: { water: 1.175 },
+      satisfaction: { water: .4598 }
+    }
+  });
+  assert.equal(summary.statusKey, "audit.status.needs_shortage");
+  assert.equal(summary.needs[0].commodityId, "water");
+  assert.equal(summary.needs[0].unmet, 1.175);
+  assert.equal(summary.facts.find((fact) => fact.labelKey === "audit.field.shortage_count").value, 1);
+});

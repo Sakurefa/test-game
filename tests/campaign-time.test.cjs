@@ -93,3 +93,23 @@ test("campaign settlement failures are distinguishable from control-input errors
   assert.equal(controller.getState().paused, true);
   assert.equal(controller.lastTimestamp, 1100);
 });
+
+test("invalid base duration does not advance campaign time before rejecting", () => {
+  let now = 0;
+  let advances = 0;
+  const controller = new CampaignTimeController({
+    baseDayDurationMs: 1000,
+    now: () => now,
+    onAdvance: () => { advances += 1; }
+  });
+
+  controller.setSpeed(1);
+  now = 500;
+  assert.throws(() => controller.setBaseDayDurationMs(999), /between 1 and 3600 seconds/);
+  assert.equal(advances, 0);
+  assert.equal(controller.getState().baseDayDurationMs, 1000);
+
+  now = 1000;
+  controller.tick();
+  assert.equal(advances, 1);
+});

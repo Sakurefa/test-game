@@ -23,8 +23,8 @@ function createAutomaticSaveManager({ root, listSaveSlots, createSaveSlot, readG
       await createSaveSlot(root, previousId, definition.label + "（上一份）");
     }
     if (!byId.has(latestId)) await createSaveSlot(root, latestId, definition.label + "（最新）");
-    await writeGameState(root, latestId, world);
-    return { kind, saveId: latestId, previousSaveId: previousId, day: world.clock.day, date: world.clock.date };
+    const receipt = await writeGameState(root, latestId, world);
+    return { kind, saveId: latestId, previousSaveId: previousId, day: world.clock.day, date: world.clock.date, receipt };
   }
 
   function save(kind, world) {

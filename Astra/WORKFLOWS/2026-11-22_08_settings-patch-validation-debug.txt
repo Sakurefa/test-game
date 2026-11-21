@@ -1,0 +1,77 @@
+【工作流记录】设置补丁校验与存储边界 Debug
+=============================================
+
+工作日期：2026-11-22
+当日序号：08
+仓库：Sakurefa/test-game
+分支：main
+
+基线与结果
+----------
+- 本轮代码修改基线：cb2e91e95626daf703b5427c63f301387d0b82d6。
+- 代码与回归测试提交：5efd1b35b6b90fea11ee8456e06248c6786a3bb7。
+- GitHub Windows Actions：[44942765033](https://github.com/Sakurefa/test-game/actions/runs/44942765033)，在 5efd1b3 上成功。
+- CI 步骤：Electron/Simulation syntax check 成功；测试步骤成功，**209/209 通过、0 失败**；Renderer build 成功；generated-renderer 提交步骤成功。
+- 本轮没有在本地运行 npm test、语法检查或 build；以上结果来自 GitHub Windows runner。
+- 用户设备上的 Windows GUI 综合验收仍未进行；本轮未打包 Launcher / Electron Runtime。
+
+任务方向与审查范围
+------------------
+继续用户已确认的 bug-focused debugging，不扩张到 Trigger Queue、经济玩法或其他游戏内容。
+
+按仓库流程读取：
+- AGENTS.md、Astra/README.txt、完整 Astra/WORKING_MEMORY.txt、根 ASTRA_WORKLOG.md；
+- AK 原则、MOD 化原则、日志编写规范；
+- 上轮工作流 07 与相关工作流 06。
+
+围绕真实调用路径检查：
+- Settings INI 读取、补丁合并、验证与写入；
+- Electron settings:write IPC 对运行时参数的衔接；
+- 存档写入、收据校验、自动存档串行队列；
+- World command gateway、command runtime、domain event bus；
+- Population group API 与 Mod hook effects；
+- Renderer 当前设置提交与世界操作忙碌状态。
+
+已确认并修复的问题
+------------------
+问题：多组设置补丁在校验完整请求前已经产生持久化副作用。
+
+旧版 writeSettings() 在循环每个设置组时，先合并和校验当前组，随后立即写入对应 INI。若补丁中较早的组合法、后续组非法，调用最终会报错，但较早的组已经落盘。例如 graphics.ui_scale=120 与 audio.master_volume=101 同时提交时，graphics.ini 会在 audio 校验失败前被更新，形成部分应用的设置请求。
+
+修复：
+1. writeSettings() 第一阶段先读取当前设置、合并每个补丁组并逐组执行完整校验，只把通过校验的结果保存在内存 updates 列表。
+2. 所有补丁组都校验成功后，第二阶段才依次写入对应 INI。
+3. 新增回归测试：graphics 先提供合法缩放修改、audio 随后提供非法音量时，整个请求被拒绝，graphics.ini 和 audio.ini 都必须保持原文件内容；重新读取后两组值仍为默认值。
+
+本次保证的是“参数校验失败不写入任何组”。多个文件写入期间若遇到真实文件系统故障，仍不是跨文件事务，也未承诺对所有已写文件提供通用回滚。
+
+精确变更文件
+------------
+- electron/storage.cjs
+- tests/storage.test.cjs
+
+其他审查结论
+------------
+- Event Bus 对订阅者异常进行隔离并返回失败结果；同步订阅者失败不会中断后续订阅者。
+- Day settlement 使用候选 world，模拟失败时不会提交失败候选；命令运行时也使用草稿世界后提交。
+- 存档收据校验世界文件长度、SHA-256、schema、日期、day 与内容指纹；存档文件和元数据各自原子写入，metadata 写入失败时会尝试恢复旧 world 文件。
+- 人口组操作保持组人数为权威数据并更新总人口投影；本轮未发现足够证据证明这些路径存在新的确定性缺陷。
+- world:save 的自动存档槽转手动存档路径在异步创建槽位期间尚未设置保存锁，但当前 Renderer 世界操作由 state.busy 串行约束；本轮没有观察到当前 UI 可触发的重现路径，因此没有把它升级为缺陷或擅自改动。若未来增加并行调用入口，应对该 IPC 边界重新验证。
+- 未改动存档 schema（仍为 8）、人口模拟语义、Mod API / INI 格式、mods/core、cadence 与 Trigger 设计，也未添加游戏内容。
+
+验证记录
+--------
+- GitHub Actions run 44942765033：成功。
+- CI 中语法检查：成功。
+- CI 中完整测试：209/209 通过，0 失败。
+- CI Renderer build：成功。
+- CI generated-renderer 步骤：成功。
+- 本地测试/构建：未执行。
+- 用户 Windows GUI：未执行，仍需要真实桌面验收。
+
+后续
+----
+- 用户当前授权继续 bug-focused debugging；没有已确认的新缺陷需要立即施工。
+- 继续从真实 IPC / Engine / persistence 调用路径找可重现问题，保持修复范围小并为缺陷添加回归测试。
+- Trigger Queue 与玩法实现不属于本轮授权范围。
+- Windows GUI 综合验收仍待用户设备完成。

@@ -108,7 +108,8 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 
 ### Priority 2 — make observability player-readable
 - Per-industry weekly production reports are implemented in PR #4: requested/actual batches and output, actual input consumption, limiting material/inventory, and explicit normal/limited/no-output status. PR CI passed 141/141 tests; the UI still needs user-side Windows verification.
-- Keep raw calculation/event details as an advanced disclosure instead of making users interpret raw JSON.
+- Calculation audits now have localized player-facing summaries for commodity quotes, security quotes and colony production. Raw inputs, formula steps, modifiers, random draws and results are kept under a separate advanced disclosure.
+- Domain events now explain the normal cadence of daily market settlement, daily active-war chronology and weekly colony production. Command/Mod events are labeled event-driven; no duplicate-scan or new runtime audit was added.
 - Add a compact save/load state fingerprint/receipt so persistence can be compared without inspecting every field.
 
 ### Priority 3 — complete the common observation boundary
@@ -543,3 +544,24 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 - No user-side Windows desktop GUI test has been performed for the 10-second / 4x campaign clock fix or the colony production report UI. Both are explicitly included in the next consolidated Windows acceptance pass above.
 - Next: continue the observability work only where it gives concrete debugging value, keeping the AK principle: record facts already produced by real operations; do not add repeated audits, duplicate calculations or generic diagnostic frameworks.
 - Windows desktop test: required; not yet performed.
+
+
+### 2026-11-21 — player-readable calculation and event observability
+
+- Re-read the full root `AGENTS.md` and complete `ASTRA_WORKLOG.md` before work. Starting `main` head was `5f37bb9c86d3e35aa170c8bd02273c450dd0117b`; latest relevant main CI [44896540461](https://github.com/Sakurefa/test-game/actions/runs/44896540461) was green with syntax, 141/141 tests, renderer build and generated-renderer commit all successful.
+- Inspected the existing formula audit capture, event history, read-only panels, catalog localization collection and current renderer refresh path. The engine already persisted sufficient facts; the UI exposed raw technical JSON as the main detail and recurring event types lacked their intended cadence labels.
+- Reworked `src/calculation-audit.mjs` to provide small read-only summaries for the three existing formulas:
+  - Commodity pricing: compare current and target inventory, explain scarcity/surplus pressure and show the previous/current quote and actual daily change.
+  - Security pricing: show previous/current quote, actual change and issuer-output signal, with the existing ±12% movement and reference-price corridor explained.
+  - Colony production: show stability efficiency, requested/actual batches, available inputs, limiting input, actual consumption and actual output.
+- Reworked `src/domain-event-view.mjs` to label the three recurring core facts accurately: one market settlement per market per day, one chronology update per active war per day, and one production settlement per colony on weekly boundaries (days 7, 14, 21, ...). Other command/Mod events are identified as event-driven, not assigned a false daily cadence.
+- Updated `src/world.js` so each calculation/event record leads with a readable title, result/status and recurrence description. Full formula JSON and event metadata/payload remain available in nested advanced disclosures. Formula status is also visible in collapsed list rows. Entity and commodity names are resolved from the current catalog snapshot.
+- Added localized UI wording to the existing Core `[content]` localization table in `mods/core/localization/zh-CN.ini`. During review, the catalog loader was checked: it merges only the INI `[content]` section into the localization map. The new keys were kept inside that existing section rather than a new INI section; `tests/observability-localization.test.cjs` protects this contract.
+- No simulation formula, input, RNG stream, scheduling rule, event emission, idempotency key, authoritative save state or engine logger was changed. The renderer reads the already-recorded facts and does not recalculate formula results, scan event history for duplicates or request new IPC data.
+- Exact files changed: `src/calculation-audit.mjs`, `src/domain-event-view.mjs`, `src/world.js`, `src/styles.css`, `mods/core/localization/zh-CN.ini`, `tests/calculation-audit.test.mjs`, `tests/domain-event-view.test.mjs`, new `tests/observability-render.test.mjs`, new `tests/observability-localization.test.cjs`, `docs/ENGINE_ARCHITECTURE.md`, `docs/PLAYTEST_GUIDE.md` and `ASTRA_WORKLOG.md`.
+- Added helper tests for commodity scarcity/surplus/balanced states, security quote movement, production normal/limited/zero-output summaries and safe unknown-formula fallback; event tests for daily/weekly cadence labels and event-driven fallback; rendering tests for friendly summaries preceding raw detail; and catalog tests ensuring all displayed wording resolves from Core localization.
+- No local test suite or renderer build was run. Windows CI for this branch is pending and must be recorded only after completion. No user-side Windows GUI test was performed.
+- Known boundaries: only the three formula types currently registered in the engine receive bespoke summaries; future formulas and event types receive a generic explanation plus their full raw record. The cadence labels describe current core scheduler behavior; automated simulation tests continue to enforce actual one-per-entity/per-day and weekly idempotent emission.
+- Current source branch before this work-log update: `a032105a669f43b164e097be05a718e73d289a66`. Branch: `astra/readable-observability-2026-11-21`. The work-log update itself will create a new PR head and requires CI confirmation.
+- Next: run the complete Windows CI, merge when green, then implement a compact deterministic save/load state receipt so users can compare pre-save and post-load world state without manually inspecting large save files. Include the newly readable calculation/event panels in the next consolidated Windows desktop test.
+- Windows desktop test: required for the changed audit/event UI; not yet performed.

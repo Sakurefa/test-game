@@ -9,6 +9,7 @@
 基线与目标
 ----------
 - 基线提交：`b03bd69226f4191c63707cbec31128e93f909e26`。
+- 实现提交：`920c6528b5a664c6cee3f62f59a7313c7e140471`；测试夹具跟进修正：`b8cdd7cda5f5b3ace825c198e34efdc0a2b0293a`。
 - 基线源码 Windows CI：[44950169269](https://github.com/Sakurefa/test-game/actions/runs/44950169269) 成功；第一阶段 Trigger System 的 215/215 测试、语法检查和 Renderer 构建均通过。
 - 本轮目标：在现有 Trigger System 上固定 Resolution 只计算、Effect 单独应用的接口，并用现有版本化公式服务构建第二个真实 Resolution 消费者。
 - 不增加存档字段，不升级 schema，不引入具体人口/经济玩法，不加入公式表达式语言或 Mod 自定义公式。
@@ -52,7 +53,7 @@ Astra 记录：
 - `Astra/DISCUSSIONS/关于接下来的工作.txt`
 - `Astra/WORKING_MEMORY.txt`
 - `Astra/WORKFLOWS/2026-11-22_10_resolution-effect-plan-and-formula-consumer.txt`
-- `ASTRA_WORKLOG.md`（待 CI 结果确认后更新最新代码提交和验证摘要）
+- `ASTRA_WORKLOG.md`（已随本轮结果更新最新代码提交和验证摘要）
 
 边界与未完成事项
 ----------------
@@ -64,10 +65,11 @@ Astra 记录：
 验证状态
 --------
 - 本地测试/构建：未执行；当前通过 GitHub 仓库树/提交接口编辑，没有在本地克隆运行 npm。
-- GitHub Windows CI：本轮代码提交后待触发，结果后续补记。
+- 首次 Windows CI [44952917314](https://github.com/Sakurefa/test-game/actions/runs/44952917314) 的测试阶段失败，定位为旧 simpleRegistry 测试夹具仍返回旧格式，以及负向测试误用了不符合字段名规则的 `missing-field`；已修正测试夹具为 `{ result, effects }`，并改用合法字段名 `missingField` 检验到期时缺少公式结果字段的回滚路径。没有放宽 Engine 校验。
+- 最终 GitHub Windows CI：[44953041332](https://github.com/Sakurefa/test-game/actions/runs/44953041332) 成功：语法检查通过，`npm test` **219/219**、0 failures，Renderer build 与 generated-renderer 步骤均成功。
 - 用户 Windows GUI：未执行，不属于本次 Engine 源码 CI 的覆盖范围。
 - Electron Runtime/Launcher 独立打包：本轮未执行。
 
 后续方向
 --------
-待本轮 Windows CI 通过后，再选择有明确权威事实来源的下一种 Trigger source（条件/阈值或 Domain Event 驱动），先确定其检测频率、游标/重复语义和原子提交边界；不构建通用表达式系统，也不扫描全部 Domain Event 历史。
+下一阶段先选有明确权威事实来源的 Trigger source（条件/阈值或 Domain Event 驱动），并固定检测频率、游标/重复语义与原子提交边界；不构建通用表达式系统，也不扫描全部 Domain Event 历史。

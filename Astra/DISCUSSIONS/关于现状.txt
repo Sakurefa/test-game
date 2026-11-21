@@ -37,12 +37,12 @@
 ## 尚未实现
 
 - 条件/阈值触发与 Domain-Event-driven Trigger source。
-- 除 `effect.apply` 外的 Command/Event 等 Resolution 类型。
+- 除 `effect.apply` 与 `formula.effect` 外的 Command/Event 等 Resolution 类型。
 - 临时效果状态、生命周期与对应到期动作；通用 source/target/operation/value 数值修改器。
 - 建筑实际雇佣 workforce 数据、结算快照与条件效果稳定期。
 - 人口分组需求消费、商品市场清算、工资与完整生产经济规则。
 
 ## 验证边界
 
-本轮 GitHub Windows CI [44949943031](https://github.com/Sakurefa/test-game/actions/runs/44949943031) 成功：语法检查（包含 `electron/storage.cjs`）、215/215 测试、Renderer build 和 generated-renderer 步骤全部通过。Electron storage 读取接受 schema 1–9，写入只接受 schema 9；Engine 在主进程加载存档时先迁移 schema 1–8。
-未执行本地测试/构建；CI 也不等同于用户设备上的 Windows GUI 综合验收。独立 Electron Runtime/Launcher 打包 workflow 本轮未在最终修正后重新取得成功结果，因此不视为已验证。
+第一阶段 Trigger System Windows CI [44949943031](https://github.com/Sakurefa/test-game/actions/runs/44949943031) 成功，215/215 测试通过。第二阶段 Resolution/Effect 分离与 `formula.effect` Windows CI [44953041332](https://github.com/Sakurefa/test-game/actions/runs/44953041332) 也成功：语法检查、219/219 测试、Renderer build 和 generated-renderer 步骤全部通过。Electron storage 读取接受 schema 1–9，写入只接受 schema 9；本轮未改变存档 schema。
+未执行本地测试/构建；CI 也不等同于用户设备上的 Windows GUI 综合验收。Electron Runtime/Launcher 独立打包与用户 Windows GUI 本轮均未执行。

@@ -117,6 +117,6 @@
 
 当前边界：不允许 Mod 注册公式/Resolution 函数；不支持嵌套字段路径、算术表达式、条件表达式或动态世界对象引用；Effect 仍必须通过现有 Mod Effect 白名单。Formula 输入数据是调度时快照，不是到期时实时读取。
 
-源码提交和 Windows CI 结果以本轮工作流记录 2026-11-22_10 为准；未验证之前不得将该实现标记为通过。
+实现提交为 `920c6528b5a664c6cee3f62f59a7313c7e140471`，测试夹具修正提交为 `b8cdd7cda5f5b3ace825c198e34efdc0a2b0293a`。Windows CI [44953041332](https://github.com/Sakurefa/test-game/actions/runs/44953041332) 已成功：语法检查、219/219 测试、Renderer build 和 generated-renderer 步骤全部通过。未执行本地测试/构建和用户 Windows GUI 验收。
 
-下一步建议：在本阶段 CI 通过后，继续明确条件触发和 Domain Event 驱动触发的最小边界；先选有现成、权威事实数据的具体消费者，不建立通用表达式引擎或扫描全量事件历史。
+下一步建议：先从现有权威数据中选择一个真正需要条件/阈值或 Domain Event 驱动的 Trigger 消费者，再确定检测频率、游标/去重语义和 candidate-world 原子提交边界；不建立通用表达式引擎，也不扫描全量 Domain Event 历史。

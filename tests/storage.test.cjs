@@ -151,7 +151,7 @@ test("save receipt rejects world file changes before returning a world state", a
 
   const worldPath = path.join(root, "save", "slot_receipt_tamper", "data", "world.json");
   const serialized = await fs.readFile(worldPath, "utf8");
-  await fs.writeFile(worldPath, serialized.replace("receipt-test-marker", "receipt-test-tampered"));
+  await fs.writeFile(worldPath, serialized.replace("receipt-test-marker", "receipt-test-tamper"));
 
   await assert.rejects(
     () => readGameStateWithReceipt(root, "slot_receipt_tamper"),

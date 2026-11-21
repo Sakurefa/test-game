@@ -5,8 +5,8 @@
 ## Repository snapshot
 
 - Repository: https://github.com/Sakurefa/test-game
-- Branch: `main`; latest code/test revision: `1ed2b6d9506dd94faba198e45e85a8d6be450865` (campaign-clock failure handling, date/day consistency and duration-input validation).
-- Latest completed Windows CI for the code/test revision: [44937502653](https://github.com/Sakurefa/test-game/actions/runs/44937502653), successful. Electron/Engine syntax check passed; `npm test` passed **208/208** with 0 failures; Renderer build and generated-renderer step succeeded.
+- Branch: `main`; latest code/test revision: `5efd1b35b6b90fea11ee8456e06248c6786a3bb7` (settings patches validate all groups before any INI write; regression test prevents partial persistence on later-group validation failure).
+- Latest completed Windows CI for the code/test revision: [44942765033](https://github.com/Sakurefa/test-game/actions/runs/44942765033), successful. Electron/Engine syntax check passed; `npm test` passed **209/209** with 0 failures; Renderer build and generated-renderer step succeeded.
 - No local full test suite/build was run. GitHub Windows CI is not user-side Windows GUI acceptance.
 - No user-side Windows GUI acceptance has been completed for the accumulated version. Launcher/Runtime packaging was not part of this session.
 
@@ -26,9 +26,9 @@ Files use `YYYY-MM-DD_NN_topic.txt`. NN is one shared chronological sequence for
 
 - 2026-11-20: 01
 - 2026-11-21: 01–08
-- 2026-11-22: 01–07
+- 2026-11-22: 01–08
 
-Latest focused record: `Astra/WORKFLOWS/2026-11-22_07_campaign-clock-error-and-consistency-debug.txt`.
+Latest focused record: `Astra/WORKFLOWS/2026-11-22_08_settings-patch-validation-debug.txt`.
 
 ## Current foundation state
 
@@ -49,7 +49,7 @@ The campaign clock and deterministic simulation registry exist. Registry cadence
 
 Coincident recurring systems run annual → monthly → weekly → daily, with dependencies and configured order within those phases. Existing actual consumers remain weekly colony production and daily population needs, market pricing and active-war chronology. No annual/monthly gameplay system is registered.
 
-Campaign clock inputs are checked at load/day-settlement boundaries: the calendar date must be valid, the elapsed day must be non-negative, and the date must match the elapsed-day offset from the universe start date. The clock controller tags simulation-advance failures for unified Electron handling; fatal handling resets the clock without performing another tick. Invalid base-day duration settings are rejected before any elapsed time is consumed.
+Campaign clock inputs are checked at load/day-settlement boundaries: the calendar date must be valid, the elapsed day must be non-negative, and the date must match the elapsed-day offset from the universe start date. The clock controller tags simulation-advance failures for unified Electron handling; fatal handling resets the clock without performing another tick. Invalid base-day duration settings are rejected before any elapsed time is consumed. Multi-group settings patches are fully merged and validated before the first INI write, so validation failure cannot partially persist earlier groups.
 
 **Cadence and Trigger instances have separate responsibilities:**
 - Recurring simulation-system cadence owns repeated system work.

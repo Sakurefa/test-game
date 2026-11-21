@@ -173,6 +173,10 @@ function createModExtensionRuntime(modPackages = [], options = {}) {
       try {
         const modState = isRecord(modStateById[definition.modId]) ? modStateById[definition.modId] : {};
         const hookInput = { ...input, modState };
+        if (isRecord(hookInput.world) && Object.hasOwn(hookInput.world, "modState")) {
+          hookInput.world = { ...hookInput.world };
+          delete hookInput.world.modState;
+        }
         const result = executeScript({ ...definition, hookId, input: hookInput, timeoutMs, randomScope });
         outcomes.push({ modId: definition.modId, hookId, ...result });
       } catch (error) {

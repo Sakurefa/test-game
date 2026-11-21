@@ -1,4 +1,5 @@
 const {createDomainEventEmitter}=require("./domain-events.cjs");
+const {activateDomainEventTriggers}=require("./triggers.cjs");
 
 function createWorldCommandRuntime({dispatcher,eventBus=null,onCommit=null}={}){
  if(!dispatcher||typeof dispatcher.dispatch!=="function")throw new TypeError("A command dispatcher is required");
@@ -26,8 +27,15 @@ function createWorldCommandRuntime({dispatcher,eventBus=null,onCommit=null}={}){
    }
    const nextWorld=outcome.world;
    if(!nextWorld.clock||!Number.isInteger(nextWorld.clock.day)||typeof nextWorld.clock.date!=="string")throw new Error("Command runtime requires an authoritative campaign clock");
-   const emitDomainEvent=createDomainEventEmitter(nextWorld,nextWorld.clock);
-   const previousSequence=nextWorld.domainEventSequence;
+   const recordDomainEvent=createDomainEventEmitter(nextWorld,nextWorld.clock);
+   const emitDomainEvent=(input)=>{
+    const previousSequence=nextWorld.domainEventSequence;
+    const event=recordDomainEvent(input);
+    if(event.sequence>previousSequence&&nextWorld.triggerQueue!==undefined){
+     activateDomainEventTriggers(nextWorld,event);
+    }
+    return event;
+   };
    const committedEvents=outcome.events.map(event=>emitDomainEvent(event));
    commitWorld(nextWorld);
    const eventDelivery=[];

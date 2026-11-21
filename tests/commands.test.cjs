@@ -1,6 +1,9 @@
 const test=require("node:test"),assert=require("node:assert/strict");
 const {MAX_COMMAND_RECEIPTS,createCommandDispatcher,validateCommandReceiptState}=require("../engine/commands.cjs");
-const {createDomainEventBus,createWorldCommandRuntime}=require("../engine/index.cjs");
+const {
+ createDomainEventBus,createWorldCommandRuntime,createTriggerQueue,scheduleTrigger,
+ createResolutionRegistry,processDueTriggers
+}=require("../engine/index.cjs");
 const worldFixture=()=>({schemaVersion:6,clock:{day:12},counter:5,commandReceipts:[]});
 function createDispatcher(options={}){
  return createCommandDispatcher([{
@@ -98,6 +101,77 @@ test("world command runtime commits state, receipt, domain history and bus deliv
  assert.equal(seen.length,1);assert.equal(first.world.domainEventSequence,1);
 });
 
+test("world command Domain Events activate pending Triggers before post-commit Event Bus delivery",()=>{
+ const world={
+  ...worldFixture(),
+  clock:{day:12,date:"2478-04-13"},
+  domainEventSequence:0,
+  domainEvents:[],
+  triggerQueue:createTriggerQueue()
+ };
+ const resolutions=createResolutionRegistry([{
+  id:"test.command-trigger",
+  validate:({event})=>event.payload.value>=0,
+  resolve:({event})=>({result:{value:event.payload.value},effects:[]})
+ }]);
+ const catalog={modIds:["test-mod"]};
+ scheduleTrigger(world,{
+  id:"test-mod.after-command-fact",
+  ownerId:"test-mod",
+  due:{kind:"domain-event",type:"player.account-withdrawn",scope:"world"},
+  event:{type:"test.command-trigger",payload:{value:7}}
+ },{resolutions,catalog});
+
+ const dispatcher=createCommandDispatcher([{
+  id:"player.account.withdraw",
+  validate:()=>true,
+  execute:({world,payload})=>{
+   world.counter-=payload.amount;
+   return {result:{balance:world.counter},events:[{
+    type:"player.account-withdrawn",scope:"world",
+    payload:{amount:payload.amount,balance:world.counter}
+   }]};
+  }
+ }]);
+ const state={world},observed=[];
+ const bus=createDomainEventBus();
+ bus.subscribe("player.account-withdrawn",()=>observed.push({
+  balance:state.world.counter,
+  dueDay:state.world.triggerQueue.pending[0].dueDay,
+  sourceEventId:state.world.triggerQueue.pending[0].sourceEvent?.id
+ }));
+ const runtime=createWorldCommandRuntime({
+  dispatcher,eventBus:bus,onCommit:next=>{state.world=next;}
+ });
+
+ const outcome=runtime.dispatch({
+  world,command:{commandId:"cmd-trigger-0001",type:"player.account.withdraw",payload:{amount:2}}
+ });
+ assert.equal(outcome.world.counter,3);
+ const pending=outcome.world.triggerQueue.pending[0];
+ assert.equal(pending.dueDay,13);
+ assert.equal(pending.sourceEvent.type,"player.account-withdrawn");
+ assert.equal(pending.sourceEvent.id,"domain-1");
+ assert.deepEqual(observed,[{balance:3,dueDay:13,sourceEventId:"domain-1"}]);
+
+ const replay=runtime.dispatch({
+  world:outcome.world,
+  command:{commandId:"cmd-trigger-0001",type:"player.account.withdraw",payload:{amount:2}}
+ });
+ assert.equal(replay.duplicate,true);
+ assert.equal(replay.world.triggerQueue.pending[0].sourceEvent.sequence,1);
+ assert.equal(observed.length,1);
+
+ replay.world.clock={day:13,date:"2478-04-14"};
+ const resolved=processDueTriggers(replay.world,{
+  day:13,date:"2478-04-14",catalog,resolutions,
+  applyEffect:()=>{throw new Error("No Effects expected");},
+  emitDomainEvent:()=>null
+ });
+ assert.equal(resolved.length,1);
+ assert.equal(replay.world.triggerQueue.pending.length,0);
+ assert.equal(replay.world.triggerQueue.receipts[0].sourceEvent.id,"domain-1");
+});
 test("world command runtime rolls back the draft when event persistence conflicts",()=>{
  const world={...worldFixture(),clock:{day:12,date:"2478-04-13"},domainEventSequence:1,domainEvents:[
   {id:"domain-1",sequence:1,day:12,date:"2478-04-13",type:"player.account-withdrawn",scope:"world",subjectId:null,idempotencyKey:"command:cmd-withdraw-002:0",payload:{amount:99}}

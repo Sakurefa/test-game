@@ -11,7 +11,7 @@ test("catalog rejects unresolved production references",async()=>{const m=await 
 test("daily market and war systems run daily while colony production runs weekly",async()=>{const c=await catalog(),w=createWorld(c,{seed:42,createdAt:"2478-04-01T00:00:00.000Z"}),ore=w.colonies["new-dawn-colony"].stockpiles.ore,food=w.colonies["verdant-colony"].stockpiles.food,price=w.markets["verdant-exchange"].prices.food;advanceDay(w,c);assert.equal(w.clock.date,"2478-04-02");assert.equal(w.clock.day,1);assert.equal(w.colonies["new-dawn-colony"].stockpiles.ore,ore);assert.equal(w.colonies["verdant-colony"].stockpiles.food,food);assert.notEqual(w.markets["verdant-exchange"].prices.food,price);assert.equal(w.wars["cinder-conflict"].daysActive,16);assert.deepEqual(w.events.at(-1).systemsRun,["economy.market-pricing","military.war-chronology"]);for(let day=0;day<6;day++)advanceDay(w,c);assert.equal(w.clock.day,7);assert.ok(w.colonies["new-dawn-colony"].stockpiles.ore>ore);assert.ok(w.colonies["verdant-colony"].stockpiles.food>food);assert.deepEqual(w.events.at(-1).systemsRun,["colonies.production","economy.market-pricing","military.war-chronology"]);});
 test("weekly production report explains limited inputs and matches the stockpile settlement",async()=>{
   const c=await catalog(),w=createWorld(c,{seed:"production-report-limited"});
-  const colony=w.colonies["new-dawn-colony"],industry=colony.industries[0],recipe=c.recipes.get(industry.recipeId);
+  const colony=w.colonies["verdant-colony"],industry=colony.industries[0],recipe=c.recipes.get(industry.recipeId);
   colony.industries=[structuredClone(industry)];
   const requestedBatches=industry.level*Math.max(.1,Math.min(1,colony.stability/100));
   const inputTotals=new Map();
@@ -40,7 +40,7 @@ test("weekly production report explains limited inputs and matches the stockpile
 });
 test("weekly production report keeps zero-output facilities and identifies the empty limiting stockpile",async()=>{
   const c=await catalog(),w=createWorld(c,{seed:"production-report-empty"});
-  const colony=w.colonies["new-dawn-colony"],industry=colony.industries[0],recipe=c.recipes.get(industry.recipeId);
+  const colony=w.colonies["verdant-colony"],industry=colony.industries[0],recipe=c.recipes.get(industry.recipeId);
   colony.industries=[structuredClone(industry)];
   const requestedBatches=industry.level*Math.max(.1,Math.min(1,colony.stability/100));
   const inputTotals=new Map();

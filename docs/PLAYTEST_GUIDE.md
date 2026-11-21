@@ -1,176 +1,130 @@
-# Playtest Guide — Frontier continuous-time foundation
+# Windows 桌面验收指南（main / Schema 7）
 
-This guide checks the continuous campaign clock and the daily/weekly scheduler. It is an inspection route, not a claim that later systems such as logistics, finance or combat are finished.
+适用版本：GitHub `main`，当前功能基线为 world save schema 7。
 
-## 1. Update the portable folder
+本指南用于一次性验收当前累积的时间、经济、自动存档、故障处理和 Mod v4 功能。GitHub Actions 的 Windows Runner 已通过 137/137 自动化测试和 Renderer 构建；这不等于真实桌面 GUI 已通过。
 
-1. Open the repository: https://github.com/Sakurefa/test-game
-2. Choose **Code → Download ZIP** and extract the archive.
-3. Put your separately distributed `Market Simulator.exe` beside the extracted repository files.
-4. Double-click the EXE. The launcher remains separate from the game source; the latest engine, Mods and renderer are loaded from the extracted folder.
+## 1. 准备当前版本
 
-Do not copy an old `dist/`, `engine/` or `mods/` folder over the new download. Use the folder from the same ZIP so the renderer and simulation content match.
+1. 打开 https://github.com/Sakurefa/test-game ，从 `main` 下载最新 ZIP（Code → Download ZIP）。
+2. 解压到一个新的、可写的目录。
+3. 将单独分发的 `Market Simulator.exe` 放在解压目录根部，与项目文件并排，然后运行。
+4. 不要把旧目录里的 `engine/`、`mods/` 或 `dist/` 覆盖到新版本上。
+5. 若要测试旧存档迁移，请先退出游戏，再把旧目录的 `save/` 复制到新目录；不要复制旧的程序文件。
 
-## 2. Start a new world
+最新独立 EXE 由 Windows Runtime 工作流生成，和 GitHub 源码分开保存。源码仓库不包含该 EXE。
 
-Choose **开始新航程**. The prototype creates a save slot and enters the **赫利俄斯边境** scenario. The campaign clock starts paused.
+## 2. 新世界与基础界面
 
-Expected starting situation:
+新建世界后应进入「赫利俄斯边境」，初始时间暂停，日期为 2478-04-01。原型世界包含四个星系、三支派系、三个殖民地、六种商品、六条生产配方、三个市场、两支舰队和一场活跃冲突。
 
-- Date: `2478-04-01`
-- 4 star systems: 澄光、烬环、曙星、帷幕
-- 3 factions: 赫利俄斯协约、烬环财团、自由港同盟
-- 3 colonies: 新曙光、翡翠、灰烬之落
-- 6 commodity types, 6 production recipes and 3 local markets
-- 2 fleets and 1 active border conflict
+检查四个页面：
 
-## 3. Inspect the world
+- 「星域总览」：星系网络、航线定义、最近动态。
+- 「殖民地与生产」：人口、稳定度、库存、工业设施。
+- 「市场与金融」：商品报价与公司证券报价。
+- 「势力与战争」：派系、舰队状态、战争纪事。
 
-Use the four tabs at the top of the world screen:
+这些实体已有数据和部分模拟，但不是完整的经营/战斗玩法。具体未实现内容见本指南第 8 节。
 
-- **星域总览** — inspect the four-system network, connections, trade-route parameters and recent event history.
-- **殖民地与生产** — inspect population, stability, resource inventories and each colony's production facilities.
-- **市场与金融** — inspect local commodity quotes and the three company securities.
-- **势力与战争** — inspect faction descriptions, fleet composition, readiness and the active conflict.
+## 3. 时间、刷新和生产
 
-The player starts in 自由港同盟 with an initial account balance displayed in CR.
+1. 确认新世界显示「时间已暂停」，日历不会自行变化。
+2. 选择 1x、2x、3x、4x，确认七段式周进度条自动平滑增长；暂停后必须停止。
+3. 默认基础速度是一游戏日 60 秒；可在「设置 → 基础时间流速」调整。为了缩短本次验收，可先改为 10 秒/游戏日，再选 4x。
+4. 到达一个新游戏日时，市场报价和活跃战争纪事应更新；殖民地生产不应每天运行。
+5. 到达第 7、14、21……个已经过的游戏日时，殖民地生产结算一次。第 7 天生产先于当天的市场重新定价。
+6. 在「星域总览」向下滚动到「最近动态」，等待跨日。内容应增量刷新，滚动位置不应突然跳回顶部。
+7. 切换「市场与金融」和「势力与战争」，确认各自每日更新区域能刷新；殖民地库存应只在每周生产结算时变化。
 
-## 4. Test the continuous clock
+「计算审计」和「世界事件」是只读诊断面板，二者应互斥、不重叠，打开/关闭不应影响时间或模拟。它们目前仍包含技术性字段；不需要你手工解读原始 JSON，无法判断的内容直接记录现象并交日志即可。
 
-1. Confirm the world initially shows **时间已暂停** and its calendar day does not change.
-2. Select **1x**. The weekly progress bar should move smoothly without clicking anything. It is divided into seven daily segments; each segment fills over one game day. At the default setting, one in-game day takes 60 real seconds.
-3. Select **2x**, **3x** and **4x**. At the default base rate, one in-game day takes approximately 30, 20 and 15 real seconds respectively.
-4. Select the pause control. The day-progress percentage should stop increasing and the calendar should stop advancing.
-5. Open **设置 → 基础时间流速**. Change the number of real seconds assigned to one game day, save, and confirm the selected speed remains independent of that base duration.
-6. Start a fresh test world or continue the current one until it crosses a day boundary. The calendar and only the active view region due for that day should update. On the overview, scroll down to 最近动态 before a new day arrives: the log should gain the new daily report without sending the content view back to the top. The weekly progress bar should cross one segment per day.
-7. Continue until elapsed day 7. The weekly bar should finish its seventh segment and reset into the next week only after the day boundary is confirmed. Open **殖民地与生产**: industrial inventories should reflect one weekly production cycle. Production should run again on elapsed day 14, 21 and so on.
+## 4. 每日与每周自动存档
 
-The initial scheduler is intentionally simple:
-- Market commodity/security quotes and active-war chronology: daily.
-- Colony industrial production: every seventh elapsed day.
-- At a shared weekly boundary, production runs before that day's market repricing.
+新世界完成第一个游戏日后才会产生自动存档；它不会在第 0 天创建初始自动档。
 
-## 5. Test persistence and migration
+| 到达的游戏日 | 预期结果 |
+| --- | --- |
+| 第 1 天 | `slot_auto_daily_1` 保存第 1 天 |
+| 第 2 天 | `slot_auto_daily_1` 为第 2 天，`slot_auto_daily_2` 为第 1 天 |
+| 第 7 天 | 独立的 `slot_auto_weekly_1` 创建第 7 天周档 |
+| 第 14 天 | `slot_auto_weekly_1` 为第 14 天，`slot_auto_weekly_2` 为第 7 天 |
 
-1. Let time run briefly, then pause it.
-2. Click **保存世界** and wait for confirmation.
-3. Click **返回主菜单**, then choose **读取存档**.
-4. Load the world slot you just created.
-5. Confirm the calendar date, fractional day progress, inventories, prices, random state and scheduler markers are restored. The world should load paused.
-6. Resume time and confirm daily/weekly updates continue without duplicating the last completed day.
+每日与每周两组轮换彼此独立，slot 1 是最新档，slot 2 是上一份。
 
-Legacy world schemas 1–5 are migrated to schema 6. The migration preserves the campaign date/day, existing world state and prior player cash/holdings; it converts cash to integer CR minor units and records balanced opening capital. The world is then paused as usual. A save made with different Mod content is still rejected explicitly.
+继续检查：
 
-World data is stored at:
+1. 从读取存档页面加载一个自动存档。
+2. 使用「保存世界」进行手动保存。
+3. 应创建单独的 `slot_manual_*`，而不是覆盖自动存档。
+4. 继续推进一天，确认后续自动存档仍只轮换自动存档槽位。
 
-`save/<slot-id>/data/world.json`
+## 5. Mod API v4 与持久状态
 
-The slot's display metadata is stored separately in `save/<slot-id>/metadata.ini`.
+Core 仍使用 API v3 的 INI-only 兼容格式；`example-market` 是 API v4 示例 Mod，默认情况下应启用（如设置里显式关闭了它，请先启用）。
 
-## 6. What is not implemented yet
+为了快速验收，可将基础日长调到 10 秒并设置 4x：
 
-These are deliberate future systems, not hidden features:
+1. 从新世界推进到第 30 天。
+2. 保存并退出游戏。
+3. 检查 `save/<slot-id>/data/world.json`：`schemaVersion` 应为 7，`modState` 中 `example-market` 的 `months-observed` 应为 1。
+4. 重新载入同一存档，继续到第 60 天，再保存。
+5. `months-observed` 应变为 2；「世界事件」中应各有一条第 30、60 天的 `mod.example-market.monthly-market-observation` 事件。
 
-- No actual inter-colony cargo transport or trade-route traffic yet. Route travel days, risk and capacity are currently data definitions.
-- The canonical player account and balanced transaction ledger now exist, and the main process exposes a restricted transfer command gateway. There is still no market buy/sell order, share ownership transfer, loan or dividend UI. Company securities currently have simulated quotes only.
-- No population growth, consumer demand, taxes, facility construction or colony expansion yet.
-- No fleet movement, player fleet commands, fronts, casualties, tactical battle instances or real-time RTS combat yet. Tactical combat is explicitly deferred from the current foundation phase.
-- A typed, bounded domain-event history records colony production, market settlement and active-war chronology, with day/entity idempotency keys. The engine now also provides a validated command dispatcher, persisted command receipts, an atomic world-command runtime and a read-only event subscription bus. The command gateway is now connected to Electron IPC but exposes only the validated finance.transfer command. No market trade, construction, logistics or fleet command is registered yet. A shared asset manager, 2D scene renderer and audio playback service remain unimplemented.
-- Calculation and domain-event inspectors are read-only diagnostics. Contextual help, font selection and actual dynamic 2D scenes remain future foundation steps.
+保持脚本文件不变再读档。Schema 7 的存档绑定启用的 JS 脚本内容；脚本变更后加载不匹配的存档应明确报 Mod 内容指纹不一致，而不能静默使用新旧混合内容。
 
-## 7. If something goes wrong
+每个 Mod 有独立状态空间，最多 128 个键、64 KiB。Mod hook 只能看到自己的状态副本，不能直接写世界对象。
 
-- Check `Logs/startup.log` first, then the newest `Logs/runtime.log`.
-- Keep the full Logs folder. Do not replace or delete `startup.log`; it records early initialization.
-- Note which speed control or tab you used, which save slot was open, and the exact error text.
-- Do not edit the active save JSON while the game is running.
+## 6. 旧存档迁移
 
-This prototype is designed to be inspected and broken safely. A damaged save should be reported rather than silently overwritten.
+目前存档版本为 schema 7，旧 schema 1–6 都有迁移路径。重点验证你之前使用的 schema 6 存档：
 
+1. 保留旧存档副本。
+2. 把副本放进新版本目录的 `save/` 后加载。
+3. 日期、殖民地、库存、市场、舰队、战争和玩家资金应保留；加载后世界应处于暂停状态。
+4. 迁移后的保存应写成 schema 7，并包含 `modState`。
+5. 对于旧版 INI 内容指纹，程序只在旧 schema 迁移时、且旧 INI 内容完全匹配时，才执行一次升级到包含 JS 脚本的新版指纹。已经是 schema 7 的存档仍严格检查脚本内容。
 
-### Incremental view refresh expectations
+如果旧档因为 Mod 内容不匹配而拒绝加载，请保留原始存档，不要覆盖；把报错和对应存档副本交给我。
 
-- Overview date changes update the recent-event region, not the entire world screen.
-- Market and military tabs update only their daily changing sections.
-- Colony stockpiles and production details update only after a weekly production cycle.
-- The central content scroll position should remain stable during all of these updates.
+## 7. 故障界面与诊断日志
 
+常规日志目录是游戏目录下的 `Logs/`：
 
-## Economy calculations and persisted domain events
+- `Logs/startup.log`：启动及早期初始化日志。
+- `Logs/runtime.log`：当前运行日志。
+- `Logs/runtime.1.log` 到 `Logs/runtime.4.log`：轮换归档。
 
-- Start a new world with a fixed seed and advance to day 7. Open the calculation inspector and confirm that `economy.colony-production` records appear alongside commodity and security pricing records.
-- Expand a production record and inspect stability efficiency, requested batches, the limiting input (when stock is insufficient), consumed quantities and produced quantities. An industry must scale down when inputs are scarce and must never make a stockpile negative.
-- Continue advancing for several weeks. Commodity quotes must remain within 0.1×–10× their base price; security quotes must move no more than 12% in one daily settlement and remain within 0.1×–10× their initial price.
-- Save and reload after several settlements, then resume the simulation. Daily and weekly schedules must continue without duplicating the previous settlement. Typed domain events are persisted alongside the world state and can be delivered through the engine event bus. Each market should emit once per market per day; each active war once per war per day; each colony once per colony on weekly settlement days 7, 14, 21, etc. Each settlement has a stable idempotency key so same-day retries cannot append a duplicate fact.
-- The calculation inspector and these new engine features have automated coverage, but this revision still needs one combined Windows desktop test. Distinguish that GUI check from the CI test results.
+Runtime 日志每行是一条 JSON 记录，默认每个文件上限 100 MiB，保留当前文件加四个归档。启动日志单独保留。**出现问题时直接打包整个 `Logs/` 文件夹即可，不需要你手动解析每一行。**
 
+可选的故障界面验收（只在新解压的临时副本里做，不要在你的常用游戏目录或真实存档上做）：
 
-## Domain event inspector
+1. 备份临时副本中的 `mods/example-market/scripts/market-events.js`。
+2. 暂时将脚本内容改成：
 
-- Open 「世界事件」 from the world toolbar. Confirm it opens as a read-only floating panel and closes cleanly.
-- Expand recent records. Each should show a monotonically increasing event number, campaign day/date, event type, scope, subject and JSON payload.
-- Advance time at 1x–4x. The panel should refresh when the authoritative day changes without resetting its own scroll position. The panel and 「计算审计」 are mutually exclusive and should never overlap.
-- On day 7, confirm that colony production events appear alongside the daily market and war chronology events. The expected cadence is daily for each market and active war, weekly for each colony. Save, leave, reload and resume; the event sequence should continue without duplicate IDs. The persisted idempotency keys must remain unique within the retained history.
+    function onCampaignAfterDay(input) {
+      while (true) {}
+    }
 
+3. 在这个临时副本中新建世界，以 1x 推进到第一个游戏日。
+4. 该 Hook 会触发执行超时，当前游戏日应被丢弃，游戏暂停并返回主菜单，出现「世界运行发生错误」对话框。
+5. 点击「复制全部诊断记录」，将文本保存下来；同时保留临时副本整个 `Logs/` 文件夹。
+6. 删除这个临时副本，或从原 ZIP 重新解压恢复脚本。不要把故意失败的 Mod 留在正常游戏目录中。
 
-## Command and event foundation boundary
+正常游玩遇到错误时，记下游戏日、日期、速度、当前页面和存档槽位；保留完整 `Logs/` 文件夹。如果涉及存档一致性，再附上对应的 `save/<slot-id>/` 目录副本。不要在游戏运行时手动编辑正在使用的 `world.json`。
 
-The engine command dispatcher and world-command runtime validate command IDs/types/payloads, run handlers against isolated world drafts, save retry receipts, and commit returned domain events before publishing them to immutable subscribers. The Electron main process exposes a restricted command IPC route; the renderer submits only a command envelope and cannot provide actor identity or permissions. The current gateway registers only finance.transfer. The interface has no transfer controls yet. Do not treat the ledger or command gateway as evidence that market trading, construction, logistics or fleet orders are playable.
+## 8. 当前没有实现的玩法
 
-## Financial ledger verification boundary
+这些不是故障，也不要为了找它们而浪费时间：
 
-World schema 6 stores account balances as integer CR minor units and validates them by replaying the append-only, per-currency balanced transaction history. Legacy cash is migrated into the player account and opening-capital transaction. Automated tests cover cash migration, balance reconciliation, overdraw prevention, cross-currency rejection, duplicate transaction IDs and command retries. A future combined Windows test should inspect the displayed starting balance, load an older schema-5 save, confirm its previous cash and holdings are preserved after migration, and then save/reload to verify the same balance remains.
+- 没有真实的星际货运、货船行驶、实际库存跨殖民地运输；航线的时间、风险和容量目前仍是定义数据。
+- 没有完整的公司资产负债表、企业经营、股票买卖订单、股份交易、贷款、债务和分红界面。
+- 没有完整人口增长、需求消费、劳动力分配、税收、设施建设和殖民地扩张。
+- 没有舰队移动、玩家舰队指令、战线、占领和完整派系战争 AI。
+- 没有即时战术战斗；战斗会在未来作为独立固定时间步长模拟器实现。
+- `finance.transfer` 是已接入的受限引擎/主进程命令，但目前没有专门的游戏内转账操作 UI。
+- 新的只读 Query Registry 已在引擎内实现，但 Renderer 还没有全部切换到它。
+- 没有真正的 2D 星图场景渲染后端、粒子系统、动画资产管线或音频播放服务。
+- JavaScript Mod 目前通过 Node `vm` 降低权限并限制执行时间，但它不是抵御恶意脚本的硬安全沙箱。只启用可信来源的 JS Mod。
 
-
-## Autosave and fatal-error verification
-
-1. Start a new world and let it cross one full game-day boundary. Confirm `save/slot_auto_daily_1` appears and can be loaded.
-2. Advance another day. Confirm `slot_auto_daily_1` contains the newest day and `slot_auto_daily_2` contains the previous day.
-3. Advance to day 7 and confirm the independent weekly pair is created. Continue to day 14 and confirm weekly slot 1/2 rotate independently from daily slots.
-4. Load a daily or weekly autosave, then use manual Save. Confirm a separate slot_manual_* is created and the automatic slot pair remains unchanged.
-5. Confirm manual save slots are not overwritten by autosaves.
-6. Inspect `Logs/runtime.log`: every record must occupy one physical line and parse as JSON. Search by scope, entity ID, transaction ID or campaign day. Check that day-settlement records contain production, market, calculation and systems-run details.
-7. In a disposable test save only, deliberately remove a required market price or referenced colony state, then advance to the next day. Confirm the day is not partially committed, campaign time pauses, the title menu appears, and the fatal dialog shows the concrete error with surrounding log lines. Copy the report and confirm it contains the same error record as `Logs/runtime.log`.
-8. Confirm an autosave write failure is logged as an autosave error but does not masquerade as a simulation-system failure.
-9. These checks require the Windows desktop build. Automated storage/rotation and simulation atomicity tests do not replace a Windows GUI test.
-
-
-## Extensible simulation and Mod API v4 — combined Windows test
-
-This batch adds a new INI + JavaScript Mod contract, persistent per-Mod state, read-only engine query projections and game-state schema v7. API v3 INI-only Mods must continue to load.
-
-### 1. New-world Mod hook behavior
-
-1. Ensure example-market is enabled in the Mod settings.
-2. Start a new world and let campaign time reach day 30.
-3. Save the game, close it and inspect the save's data/world.json.
-4. Confirm schemaVersion is 7 and modState contains example-market with monthsObserved equal to 1.
-5. Reload the save, advance to day 60, then save again.
-6. Confirm monthsObserved is now 2. The example Mod should have emitted one monthly-market-observation event for each 30-day boundary; full domain-event details are also available in Logs/runtime.log.
-
-### 2. Compatibility and content identity
-
-1. Keep a copy of the current example-market Mod folder and save file.
-2. Disable example-market and start a separate new world; the core world should still load.
-3. Re-enable the Mod before loading the original save.
-4. Do not edit the script between saving and reloading. Enabled script content contributes to the save's content fingerprint, so a changed Mod behavior version must not silently reuse an old save.
-
-### 3. Save migration
-
-- Existing schema 6 and older saves should migrate to schema 7 on load.
-- A migrated old save should contain an empty modState object when no Mod state existed previously.
-- A schema 7 save missing its required modState container is invalid and should be reported as a load error.
-
-### 4. Existing runtime checks still required
-
-Please combine these with the previous playtest items rather than testing every commit separately:
-
-- Reach game days 1, 2, 7 and 14; verify daily and weekly autosave slot rotation.
-- Load a daily/weekly autosave, manually save, and confirm it creates a separate manual slot without overwriting auto slots.
-- Inspect JSONL Logs/runtime.log and confirm each event/failure is a separate physical line.
-- In a disposable test save, set a required market quote to zero or break a required reference; confirm the day is discarded atomically, campaign time pauses, the game returns to the main menu and the fatal report can be copied.
-- Verify speed controls, pause/resume, renderer responsiveness and scroll position.
-
-### What automated tests cover
-
-The automated suite tests mixed API v3/v4 loading, declared script validation, deterministic per-Mod/per-entity random streams, immutable input snapshots, restricted runtime capabilities, execution timeout, registered effect validation, persistent state isolation and save migration, content fingerprint changes, query projection immutability, a real 60-day example-Mod settlement and atomic rollback on a failing hook. These are code-level tests, not a substitute for launching the packaged game in a Windows desktop session.
+本次重点是验证已有基础，不是验证以上尚未实现的玩法。

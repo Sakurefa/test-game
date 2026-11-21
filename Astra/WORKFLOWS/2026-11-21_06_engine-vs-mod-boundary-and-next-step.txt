@@ -1,0 +1,34 @@
+【工作流记录】Engine 与 Mod 边界复核及下一步澄清
+==============================================
+
+工作日期：2026-11-21
+当日序号：06
+工作基线：ca991bf9c623baefe6e467cfd8963c9230aa67aa
+
+目标
+----
+复核用户指出的项目架构边界，确认此前回答是否遵循仓库原则，并消除工作记忆中可能混淆“长期游戏方向”与“当前 Engine 施工任务”的措辞。
+
+检查
+----
+- 按 AGENTS.md 与 Astra/README.txt 的规定读取协作记录、工作记忆、根索引、两项最高优先级原则及相关讨论/工作流。
+- 确认当前仓库为 Sakurefa/test-game，分支 main；本次检查时 HEAD 为 ca991bf9c623baefe6e467cfd8963c9230aa67aa。
+- 检查目录：存在独立的 engine/，以及 mods/core 和 mods/example-market。
+- 最高优先级 MOD 化原则已经明确规定：Engine 只提供通用机制；Core 是基础内容 Mod；具体游戏定义和数值由 Mod 提供。
+- 发现工作记忆第 6 节把长期人口经济方向称为“当前游戏优先级”，第 8 节虽禁止提前添加具体内容，但未足够醒目地区分通用 Engine 能力与 Mod 游戏内容，容易使下一步被误读为直接开发经济玩法。
+- 当前记录中的下一项地基方向仍是最小持久化聚合人口群体表示及 legacy `colony.population.delta` 兼容；它必须作为通用 Engine 数据/持久化/effect 能力设计。人口分类、需求篮子和具体规则由 Core/可选 Mod 的 INI 定义。
+
+文档修正
+--------
+- AGENTS.md：明确所有可运行游戏内容由 Mods 提供，mods/core 是必需内容 Mod 而不是 Engine。
+- Astra/WORKING_MEMORY.txt：区分长期游戏方向和当前 Engine 阶段；明确人口群体地基只实现通用能力，具体内容留给 Mod。
+- Astra/DISCUSSIONS/关于接下来的工作.txt：重写下一步说明，明确当前 Engine 任务、兼容语义与 Mod INI 内容边界。
+- ASTRA_WORKLOG.md：更新当前项目阶段、最新 CI 和下一项 Engine 地基方向。
+- 本记录只记录本次检查与文档修正，不声称已经实现人口群体系统。
+
+验证与边界
+----------
+- 检查时最新 main Actions run [44919159390](https://github.com/Sakurefa/test-game/actions/runs/44919159390) 已成功，覆盖 Electron/模拟语法检查、模拟与 Mod loader 测试、Renderer build 和生成文件提交步骤；该运行对应文档修正前的 HEAD。
+- 本次未修改 Engine 源码、Mods、存档 schema、测试或 Renderer；未运行本地测试/构建。
+- 未进行 Windows GUI 测试；本次为文档澄清，不新增 GUI 验收需求。
+- 当前主要结论：此前回答的问题在于没有查阅仓库并把长期游戏方向说成眼前施工内容；最高优先级原则本身正确，工作记忆措辞现已澄清。

@@ -127,8 +127,26 @@ A script is an ordinary JavaScript file containing named functions. Do not use i
 
 A hook receives two arguments:
 
-- input: a detached, recursively frozen JSON snapshot for that hook point. Editing it does not edit the live game.
+- input: a detached, recursively frozen JSON snapshot for that hook point. Editing it does not edit the live game. The input includes modState, a snapshot of only this Mod's own persistent state.
 - api: a small helper object with deterministic random(), clamp(value, min, max) and round(value, digits).
+
+Each Mod owns a persistent key/value state namespace stored in the world save. Use it for counters, event-chain stages, mission progress or Mod-specific rules:
+
+    function onCampaignAfterDay(input) {
+      if (input.day % 30 !== 0) return {};
+      return {
+        effects: [{
+          type: "mod.state.increment",
+          payload: { key: "monthsObserved", delta: 1 }
+        }],
+        events: [{
+          type: "monthly-observation",
+          payload: { completedMonths: (input.modState.monthsObserved || 0) + 1 }
+        }]
+      };
+    }
+
+The state namespace is isolated by Mod ID. A hook can read only its own state snapshot. State changes are still requested as approved effects and are committed with the candidate day; a failed day does not partially save Mod state.
 
 A hook returns an object with optional effects and events arrays. It may return an empty object or undefined to do nothing. It must be synchronous. Promise/async results are rejected.
 
@@ -161,6 +179,9 @@ Effects are requests, not arbitrary object mutations. The engine validates the t
 | fleet.readiness.delta | fleetId, delta | Adjusts readiness, bounded to 0–100 |
 | fleet.morale.delta | fleetId, delta | Adjusts morale, bounded to 0–100 |
 | war.weariness.delta | warId, factionId, delta | Adjusts weariness for a participating faction; result cannot be negative |
+| mod.state.set | key, value | Sets a JSON-safe value in this Mod's own saved namespace |
+| mod.state.increment | key, delta | Increments a numeric value in this Mod's own saved namespace |
+| mod.state.delete | key | Deletes a value from this Mod's own saved namespace |
 
 Example:
 

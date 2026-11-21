@@ -13,6 +13,36 @@ function createTracingRandom(random,streamId,draws){
  }])));
 }
 const DEFAULT_FORMULAS=Object.freeze([
+ Object.freeze({id:"economy.population-needs",version:1,calculate:({inputs,recordStep})=>{
+  const population=requireNumber(inputs,"population",{min:0});
+  if(!Array.isArray(inputs.requirements))throw new TypeError("Population needs formula requires a requirements array");
+  const requirements=new Map();
+  for(const item of inputs.requirements){
+   if(!item||typeof item.commodityId!=="string")throw new TypeError("Population needs require commodity IDs");
+   const rate=requireNumber(item,"dailyNeedPerThousand",{min:0});
+   const available=requireNumber(item,"available",{min:0});
+   const prior=requirements.get(item.commodityId);
+   requirements.set(item.commodityId,{
+    dailyNeedPerThousand:(prior?.dailyNeedPerThousand||0)+rate,
+    available
+   });
+  }
+  const requested={},consumed={},unmet={},satisfaction={};
+  for(const [commodityId,requirement] of requirements){
+   const quantity=round(population/1000*requirement.dailyNeedPerThousand);
+   const actual=Math.min(quantity,requirement.available);
+   requested[commodityId]=quantity;
+   consumed[commodityId]=actual;
+   unmet[commodityId]=round(Math.max(0,quantity-actual));
+   satisfaction[commodityId]=quantity>0?round(actual/quantity,4):1;
+  }
+  recordStep("population",population);
+  recordStep("requested-needs",requested,"Daily commodity demand per 1,000 residents");
+  recordStep("consumed-needs",consumed,"Limited by stock available at settlement");
+  recordStep("unmet-needs",unmet);
+  recordStep("needs-satisfaction",satisfaction);
+  return {requested,consumed,unmet,satisfaction};
+ }}),
  Object.freeze({id:"economy.colony-production",version:1,calculate:({inputs,recordStep,recordModifier})=>{
   const level=requireNumber(inputs,"level",{min:0,exclusiveMin:true,max:20}),stability=requireNumber(inputs,"stability",{min:0,max:100});
   if(!Array.isArray(inputs.recipeInputs)||!Array.isArray(inputs.recipeOutputs)||!inputs.recipeOutputs.length)throw new TypeError("Production formula requires recipeInputs and at least one recipeOutput");

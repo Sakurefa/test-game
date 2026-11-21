@@ -55,7 +55,8 @@ function createWorld(catalog, options = {}) {
       stockpiles: { ...definition.stockpiles },
       industries: definition.industries.map((industry) => ({ ...industry })),
       lastProduction: {},
-      lastProductionReport: null
+      lastProductionReport: null,
+      lastNeedsReport: null
     };
   }
 
@@ -212,6 +213,67 @@ function produceForColony(catalog, colonyState, calculations, day, emitDomainEve
   return output;
 }
 
+function settlePopulationNeeds(catalog, colonyState, calculations, day, emitDomainEvent) {
+  const requirements = [...catalog.commodities.values()]
+    .filter((commodity) => Number.isFinite(commodity.dailyNeedPerThousand) && commodity.dailyNeedPerThousand > 0)
+    .map((commodity) => ({
+      commodityId: commodity.id,
+      dailyNeedPerThousand: commodity.dailyNeedPerThousand,
+      available: Math.max(0, colonyState.stockpiles[commodity.id] || 0)
+    }));
+
+  if (requirements.length === 0) {
+    colonyState.lastNeedsReport = { day, population: colonyState.population, needs: [] };
+    return colonyState.lastNeedsReport;
+  }
+
+  const { result } = calculations.evaluate("economy.population-needs", {
+    population: colonyState.population,
+    requirements
+  }, { day });
+
+  const needs = requirements.map((requirement) => {
+    const commodityId = requirement.commodityId;
+    const requested = result.requested[commodityId] || 0;
+    const consumed = round(result.consumed[commodityId] || 0, 3);
+    const unmet = round(result.unmet[commodityId] || 0, 3);
+    if (consumed > 0) {
+      colonyState.stockpiles[commodityId] = round(
+        Math.max(0, requirement.available - consumed), 3
+      );
+    }
+    return {
+      commodityId,
+      available: requirement.available,
+      requested,
+      consumed,
+      unmet,
+      satisfaction: result.satisfaction[commodityId] ?? 1,
+      status: unmet > 0 ? "shortage" : "met"
+    };
+  });
+
+  const shortageCount = needs.filter((item) => item.unmet > 0).length;
+  colonyState.lastNeedsReport = {
+    day,
+    population: colonyState.population,
+    needs,
+    shortageCount
+  };
+  emitDomainEvent({
+    type: "colony.needs-settled",
+    scope: "colony",
+    subjectId: colonyState.id,
+    idempotencyKey: `campaign-day:${day}:colony.needs-settled:${colonyState.id}`,
+    payload: {
+      needCount: needs.length,
+      shortageCount,
+      needs
+    }
+  });
+  return colonyState.lastNeedsReport;
+}
+
 function updateMarket(catalog, marketState, colonyState, allColonyStates, randomStreams, calculations, day, emitDomainEvent, world, modRuntime) {
   const market = catalog.markets.get(marketState.id);
   runModHook(modRuntime, "market.before-pricing", {
@@ -277,10 +339,23 @@ const simulationSystems = createSystemRegistry([
     }
   },
   {
+    id: "population.needs-consumption",
+    cadence: "daily",
+    order: 15,
+    dependsOn: ["colonies.production"],
+    update: ({ world, catalog, calculations, summary, day, emitDomainEvent }) => {
+      for (const colonyState of Object.values(world.colonies)) {
+        summary.needs[colonyState.id] = settlePopulationNeeds(
+          catalog, colonyState, calculations, day, emitDomainEvent
+        );
+      }
+    }
+  },
+  {
     id: "economy.market-pricing",
     cadence: "daily",
     order: 20,
-    dependsOn: ["colonies.production"],
+    dependsOn: ["population.needs-consumption"],
     update: ({ world, catalog, randomStreams, calculations, summary, day, emitDomainEvent, modRuntime }) => {
       for (const marketState of Object.values(world.markets)) {
         const definition = catalog.markets.get(marketState.id);
@@ -377,7 +452,7 @@ function settleDay(world, catalog) {
   const calculations = createCalculationService();
   const modRuntime = getModRuntime(catalog);
   world.clock = advanceClock(world.clock, 1);
-  const summary = { production: {}, market: {} };
+  const summary = { production: {}, needs: {}, market: {} };
   const emitDomainEvent = createDomainEventEmitter(world, world.clock);
   runModHook(modRuntime, "campaign.before-day", {
     day: world.clock.day, date: world.clock.date, world
@@ -401,10 +476,11 @@ function settleDay(world, catalog) {
   }
 
   const productionCount = Object.keys(summary.production).length;
+  const needsCount = Object.keys(summary.needs).length;
   const marketCount = Object.keys(summary.market).length;
   const report = productionCount > 0
-    ? `第 ${world.clock.day} 天结束：${productionCount} 个殖民地完成每周生产，${marketCount} 个市场更新报价。`
-    : `第 ${world.clock.day} 天结束：${marketCount} 个市场更新报价。`;
+    ? `第 ${world.clock.day} 天结束：${productionCount} 个殖民地完成每周生产，${needsCount} 个殖民地结算日常需求，${marketCount} 个市场更新报价。`
+    : `第 ${world.clock.day} 天结束：${needsCount} 个殖民地结算日常需求，${marketCount} 个市场更新报价。`;
   appendEvent(world, {
     id: `day-${world.clock.day}`, day: world.clock.day, date: world.clock.date,
     type: "daily-report", text: report, production: summary.production,

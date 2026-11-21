@@ -46,3 +46,35 @@ test("unknown domain events are described as event-driven rather than daily recu
   assert.equal(summary.cadenceKey, "audit.cadence.event_driven");
   assert.equal(summary.kind, "event-driven");
 });
+
+test("daily colony needs event is labeled with daily cadence and shortage counts", () => {
+  const summary = summarizeDomainEvent({
+    type: "colony.needs-settled",
+    payload: {
+      needCount: 2,
+      shortageCount: 1,
+      needs: [
+        { commodityId: "food", requested: 1, consumed: 1, unmet: 0, satisfaction: 1 },
+        { commodityId: "water", requested: 2, consumed: 1, unmet: 1, satisfaction: 0.5 }
+      ]
+    }
+  });
+  assert.equal(summary.titleKey, "audit.event.colony_needs");
+  assert.equal(summary.cadenceKey, "audit.cadence.colony_needs_daily");
+  assert.equal(summary.facts[1].value, 1);
+  assert.equal(summary.needs[1].unmet, 1);
+});
+
+test("daily colony needs is identified as an ordinary daily settlement", () => {
+  const summary = summarizeDomainEvent({
+    type: "colony.needs-settled",
+    payload: {
+      needCount: 2,
+      shortageCount: 1,
+      needs: [{ commodityId: "water", requested: 2.175, consumed: 1, unmet: 1.175, satisfaction: .4598 }]
+    }
+  });
+  assert.equal(summary.kind, "population-needs");
+  assert.equal(summary.cadenceKey, "audit.cadence.colony_needs_daily");
+  assert.equal(summary.needs[0].unmet, 1.175);
+});

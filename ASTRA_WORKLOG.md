@@ -95,47 +95,51 @@ Long-term direction:
 ## Current work queue
 
 ### Priority 1 — one consolidated Windows desktop acceptance pass
-The previous clock interpolation, incremental daily region refresh, scroll retention and seven-segment weekly progress were confirmed by the user on an earlier revision. The current main branch adds autosaves, fail-fast world handling, Mod API v4, per-Mod persistent state/schema 7 and query projections. These newer runtime paths still need one combined desktop pass:
+The previous clock interpolation, incremental daily region refresh, scroll retention and seven-segment weekly progress were confirmed by the user on an earlier revision. The current main branch adds autosaves, fail-fast world handling, Mod API v4, per-Mod persistent state/schema 7, readable production/audit panels and save integrity receipts. These newer runtime paths still need one combined desktop pass:
 
 - Verify the merged campaign-clock fix with a 10-second base day, a new journey and 4x speed.
-- Reach day 7 and inspect per-industry production reports: planned/actual batches and output, normal status for input-free extraction, and any naturally limited input. Confirm the report changes only on weekly settlement.
-- Daily autosaves at elapsed days 1 and 2; weekly autosaves at days 7 and 14; verify both two-slot rotations.
+- Inspect day-by-day food/water population demand, satisfaction and visible shortfalls; confirm the population and stability values do not yet change automatically.
+- Reach day 7 and inspect per-industry production reports; confirm weekly production runs before same-day population consumption and market pricing.
+- Inspect readable calculation/event panels and their daily/weekly cadence labels.
+- Save and inspect the SHA-256 prefix/byte count; reload and confirm the same prefix verifies. Check a copied legacy save without a receipt remains loadable.
+- Daily autosaves at elapsed days 1 and 2; weekly autosaves at days 7 and 14; verify both two-slot rotations and their receipts.
 - Load an automatic save and make a manual save; confirm the manual save uses its own slot.
 - Verify the fatal report from a deliberately failing hook in a disposable copy, not by editing a real save.
 - Verify example-market API v4 hook and persistent state at days 30 and 60; reload between boundaries.
-- Migrate a copied schema-6 save to schema 7 and compare its important gameplay state.
 - Check that Logs/runtime.log is line-oriented JSONL and preserve the entire Logs folder if anything fails.
 
 ### Priority 2 — make observability player-readable
-- Per-industry weekly production reports are implemented in PR #4: requested/actual batches and output, actual input consumption, limiting material/inventory, and explicit normal/limited/no-output status. PR CI passed 141/141 tests; the UI still needs user-side Windows verification.
-- Calculation audits now have localized player-facing summaries for commodity quotes, security quotes and colony production. Raw inputs, formula steps, modifiers, random draws and results are kept under a separate advanced disclosure.
-- Domain events now explain the normal cadence of daily market settlement, daily active-war chronology and weekly colony production. Command/Mod events are labeled event-driven; no duplicate-scan or new runtime audit was added.
-- Save/load integrity receipts are implemented in PR #6: SHA-256, serialized byte count, schema/day/date and content fingerprint are stored in existing slot metadata, verified at load boundaries, and compatible with legacy saves that have no receipt.
+- Per-industry weekly production reports are implemented in PR #4: requested/actual batches and output, actual input consumption, limiting material/inventory, and explicit normal/limited/no-output status.
+- Calculation audits have localized player-facing summaries for commodity quotes, security quotes, colony production and now daily population needs. Raw inputs, formula steps, modifiers, random draws and results remain under an advanced disclosure.
+- Domain events explain the normal cadence of daily market settlement, daily active-war chronology, daily colony needs and weekly colony production. Command/Mod events are labeled event-driven; no duplicate-scan or new runtime audit was added.
+- Save/load integrity receipts are implemented in PR #6: SHA-256, serialized byte count, schema/day/date and content fingerprint are stored in existing slot metadata and verified only at save/load boundaries; legacy saves without a receipt remain compatible.
 
-### Priority 3 — complete the common observation boundary
-- engine/queries.cjs currently provides detached projections for world overview, faction, colony, market, fleet and war.
-- It is not yet connected to Renderer IPC. Migrate UI panels and future AI consumers to these named projections only when their query requirements are clear.
-- Preserve the rule that read projections cannot mutate the authoritative world.
+### Priority 3 — query registry integration (deferred until a concrete consumer)
+- `engine/queries.cjs` provides detached projections for world overview, faction, colony, market, fleet and war.
+- Inspection found no useful Renderer consumer for the current per-entity summaries: each existing page renders multiple entities and depends on catalog definitions plus state. Calling these queries individually would create many IPC round trips and reconstruct the same broad view; adding a single all-world query would duplicate `createSnapshot`.
+- Do not add a generic `world:query` IPC or migrate panels merely for uniformity. Revisit when a concrete AI/service consumer needs a bounded projection and its query shape is clear.
+- Preserve the rule that read projections cannot mutate authoritative world state.
 
 ### Priority 4 — build actual world simulation domains
-1. Population cohorts, needs, workforce, wages, migration and demographic change.
-2. Facilities, upkeep, storage capacity, construction and colony development.
-3. Physical logistics: freighters, cargo manifests, routes, travel time, capacity, risk, loading/unloading and delivery.
-4. Company operating state and financial statements, then market orders/fills, ownership and settlement.
-5. Faction relations, diplomacy, treaties, laws, interest groups and public finance.
-6. Fleet movement, supply, fronts, objectives, occupation and strategic AI.
-7. Research, incidents, missions and scenario content.
+1. Population: the first aggregate daily food/water consumption step now exists. Next add cohort structure and distinct subsistence/everyday/luxury needs, substitution, then connect sustained shortages to health/stability/population with explicit formulas and observable outcomes. Avoid invented population changes before the cohort/needs rules are defined.
+2. Labor: workforce availability, skill groups, employment, wage costs and workplace conditions; connect recipe workforce requirements to actual labor supply.
+3. Facilities: upkeep, storage capacity, construction and colony development.
+4. Physical logistics: freighters, cargo manifests, routes, travel time, capacity, risk, loading/unloading and delivery.
+5. Company operating state and financial statements, then market orders/fills, ownership and settlement.
+6. Faction relations, diplomacy, treaties, laws, interest groups and public finance.
+7. Fleet movement, supply, fronts, objectives, occupation and strategic AI.
+8. Research, incidents, missions and scenario content.
 
 ### Priority 5 — presentation and independent combat
-- Establish the renderer-neutral scene/asset contracts before choosing a 2D scene backend. Actual world scenes, animation, particles and audio are not implemented yet.
+- Establish renderer-neutral scene/asset contracts before choosing a 2D scene backend. Actual world scenes, animation, particles and audio are not implemented yet.
 - Keep DOM for accessible menus and panels; scenes consume snapshots and events only.
 - Tactical combat remains a later independent fixed-step simulation and must not enter the campaign day scheduler.
 
 ### Current implementation boundaries
-- Named random streams, versioned price/production formulas, domain events, validated commands, the main-process gateway, authoritative finance balances, JSONL logs, daily/weekly autosaves, atomic day settlement and Mod API v4 are implemented.
+- Named random streams, versioned population-needs/production/price formulas, daily aggregate food/water consumption, weekly colony production, domain events, validated commands, the main-process gateway, authoritative finance balances, JSONL logs, daily/weekly autosaves with integrity receipts, atomic day settlement and Mod API v4 are implemented.
 - API v3 INI-only Mods remain compatible. API v4 permits explicitly declared JS hooks; content/manifests/localization remain INI.
 - Node vm is not a hardened security boundary for malicious JS. JS Mods remain trusted/opt-in until process-level sandboxing exists.
-- The finance transfer command has no dedicated in-game UI. Market orders, actual freight, fleet movement, population simulation, diplomacy, taxes and tactical combat are not implemented.
+- The finance transfer command has no dedicated in-game UI. The current population model is still one aggregate number per colony; cohorts, migration, births/deaths, need substitution, shortage-driven health/stability changes, employment/wages, market orders, actual freight, fleet movement, diplomacy, taxes and tactical combat are not implemented.
 
 ## Session log
 
@@ -615,4 +619,25 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 - The separately distributed launcher EXE and source/runtime distribution arrangement were not changed.
 - Next: inspect the existing read-only query registry and renderer snapshot boundary, then decide whether one small query integration materially reduces ad hoc cross-system reads. Keep this optional until concrete usage justifies it; do not introduce a generic data-access framework or migrate panels merely for uniformity.
 - Consolidated Windows desktop test remains outstanding for: 10-second base day at 4x speed; week-boundary production reports; readable calculation/event panels; save receipt display and matching verified load prefix; legacy no-receipt compatibility; autosave receipt rotation; load-auto-then-manual-save separation; fatal diagnostic report; and Mod API v4 state persistence/reload.
+- Windows desktop test: required; not yet performed.
+
+
+### 2026-11-21 — aggregate daily population needs and consumption
+
+- Read the full root `AGENTS.md` and full `ASTRA_WORKLOG.md` before starting this task. Main baseline was `cb3c67af81e4ceb88d436466b0b4285530df9f0a`; latest main CI `44900381589` was successful with 157/157 tests, syntax, renderer build and generated-renderer commit.
+- Reviewed `engine/queries.cjs`, `electron/main.cjs` snapshot IPC, `src/world.js` and the existing full-snapshot/region-refresh path. Decision: do not wire `world:query` into Renderer yet. Each current page needs many entities and catalog definitions; querying per-entity summaries would add IPC round trips and reconstruct the broad view, while one all-world query would merely duplicate `createSnapshot`. This is recorded as a deliberate deferral, not an unfinished IPC migration.
+- Chose the first concrete population domain as aggregate daily commodity needs. The current model still has one total population number per colony; no cohort or demographic assumptions were invented.
+- Added optional `daily_need_per_thousand` to commodity definitions. Core food is configured at 0.001 and water at 0.0015 commodity units per 1,000 residents per game day. These are explicit game-balance parameters, not real-world consumption conversions; Mods may define the same optional field for other commodities.
+- Added versioned formula `economy.population-needs` v1. It computes requested demand, actual consumption capped by available inventory, unmet quantity and per-commodity satisfaction. It records its inputs/steps/result through the existing calculation audit service; it does not consume RNG.
+- Inventory precision: the needs formula receives the original non-negative stockpile value without rounding it upward first. A stockpile is updated only when positive demand is actually consumed; a zero-population/no-consumption day leaves the original stockpile value untouched. Additional regression tests cover sub-mill precision and the zero-population no-op path.
+- Added daily system `population.needs-consumption`, ordered after weekly `colonies.production` and before daily `economy.market-pricing`. On day 7, 14, 21, ... the order is production → daily needs → market prices, so same-day production is available to satisfy population demand before the market reads final stock.
+- Each colony stores an additive `lastNeedsReport` with day/population and per-commodity inventory-before, requested, consumed, unmet, satisfaction and status. Emits `colony.needs-settled` once per colony/day with an idempotency key. This does not bump Schema 7; older saves without the optional report continue to load.
+- The system consumes stock but deliberately does not yet change population, health or stability when needs are unmet. That effect requires cohort/needs rules and should be a separate feature after the first demand/stock loop is tested.
+- Colony Renderer now shows daily satisfaction/shortfall beside post-consumption stockpiles. The colony region refresh policy changes from weekly to daily because inventory now changes daily; the existing incremental region update/scroll-retention mechanism remains in use.
+- Calculation and event inspectors now explain population-needs formula records and daily colony-needs events. Localization lives in Core's existing INI `[content]` localization table.
+- Exact files changed: `engine/formulas.cjs`, `engine/catalog.cjs`, `engine/simulation.cjs`, `mods/core/content/economy.ini`, `mods/core/localization/zh-CN.ini`, `src/calculation-audit.mjs`, `src/domain-event-view.mjs`, `src/world.js`, `src/world-refresh.mjs`, `src/styles.css`, `tests/engine.test.cjs`, `tests/calculation-audit.test.mjs`, `tests/domain-event-view.test.mjs`, `tests/observability-render.test.mjs`, `tests/observability-localization.test.cjs`, `tests/world-refresh.test.mjs`, `docs/ENGINE_ARCHITECTURE.md`, `docs/SIMULATION_DOMAIN_MAP.md`, `docs/PLAYTEST_GUIDE.md` and `ASTRA_WORKLOG.md`.
+- Core content changed, so its deterministic content fingerprint changes. Schema remains 7, but saves made with the previous Core content fingerprint remain subject to strict Mod-content matching and may require restoring that matching content or starting a new world; this batch does not silently rebase arbitrary Schema-7 content hashes.
+- No local tests/build were run. Final Windows PR CI [44901850859](https://github.com/Sakurefa/test-game/actions/runs/44901850859) passed on code head `010209ef49625135033e6aed74104c5a3d35598d`: syntax checks passed, `npm test` passed 172/172 with 0 failures, and Vite Renderer build passed. No user-side Windows desktop GUI test was performed.
+- Current source branch: `astra/population-needs-consumption-2026-11-21`; final code head verified by Windows CI: `010209ef49625135033e6aed74104c5a3d35598d`. This work-log update itself creates a new PR head and requires a repeat CI run before merge.
+- Initial Windows CI exposed seven test issues: formula-service imports missing from ESM tests, stale references held across atomic world commits, old production fixtures assuming no daily inventory consumption, and a zero-population fixture conflicting with the engine's positive-population input rule. These were corrected in the tests; no engine invariant was weakened. Final run passed 172/172.
 - Windows desktop test: required; not yet performed.

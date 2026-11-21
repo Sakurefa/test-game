@@ -29,6 +29,20 @@ export function summarizeDomainEvent(event) {
         cadenceKey: "audit.cadence.war_daily",
         facts: [{ labelKey: "audit.field.war_days_active", value: payload.daysActive ?? 0 }]
       };
+    case "colony.needs-settled":
+      return {
+        kind: "population-needs",
+        titleKey: "audit.event.colony_needs",
+        explanationKey: payload.shortageCount > 0
+          ? "audit.explanation.colony_needs_shortage_event"
+          : "audit.explanation.colony_needs_event",
+        cadenceKey: "audit.cadence.colony_needs_daily",
+        facts: [
+          { labelKey: "audit.field.need_count", value: payload.needCount ?? 0 },
+          { labelKey: "audit.field.shortage_count", value: payload.shortageCount ?? 0 }
+        ],
+        needs: Array.isArray(payload.needs) ? payload.needs.map((item) => ({ ...item })) : []
+      };
     case "colony.production-settled":
       return {
         kind: "colony-production",

@@ -39,16 +39,19 @@ The engine should remain plain Node.js modules. Do not add a framework for its o
 
 ### Population and social structure
 
-Plan for population cohorts rather than one undifferentiated colony population:
+The first executable step currently uses each colony's aggregate population; population cohorts remain a later migration of the data model.
 
-- Cohort identity: colony, culture, social class, profession, ideology, wealth band and legal status.
-- Demography: births, deaths, migration, assimilation, displacement and cohort growth.
-- Needs: subsistence, everyday and luxury demand; satisfaction, unmet needs and substitution.
-- Labor: available workers, skills, employment, wages, unemployment and workplace conditions.
-- Social conditions: wealth, literacy, health, security, radicalization and mobility.
+- **Implemented — daily commodity needs:** Core/Mod commodity definitions may provide `daily_need_per_thousand` (commodity units per 1,000 residents per game day). The daily population-needs system runs after weekly production and before market repricing, consumes only available inventory and records demand, actual consumption, unmet quantity and satisfaction per commodity.
+- **Not yet implemented — cohort identity:** colony, culture, social class, profession, ideology, wealth band and legal status.
+- **Not yet implemented — demography:** births, deaths, migration, assimilation, displacement and cohort growth.
+- **Not yet implemented — richer needs:** subsistence, everyday and luxury baskets, substitution and preference differences between cohorts.
+- **Not yet implemented — labor:** available workers, skills, employment, wages, unemployment and workplace conditions.
+- **Not yet implemented — social conditions:** wealth, literacy, health, security, radicalization and mobility.
+
+Current needs shortfalls are visible and recorded; they do not yet directly change population or stability.
 
 Interfaces:
-- Events: population.cohort-created, population.cohort-changed, population.migrated, population.needs-settled, population.employment-settled.
+- Events: `colony.needs-settled` (implemented daily aggregate demand fact); future cohort lifecycle and migration events remain planned.
 - Commands: population.create-cohort, population.migrate, population.assign-work.
 - Read projections: cohort totals, needs satisfaction, labor supply, employment and migration flows.
 

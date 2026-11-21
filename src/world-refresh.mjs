@@ -1,6 +1,6 @@
 const WORLD_VIEW_REFRESH_POLICIES = Object.freeze([
   { id: "recent-events", tab: "overview", cadence: "daily" },
-  { id: "colony-production", tab: "colonies", cadence: "weekly" },
+  { id: "colony-production", tab: "colonies", cadence: "daily" },
   { id: "market-quotes", tab: "markets", cadence: "daily" },
   { id: "war-chronology", tab: "military", cadence: "daily" }
 ]);

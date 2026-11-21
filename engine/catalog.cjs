@@ -328,7 +328,8 @@ function compileCatalog(modPackages) {
         version: mod.version,
         scripts: mod.scripts || {},
         hooks: mod.hooks || {}
-      }));
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id));
     const contentFingerprint = extensions.length > 0
       ? JSON.stringify({ content: serializable, extensions })
       : JSON.stringify(serializable);

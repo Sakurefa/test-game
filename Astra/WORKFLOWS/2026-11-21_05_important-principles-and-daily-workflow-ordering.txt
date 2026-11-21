@@ -1,0 +1,31 @@
+【工作流记录】重要原则独立归档与工作流日内排序
+============================================
+
+工作日期：2026-11-21
+当日序号：05
+工作基线：29450e2c21ae735d31c2648be6dd5e44915594e3
+
+目标
+----
+在 Astra/ 下建立独立的最高优先级工程原则档案；将 AK 原则和 Mod 化原则分别细分成可直接执行的文档，并强制纳入开工阅读顺序。同时为同一天的工作流建立统一的日内排序。
+
+计划变更
+--------
+- 新建 Astra/IMPORTANT_PRINCIPLES/【最高优先级重要原则】AK 原则.txt。
+- 新建 Astra/IMPORTANT_PRINCIPLES/【最高优先级重要原则】MOD 化原则.txt。
+- 旧工作流已按原始总日志顺序重命名：2026-11-20 为 01；2026-11-21 历史档案为 01、02、03、04；本次编号为 05。
+- 更新 AGENTS.md、Astra/README.txt、Astra/WORKING_MEMORY.txt、ASTRA_WORKLOG.md 和 Astra/DISCUSSIONS/日志编写规范.txt，明确原则优先级与日内序号规则。
+
+当日工作流顺序
+--------------
+01 — Simulation calculation, command and finance foundation
+02 — AK maintainability, observability, Mod API and handoffs
+03 — Clock, observability, save integrity and population foundation
+04 — Documentation log structure and archive migration
+05 — Important principles and daily workflow ordering
+
+编号说明：历史档案沿用旧总日志中分组区间的先后顺序；这是可追溯的归档顺序，不声称同一组内的每个条目有精确时刻。
+
+本次仅修改协作文档。未运行 npm test、本地构建或 Windows GUI 测试；无需 Windows GUI 验收。CI 不以空状态列表推断通过。
+
+未来每个日期从 01 开始，所有工作方向共用一个递增序列。继续同一工作只更新原文件；新的独立工作才分配下一个序号。具体规则见 Astra/DISCUSSIONS/日志编写规范.txt。

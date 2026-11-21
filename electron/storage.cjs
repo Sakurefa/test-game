@@ -337,8 +337,7 @@ async function writeGameState(root, id, state) {
   const serialized = JSON.stringify(state, null, 2);
   if (Buffer.byteLength(serialized, "utf8") > MAX_GAME_STATE_BYTES) throw new Error("Game state exceeds the 16 MiB save limit");
   const receipt = createSaveReceipt(serialized, state);
-  await atomicWrite(path.join(dataDirectory, "world.json"), serialized);
-
+  const worldPath = path.join(dataDirectory, "world.json");
   const metadataPath = path.join(directory, "metadata.ini");
   const metadataStat = await fs.lstat(metadataPath);
   if (!metadataStat.isFile() || metadataStat.isSymbolicLink() || metadataStat.size > 64 * 1024) {
@@ -346,9 +345,32 @@ async function writeGameState(root, id, state) {
   }
   const parsed = parseIni(await fs.readFile(metadataPath, "utf8"));
   if (!parsed.save) throw new Error("Save metadata is missing its [save] section");
-  parsed.save.updated_at = new Date().toISOString();
-  storeSaveReceipt(parsed.save, receipt);
-  await atomicWrite(metadataPath, serializeIni(parsed));
+
+  let previousWorld = null;
+  try {
+    const previousStat = await fs.lstat(worldPath);
+    if (!previousStat.isFile() || previousStat.isSymbolicLink() || previousStat.size > MAX_GAME_STATE_BYTES) {
+      throw new Error("Existing world save is linked, invalid or too large");
+    }
+    previousWorld = await fs.readFile(worldPath);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+
+  await atomicWrite(worldPath, serialized);
+  try {
+    parsed.save.updated_at = new Date().toISOString();
+    storeSaveReceipt(parsed.save, receipt);
+    await atomicWrite(metadataPath, serializeIni(parsed));
+  } catch (error) {
+    try {
+      if (previousWorld) await atomicWrite(worldPath, previousWorld);
+      else await fs.rm(worldPath, { force: true });
+    } catch (restoreError) {
+      throw new AggregateError([error, restoreError], "Save metadata update failed and the previous world file could not be restored");
+    }
+    throw error;
+  }
   return { ...receipt, status: "written" };
 }
 

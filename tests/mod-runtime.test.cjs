@@ -373,7 +373,7 @@ test("rejects group effects that reference unregistered profession categories", 
     day: 1,
     hookId: "campaign.after-day",
     emitDomainEvent: createDomainEventEmitter(world, { day: 1, date: "2478-04-02" })
-  }), /missing profession/);
+  }), /references missing .* profession/);
   assert.deepEqual(world, before);
 });
 

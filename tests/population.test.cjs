@@ -158,7 +158,14 @@ test("splits a group proportionally without changing colony population or its ma
     sourcePopulationBefore: 100,
     sourcePopulationAfter: 80,
     newGroupPopulation: 20,
-    dimensionIds: ["profession", "wealth_tier"]
+    sourceDimensionsAfter: {
+      profession: { miner: 0.6, engineer: 0.4 },
+      wealth_tier: { low: 1 }
+    },
+    newDimensions: {
+      profession: { miner: 0.6, engineer: 0.4 },
+      wealth_tier: { low: 1 }
+    }
   });
   assert.equal(validatePopulationGroups(colony.populationGroups, colony.population), true);
 });

@@ -72,11 +72,13 @@ Need baskets, substitutions, affordability, labor, wages, market clearing, stock
 
 8. CURRENT ENGINE FOUNDATION GUARDRAIL
 ---------------------------------------
-Continue building Engine capabilities, not a concrete population/economy gameplay feature. The next recorded foundation slice is to inspect the current main branch, CI and relevant implementation, then design the smallest generic persisted aggregate population-group representation with independent statistical dimensions.
+Continue building Engine capabilities, not a concrete population/economy gameplay feature. The generic aggregate population-group foundation is now implemented in Engine and persisted in world schema 8.
 
-Preserve scalar colony population and the agreed legacy `colony.population.delta` compatibility: positive deltas enter an unclassified group; negative deltas reduce existing groups proportionally. The Engine may provide generic group storage, aggregation, validation, persistence/migration and effect/trigger contracts. It must not hard-code actual professions, wealth tiers, demographic distributions, need baskets, wages or market rules.
+Each colony retains its compatibility scalar `population` and now stores `populationGroups`: a map of stable group IDs to group population counts and independent statistical dimensions. A dimension is a category-to-proportion map whose proportions total 1. The sum of group populations must match the colony total. Dimensions are independent marginals; never infer joint ratios by multiplying them or generate a Cartesian product.
 
-Population classifications, need-basket entries, category IDs, concrete effects and balance values are Mod content defined through INI in `mods/core` or optional Mods. The Engine may define a reusable INI schema/settlement mechanism where required, but must not own those game definitions. Keep steps small and consistent with AK and Mod principles.
+The existing `colony.population.delta` effect remains compatible: positive deltas enter `unclassified`; negative deltas reduce all groups proportionally; the total may not become negative. Schema 1–7 saves migrate by creating a neutral `unclassified` group from the prior scalar population when no group data exists. Save validation checks group totals, IDs and dimension proportions.
+
+This is generic Engine storage, arithmetic, validation and migration only. New worlds currently begin entirely unclassified; the daily needs settlement still reads the scalar colony total and is not yet group-specific. Do not invent demographic composition, professions, wealth distributions, need baskets, wages or market rules. Concrete categories, group compositions, effects and balance values must be defined by Core/optional Mod INI. The next design step is a Mod INI contract for declaring initial group composition and dimension distributions without embedding game content in Engine. Keep steps small and consistent with AK and Mod principles.
 
 9. PERSONNEL ENTITIES AND SETTLEMENT-DEPENDENT BUILDING EFFECTS
 --------------------------------------------------------------

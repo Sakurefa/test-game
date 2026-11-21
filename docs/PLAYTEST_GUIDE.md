@@ -78,23 +78,23 @@ Core 仍使用 API v3 的 INI-only 兼容格式；`example-market` 是 API v4 �
 
 1. 从新世界推进到第 30 天。
 2. 保存并退出游戏。
-3. 检查 `save/<slot-id>/data/world.json`：`schemaVersion` 应为 7，`modState` 中 `example-market` 的 `months-observed` 应为 1。
+3. 检查 `save/<slot-id>/data/world.json`：`schemaVersion` 应为 8，`modState` 中 `example-market` 的 `months-observed` 应为 1；每个殖民地还应有 `populationGroups`，新世界初始时总人口应全部位于 `unclassified` 群体。
 4. 重新载入同一存档，继续到第 60 天，再保存。
 5. `months-observed` 应变为 2；「世界事件」中应各有一条第 30、60 天的 `mod.example-market.monthly-market-observation` 事件。
 
-保持脚本文件不变再读档。Schema 7 的存档绑定启用的 JS 脚本内容；脚本变更后加载不匹配的存档应明确报 Mod 内容指纹不一致，而不能静默使用新旧混合内容。
+保持脚本文件不变再读档。Schema 8 的存档绑定启用的 JS 脚本内容；脚本变更后加载不匹配的存档应明确报 Mod 内容指纹不一致，而不能静默使用新旧混合内容。
 
 每个 Mod 有独立状态空间，最多 128 个键、64 KiB。Mod hook 只能看到自己的状态副本，不能直接写世界对象。
 
 ## 6. 旧存档迁移
 
-目前存档版本为 schema 7，旧 schema 1–6 都有迁移路径。重点验证你之前使用的 schema 6 存档：
+目前存档版本为 schema 8，旧 schema 1–7 都有迁移路径。重点验证你之前使用的 schema 6 存档；如有 schema 7 存档，也应验证它能补建中性人口群体：
 
 1. 保留旧存档副本。
 2. 把副本放进新版本目录的 `save/` 后加载。
 3. 日期、殖民地、库存、市场、舰队、战争和玩家资金应保留；加载后世界应处于暂停状态。
-4. 迁移后的保存应写成 schema 7，并包含 `modState`。
-5. 对于旧版 INI 内容指纹，程序只在旧 schema 迁移时、且旧 INI 内容完全匹配时，才执行一次升级到包含 JS 脚本的新版指纹。已经是 schema 7 的存档仍严格检查脚本内容。
+4. 迁移后的保存应写成 schema 8，并包含 `modState` 与各殖民地的 `populationGroups`。
+5. 对于 schema 1–6 的旧版 INI 内容指纹，程序只在旧 INI 内容完全匹配时，才执行一次升级到包含 JS 脚本的新版指纹。Schema 7 迁移会补建中性群体并保留脚本指纹约束；Schema 8 载入仍严格检查 Mod 内容。
 
 如果旧档因为 Mod 内容不匹配而拒绝加载，请保留原始存档，不要覆盖；把报错和对应存档副本交给我。
 

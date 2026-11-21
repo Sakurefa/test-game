@@ -98,6 +98,7 @@ test("population needs formula calculates daily demand and caps consumption at a
   assert.equal(result.satisfaction.food, 1);
   assert.equal(result.satisfaction.water, 0.4598);
   assert.equal(record.formulaId, "economy.population-needs");
+  assert.equal(record.version, 2);
 });
 
 test("population needs formula supports no population and duplicate commodity requirements", () => {
@@ -140,6 +141,6 @@ test("population needs calculation does not round the available input quantity u
   });
   assert.equal(result.requested.water, 1000);
   assert.equal(result.consumed.water, 0.12345);
-  assert.equal(result.unmet.water, 999.877);
+  assert.ok(Math.abs(result.unmet.water - 999.87655) < 1e-12);
   assert.equal(result.satisfaction.water, 0.0001);
 });

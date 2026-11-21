@@ -54,7 +54,7 @@ function renderNeedsRows(snapshot, needs) {
     const shortage = item.unmet > 0;
     return `<div class="needs-row ${shortage ? "warning" : "met"}">
       <div><b>${escapeHtml(entityName(snapshot, snapshot.commodities.find((commodity) => commodity.id === item.commodityId), item.commodityId))}</b>
-        <small>结算前库存 ${number(item.available)} / 需求 ${number(item.requested)} ${escapeHtml(unitLabel)} · 实际消耗 ${number(item.consumed)}${escapeHtml(unitLabel)}${shortage ? ` · 缺口 ${number(item.unmet)}${escapeHtml(unitLabel)}` : ""}</small>
+        <small>结算前库存 ${quantity(item.available)} / 需求 ${quantity(item.requested)} ${escapeHtml(unitLabel)} · 实际消耗 ${quantity(item.consumed)}${escapeHtml(unitLabel)}${shortage ? ` · 缺口 ${quantity(item.unmet)}${escapeHtml(unitLabel)}` : ""}</small>
       </div>
       <strong>${number((item.satisfaction ?? 1) * 100)}%</strong>
     </div>`;
@@ -209,6 +209,10 @@ function entityDescription(snapshot, entity) {
 
 function number(value) {
   return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 2 }).format(value || 0);
+}
+
+function quantity(value) {
+  return new Intl.NumberFormat("zh-CN", { maximumFractionDigits: 6 }).format(value || 0);
 }
 
 function renderRecentEventsSection(snapshot) {

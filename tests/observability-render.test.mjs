@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { renderCalculationAuditPanel, renderDomainEventPanel } from "../src/world.js";
+import { renderCalculationAuditPanel, renderDomainEventPanel, renderWorldRegion } from "../src/world.js";
 
 const localization = {
   "audit.formula.commodity_price": "商品报价调整",
@@ -118,7 +118,7 @@ test("colony needs audit explains actual consumption and shortage without hiding
   view.world.audit.calculations = [{
     day: 1,
     formulaId: "economy.population-needs",
-    version: 1,
+    version: 2,
     inputs: { population: 1450000, requirements: [
       { commodityId: "food", dailyNeedPerThousand: .001, available: 10 },
       { commodityId: "water", dailyNeedPerThousand: .0015, available: 1 }
@@ -162,7 +162,7 @@ test("domain event panel explains daily population demand settlement", () => {
 test("colony needs formula renders commodity satisfaction and unmet demand", () => {
   const view = snapshot();
   view.world.audit.calculations = [{
-    day: 1, formulaId: "economy.population-needs", version: 1,
+    day: 1, formulaId: "economy.population-needs", version: 2,
     inputs: { population: 1450000, requirements: [
       { commodityId: "water", dailyNeedPerThousand: .0015, available: 1 }
     ] },
@@ -195,4 +195,41 @@ test("colony needs event renders its daily cadence and unmet quantity", () => {
   assert.match(markup, /殖民地日常需求结算/);
   assert.match(markup, /每座殖民地每天一次/);
   assert.match(markup, /缺口 1\.18/);
+});
+
+test("colony needs panel displays sub-mill shortages with enough precision", () => {
+  const view = snapshot();
+  view.recipes = [];
+  view.colonies = [{
+    id: "new-dawn-colony",
+    nameKey: "entity.new-dawn-colony.name",
+    faction: null,
+    location: { systemId: "helio" },
+    state: {
+      population: 1000,
+      stability: 80,
+      stockpiles: { water: 0, food: 0 },
+      industries: [],
+      lastProductionReport: null,
+      lastNeedsReport: {
+        day: 1,
+        shortageCount: 1,
+        needs: [{
+          commodityId: "water",
+          available: 0.0006,
+          requested: 0.001,
+          consumed: 0.0006,
+          unmet: 0.0004,
+          satisfaction: 0.6,
+          status: "shortage"
+        }]
+      }
+    }
+  }];
+  view.commodities.push({ id: "water", nameKey: "entity.water.name", unitKey: "entity.water.unit" });
+
+  const markup = renderWorldRegion(view, "colony-production");
+  assert.match(markup, /结算前库存 0\.0006 \/ 需求 0\.001/);
+  assert.match(markup, /实际消耗 0\.0006/);
+  assert.match(markup, /缺口 0\.0004/);
 });

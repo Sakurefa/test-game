@@ -156,3 +156,19 @@ The full guide was restored from the pre-change main revision, the intended
 population section and save-compatibility wording were reapplied, and the
 restored document was checked at its full 251-line length. No game runtime
 code or save data was affected by this documentation correction.
+
+
+Population-needs precision correction
+-------------------------------------
+
+The review confirmed a real sub-mill inventory defect: the daily needs
+calculation rounded unmet quantity to three decimals, and the settlement layer
+rounded actual consumption before deducting stock. A shortage of 0.0004 could
+therefore disappear from the report while displayed consumption was rounded
+above the actual available stock.
+
+The fix keeps the requested-demand precision rule, preserves the exact actual
+consumption and shortage values, and subtracts only the amount actually
+available from stock. The colony needs panel now displays up to six decimal
+places for these amounts. The population-needs formula version is raised to v2
+so audit records identify the changed calculation behavior.

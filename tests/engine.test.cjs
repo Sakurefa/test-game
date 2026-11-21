@@ -355,6 +355,27 @@ test("catalog rejects negative daily population need rates",async()=>{
  assert.equal(result.ok,false);assert.match(result.error,/dailyNeedPerThousand/);
 });
 
+test("partial sub-mill population consumption records the exact shortage without over-consuming stock", async () => {
+  const c = await catalog(), w = createWorld(c, { seed: "partial-sub-mill-population-stock" });
+  const colony = w.colonies["new-dawn-colony"];
+  colony.population = 1000;
+  colony.stockpiles.food = 0.0006;
+
+  advanceDay(w, c);
+
+  const food = colony.lastNeedsReport.needs.find((need) => need.commodityId === "food");
+  assert.equal(food.requested, 0.001);
+  assert.equal(food.consumed, 0.0006);
+  assert.ok(Math.abs(food.unmet - 0.0004) < 1e-12);
+  assert.equal(food.satisfaction, 0.6);
+  assert.equal(food.status, "shortage");
+  assert.equal(colony.stockpiles.food, 0);
+  assert.equal(colony.lastNeedsReport.shortageCount, 1);
+
+  const event = w.domainEvents.find((item) => item.type === "colony.needs-settled");
+  assert.equal(event.payload.needs.find((need) => need.commodityId === "food").unmet, food.unmet);
+});
+
 test("sub-mill population demand does not round or mutate untouched stockpiles",async()=>{
  const c=await catalog(),w=createWorld(c,{seed:"zero-population-demand"});
  const colonyId="new-dawn-colony";

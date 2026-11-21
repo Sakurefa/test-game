@@ -235,12 +235,10 @@ function settlePopulationNeeds(catalog, colonyState, calculations, day, emitDoma
   const needs = requirements.map((requirement) => {
     const commodityId = requirement.commodityId;
     const requested = result.requested[commodityId] || 0;
-    const consumed = round(result.consumed[commodityId] || 0, 3);
-    const unmet = round(result.unmet[commodityId] || 0, 3);
+    const consumed = result.consumed[commodityId] || 0;
+    const unmet = result.unmet[commodityId] || 0;
     if (consumed > 0) {
-      colonyState.stockpiles[commodityId] = round(
-        Math.max(0, requirement.available - consumed), 3
-      );
+      colonyState.stockpiles[commodityId] = Math.max(0, requirement.available - consumed);
     }
     return {
       commodityId,

@@ -13,7 +13,7 @@ function createTracingRandom(random,streamId,draws){
  }])));
 }
 const DEFAULT_FORMULAS=Object.freeze([
- Object.freeze({id:"economy.population-needs",version:1,calculate:({inputs,recordStep})=>{
+ Object.freeze({id:"economy.population-needs",version:2,calculate:({inputs,recordStep})=>{
   const population=requireNumber(inputs,"population",{min:0});
   if(!Array.isArray(inputs.requirements))throw new TypeError("Population needs formula requires a requirements array");
   const requirements=new Map();
@@ -33,7 +33,7 @@ const DEFAULT_FORMULAS=Object.freeze([
    const actual=Math.min(quantity,requirement.available);
    requested[commodityId]=quantity;
    consumed[commodityId]=actual;
-   unmet[commodityId]=round(Math.max(0,quantity-actual));
+   unmet[commodityId]=Math.max(0,quantity-actual);
    satisfaction[commodityId]=quantity>0?round(actual/quantity,4):1;
   }
   recordStep("population",population);

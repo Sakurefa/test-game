@@ -141,7 +141,7 @@ Each Mod owns a persistent key/value state namespace stored in the world save. U
         }],
         events: [{
           type: "monthly-observation",
-          payload: { completedMonths: (input.modState.months-observed || 0) + 1 }
+          payload: { completedMonths: (input.modState["months-observed"] || 0) + 1 }
         }]
       };
     }

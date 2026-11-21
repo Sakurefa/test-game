@@ -91,3 +91,4 @@
 .audit-raw-details .audit-record-body{padding:0 2px 7px}
 .audit-cadence{color:#9db7d2!important}
 @media(max-width:700px){.audit-fact-grid{grid-template-columns:1fr}.audit-resource-group span{align-items:flex-start;flex-direction:column}}
+.audit-record-status-note{margin-top:4px!important;color:#9fb7d1!important;font-size:8px;font-weight:500}

@@ -327,7 +327,12 @@ function applyModEffect(effect, world, catalog, modId) {
       const before = market.prices[payload.instrumentId];
       const after = Math.min(basePrice * 10, Math.max(basePrice * 0.1, before * multiplier));
       market.prices[payload.instrumentId] = after;
-      return { marketId: market.id, instrumentId: payload.instrumentId, before, after };
+      const priorChange = market.lastChanges[payload.instrumentId];
+      if (Number.isFinite(priorChange)) {
+        const priorQuote = before / (1 + priorChange / 100);
+        if (priorQuote > 0) market.lastChanges[payload.instrumentId] = Math.round(((after - priorQuote) / priorQuote) * 10000) / 100;
+      }
+      return { marketId: market.id, instrumentId: payload.instrumentId, before, after, change: market.lastChanges[payload.instrumentId] ?? null };
     }
     case "war.weariness.delta": {
       requireKeys(payload, ["warId", "factionId", "delta"], effect.type);

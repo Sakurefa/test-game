@@ -133,3 +133,44 @@ World schema 6 stores account balances as integer CR minor units and validates t
 7. In a disposable test save only, deliberately remove a required market price or referenced colony state, then advance to the next day. Confirm the day is not partially committed, campaign time pauses, the title menu appears, and the fatal dialog shows the concrete error with surrounding log lines. Copy the report and confirm it contains the same error record as `Logs/runtime.log`.
 8. Confirm an autosave write failure is logged as an autosave error but does not masquerade as a simulation-system failure.
 9. These checks require the Windows desktop build. Automated storage/rotation and simulation atomicity tests do not replace a Windows GUI test.
+
+
+## Extensible simulation and Mod API v4 — combined Windows test
+
+This batch adds a new INI + JavaScript Mod contract, persistent per-Mod state, read-only engine query projections and game-state schema v7. API v3 INI-only Mods must continue to load.
+
+### 1. New-world Mod hook behavior
+
+1. Ensure example-market is enabled in the Mod settings.
+2. Start a new world and let campaign time reach day 30.
+3. Save the game, close it and inspect the save's data/world.json.
+4. Confirm schemaVersion is 7 and modState contains example-market with monthsObserved equal to 1.
+5. Reload the save, advance to day 60, then save again.
+6. Confirm monthsObserved is now 2. The example Mod should have emitted one monthly-market-observation event for each 30-day boundary; full domain-event details are also available in Logs/runtime.log.
+
+### 2. Compatibility and content identity
+
+1. Keep a copy of the current example-market Mod folder and save file.
+2. Disable example-market and start a separate new world; the core world should still load.
+3. Re-enable the Mod before loading the original save.
+4. Do not edit the script between saving and reloading. Enabled script content contributes to the save's content fingerprint, so a changed Mod behavior version must not silently reuse an old save.
+
+### 3. Save migration
+
+- Existing schema 6 and older saves should migrate to schema 7 on load.
+- A migrated old save should contain an empty modState object when no Mod state existed previously.
+- A schema 7 save missing its required modState container is invalid and should be reported as a load error.
+
+### 4. Existing runtime checks still required
+
+Please combine these with the previous playtest items rather than testing every commit separately:
+
+- Reach game days 1, 2, 7 and 14; verify daily and weekly autosave slot rotation.
+- Load a daily/weekly autosave, manually save, and confirm it creates a separate manual slot without overwriting auto slots.
+- Inspect JSONL Logs/runtime.log and confirm each event/failure is a separate physical line.
+- In a disposable test save, set a required market quote to zero or break a required reference; confirm the day is discarded atomically, campaign time pauses, the game returns to the main menu and the fatal report can be copied.
+- Verify speed controls, pause/resume, renderer responsiveness and scroll position.
+
+### What automated tests cover
+
+The automated suite tests mixed API v3/v4 loading, declared script validation, deterministic per-Mod/per-entity random streams, immutable input snapshots, restricted runtime capabilities, execution timeout, registered effect validation, persistent state isolation and save migration, content fingerprint changes, query projection immutability, a real 60-day example-Mod settlement and atomic rollback on a failing hook. These are code-level tests, not a substitute for launching the packaged game in a Windows desktop session.

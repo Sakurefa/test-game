@@ -226,3 +226,8 @@ Tactical combat remains outside the campaign scheduler. Future battles use a sep
 The engine now exports a small query registry from engine/queries.cjs. The default registry provides world overview and faction, colony, market, fleet and war summaries. Query results are JSON-detached and recursively frozen, so consumers cannot mutate authoritative state through a returned projection. Input and output sizes are bounded.
 
 This is an engine-side contract and test surface; the renderer still uses the existing campaign snapshot IPC in this revision. Future UI, AI and subsystem integrations should adopt named projections as they are migrated, rather than introducing ad hoc cross-system reads. Query handlers themselves are trusted core code, not JavaScript Mod callbacks.
+
+
+### Schema v7 content-fingerprint migration
+
+The catalog keeps both the current content fingerprint and the legacy INI-only fingerprint. A world migrated from schema 1–6 temporarily carries a migration marker. During the load-boundary validation, the legacy fingerprint is accepted only when it exactly matches the current INI-only content; the save is then upgraded to the current fingerprint, including enabled Mod scripts and hook declarations. The marker is removed immediately. Already-schema-7 saves never receive this exception and continue to reject script-content changes.

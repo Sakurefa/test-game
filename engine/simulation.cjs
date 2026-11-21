@@ -1,6 +1,6 @@
 const { NamedRandomStreams, hashSeed } = require("./random.cjs");
 const { createCalculationService, CALCULATION_AUDIT_LIMIT } = require("./formulas.cjs");
-const { createClock, advanceClock, advanceClockTime } = require("./clock.cjs");
+const { parseDate, createClock, advanceClock, advanceClockTime } = require("./clock.cjs");
 const { createSystemRegistry } = require("./system-registry.cjs");
 const { createDomainEventEmitter, validateDomainEventState } = require("./domain-events.cjs");
 const { validateCommandReceiptState } = require("./commands.cjs");
@@ -430,10 +430,11 @@ function validateWorldState(world, catalog) {
   if (!world.audit || !Array.isArray(world.audit.calculations)) throw new Error("Save has an invalid calculation audit");
   validateDomainEventState(world);
   validateCommandReceiptState(world);
-  if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)
+  if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day) || world.clock.day < 0
     || !Number.isFinite(world.clock.dayFraction) || world.clock.dayFraction < 0 || world.clock.dayFraction >= 1) {
     throw new Error("Save has an invalid game clock");
   }
+  parseDate(world.clock.date);
   if (!world.scheduler || typeof world.scheduler !== "object" || !world.scheduler.lastRunDayBySystem
     || typeof world.scheduler.lastRunDayBySystem !== "object") throw new Error("Save has an invalid simulation scheduler state");
   for (const id of catalog.colonies.keys()) {
@@ -521,9 +522,10 @@ function validateDayInputs(world, catalog) {
     throw new Error("This save was created with different Mod content. Restore the matching Mods before loading.");
   }
   if (world.universeId !== catalog.universe.id) throw new Error("Save universe does not match the loaded content");
-  if (!world?.clock || !Number.isInteger(world.clock.day) || typeof world.clock.date !== "string") {
+  if (!world?.clock || !Number.isInteger(world.clock.day) || world.clock.day < 0 || typeof world.clock.date !== "string") {
     throw new Error("DAY_INPUT world.clock.day/date is missing or invalid");
   }
+  parseDate(world.clock.date);
   if (!world.rng || !Number.isInteger(world.rng.seed) || !world.rng.streams || typeof world.rng.streams !== "object") {
     throw new Error("DAY_INPUT world.rng seed/streams is missing or invalid");
   }

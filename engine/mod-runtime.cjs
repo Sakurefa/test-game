@@ -75,12 +75,12 @@ function normalizeHookResult(value, modId, hookId) {
   return { effects, events };
 }
 
-function executeScript({ modId, hookId, source, handler, input, timeoutMs }) {
+function executeScript({ modId, hookId, source, handler, input, timeoutMs, randomScope = "world" }) {
   if (typeof source !== "string" || Buffer.byteLength(source, "utf8") > 256 * 1024) {
     throw new RangeError("Mod " + modId + " script is missing or exceeds 256 KiB");
   }
   const safeInput = cloneJson(input, "Mod hook input");
-  const seed = hashSeed(modId + ":" + hookId + ":" + String(input.day ?? 0));
+  const seed = hashSeed(modId + ":" + hookId + ":" + String(input.day ?? 0) + ":" + randomScope);
   const invocation = [
     "(function () {",
     '"use strict";',
@@ -159,15 +159,16 @@ function createModExtensionRuntime(modPackages = [], options = {}) {
     }
   }
 
-  function run(hookId, input = {}) {
+  function run(hookId, input = {}, options = {}) {
     if (typeof hookId !== "string" || !MOD_HOOK_PATTERN.test(hookId)) {
       throw new TypeError("Mod hook ID must be a stable lowercase identifier");
     }
     if (!isRecord(input)) throw new TypeError("Mod hook input must be an object");
+    const randomScope = typeof options.randomScope === "string" ? options.randomScope : "world";
     const outcomes = [];
     for (const definition of hooks.get(hookId) || []) {
       try {
-        const result = executeScript({ ...definition, hookId, input, timeoutMs });
+        const result = executeScript({ ...definition, hookId, input, timeoutMs, randomScope });
         outcomes.push({ modId: definition.modId, hookId, ...result });
       } catch (error) {
         const failure = new Error("Mod " + definition.modId + " hook " + hookId + " failed: " + error.message, { cause: error });
@@ -293,11 +294,11 @@ function applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey
     }
     for (const [index, event] of outcome.events.entries()) {
       emitDomainEvent({
-        type: "mod." + outcome.modId + "." + event.type,
+        type: "mod." + outcome.modId.replace(/_/g, "-") + "." + event.type,
         scope: "mod",
         subjectId: outcome.modId,
         idempotencyKey: "mod:" + outcome.modId + ":" + day + ":" + hashSeed(hookId + ":" + subjectKey) + ":event:" + index,
-        payload: event.payload ?? {}
+        payload: { modId: outcome.modId, eventType: event.type, ...(event.payload ?? {}) }
       });
       eventCount += 1;
     }

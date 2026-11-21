@@ -11,8 +11,8 @@ test("markets and military refresh their own daily regions", () => {
   assert.deepEqual(getWorldDateRefreshRegions({ activeTab: "military", previousDay: 3, currentDay: 4 }), ["war-chronology"]);
 });
 
-test("colony production view refreshes only when a seven-day boundary is crossed", () => {
-  assert.deepEqual(getWorldDateRefreshRegions({ activeTab: "colonies", previousDay: 5, currentDay: 6 }), []);
+test("colony stock and daily needs view refreshes at every daily boundary", () => {
+  assert.deepEqual(getWorldDateRefreshRegions({ activeTab: "colonies", previousDay: 5, currentDay: 6 }), ["colony-production"]);
   assert.deepEqual(getWorldDateRefreshRegions({ activeTab: "colonies", previousDay: 6, currentDay: 7 }), ["colony-production"]);
   assert.deepEqual(getWorldDateRefreshRegions({ activeTab: "colonies", previousDay: 13, currentDay: 14 }), ["colony-production"]);
 });

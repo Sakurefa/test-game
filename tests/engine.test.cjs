@@ -113,3 +113,27 @@ test("invalid or oversized saved Mod state is rejected at the load boundary", as
   tooLarge.modState = { "example-market": { payload: "x".repeat(70 * 1024) } };
   assert.throws(() => validateWorldState(tooLarge, c), /exceeds the per-Mod limit/);
 });
+
+
+test("schema-six saves upgrade the legacy INI fingerprint when the enabled v4 Mod adds scripts", async () => {
+  const c = await catalog();
+  assert.notEqual(c.legacyContentHash, c.contentHash);
+  const legacy = createWorld(c, { seed: "legacy-mod-fingerprint" });
+  legacy.schemaVersion = 6;
+  legacy.contentHash = c.legacyContentHash;
+  delete legacy.modState;
+
+  const migrated = migrateWorldState(legacy);
+  assert.equal(migrated.schemaVersion, 7);
+  assert.equal(migrated.contentHashUpgradePending, true);
+  assert.equal(validateWorldState(migrated, c), true);
+  assert.equal(migrated.contentHash, c.contentHash);
+  assert.equal(Object.hasOwn(migrated, "contentHashUpgradePending"), false);
+});
+
+test("schema-seven saves still reject changed JavaScript Mod content", async () => {
+  const c = await catalog();
+  const world = createWorld(c, { seed: "strict-v4-fingerprint" });
+  const changedCatalog = { ...c, contentHash: "changed-script-content-hash" };
+  assert.throws(() => validateWorldState(world, changedCatalog), /different Mod content/);
+});

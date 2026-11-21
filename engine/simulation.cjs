@@ -167,8 +167,7 @@ function produceForColony(catalog, colonyState, calculations, day, emitDomainEve
         (requestedOutput[item.commodityId] || 0) + item.quantity * result.requestedBatches, 3
       );
     }
-    const consumed = Object.fromEntries(Object.entries(result.consumed)
-      .map(([commodityId, quantity]) => [commodityId, round(quantity, 3)]));
+    const consumed = { ...result.consumed };
     const produced = Object.fromEntries(Object.entries(result.produced)
       .map(([commodityId, quantity]) => [commodityId, round(quantity, 3)]));
     const limitingStock = result.limitingInput ? inputTotals.get(result.limitingInput) : null;

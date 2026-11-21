@@ -277,8 +277,15 @@ function validateWorldState(world, catalog) {
     throw new Error("Unsupported or invalid game-state schema");
   }
   if (world.contentHash !== catalog.contentHash) {
-    throw new Error("This save was created with different Mod content. Restore the matching Mods before loading.");
+    const canUpgradeLegacyFingerprint = world.contentHashUpgradePending === true
+      && typeof catalog.legacyContentHash === "string"
+      && world.contentHash === catalog.legacyContentHash;
+    if (!canUpgradeLegacyFingerprint) {
+      throw new Error("This save was created with different Mod content. Restore the matching Mods before loading.");
+    }
+    world.contentHash = catalog.contentHash;
   }
+  if (world.contentHashUpgradePending !== undefined) delete world.contentHashUpgradePending;
   if (world.universeId !== catalog.universe.id) throw new Error("Save universe does not match the loaded content");
   if (!Number.isInteger(world.rng?.seed) || !world.rng?.streams || typeof world.rng.streams !== "object" || Array.isArray(world.rng.streams)) {
     throw new Error("Save has an invalid named random state");
@@ -502,6 +509,7 @@ function migrateWorldState(world) {
   if (world.schemaVersion < 7) {
     if (world.modState === undefined) world.modState = {};
     validateModState(world.modState);
+    world.contentHashUpgradePending = true;
     world.schemaVersion = 7;
   }
   return world;

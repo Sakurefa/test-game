@@ -1,0 +1,78 @@
+【工作流记录】日历结算 cadence 第一阶段
+========================================
+
+工作日期：2026-11-22
+当日序号：03
+工作基线：f232d8038dd9fab8292ae5c2e9f2530fe68d13f0
+功能提交：6acd23b63d7776173a56186861dda24491736a3f
+修正提交：ac9cab507819af4852fdbe51ba16b6386b96d978
+工作结果：已实现并通过 Windows CI；通用 Trigger System 仍未完成
+
+用户方向
+--------
+用户要求继续推进已确认的通用触发/结算/调用/数值影响架构，并明确要求以仓库工作区为依据，不能只依据对话记忆。按 AGENTS.md 和 Astra/README.txt，先重新阅读了：
+- AGENTS.md、Astra/README.txt、完整 Astra/WORKING_MEMORY.txt、ASTRA_WORKLOG.md；
+- AK 原则与 MOD 化原则两份最高优先级文件；
+- 关于接下来工作、人员与建筑结算、日志编写规范讨论；
+- 2026-11-22_02 通用触发/结算审计工作流、2026-11-21_03 时间/存档/人口基础工作流；
+- 调度器、campaign clock、simulation settle path、相关测试和架构文档。
+
+基线确认
+--------
+- 仓库：Sakurefa/test-game，分支 main。
+- 本轮施工基线：f232d8038dd9fab8292ae5c2e9f2530fe68d13f0。
+- 基线 Windows CI [44928613925](https://github.com/Sakurefa/test-game/actions/runs/44928613925) 已成功。
+- 现有存档 schema 为 8；world.scheduler.lastRunDayBySystem 已记录每个模拟系统的最后执行日，可继续用于同一 campaign day 的执行去重。
+
+实现范围与设计约束
+------------------
+本轮只补齐 simulation system cadence 的日历结算部分：
+- 新增 annual、monthly cadence。
+- annual 在有效 campaign date 的 1 月 1 日到期；monthly 在每月 1 日到期。使用 world.clock.date 的真实日历日期，不使用 30 天近似，不扫描历史日期。
+- weekly 继续以每七个经过日（day 7、14、21…）到期；daily 继续每个已完成游戏日执行；manual 继续只接受显式调用。
+- 同日系统执行相位固定为 annual → monthly → weekly → daily。相位内仍由依赖拓扑和配置 order 决定；若自动结算系统依赖更晚相位，注册阶段拒绝此矛盾依赖。
+- due 执行仍以 lastRunDayBySystem 防止同日重复，不新增存档字段、不升级 schema。
+- 不新增游戏内容、Mod 定义、人口阈值、建筑 workforce 规则或平衡数值。
+
+CI 发现与修正
+--------------
+- 初始功能提交 6acd23b63d7776173a56186861dda24491736a3f 的 Windows CI [44929912985](https://github.com/Sakurefa/test-game/actions/runs/44929912985) 失败：日历日期正则多转义了一层，导致合法日期被拒绝。语法检查通过；204 个测试中 203 通过、1 失败；Renderer build 因测试失败而未运行。
+- 从该 run 的测试日志定位到 isValidCampaignDate 的格式正则；修正为正常的四位年、两位月、两位日正则，其他实现保持不变。
+- 修正提交 ac9cab507819af4852fdbe51ba16b6386b96d978 的 Windows CI [44930171027](https://github.com/Sakurefa/test-game/actions/runs/44930171027) 成功：Syntax check 通过；npm test 204/204，0 failed；Renderer build 成功；generated-renderer step 成功。全部 job steps 完成 success。
+- 本地未执行 npm test 或 build；CI 为 GitHub Windows runner 的实际验证，不能替代用户设备 GUI 验收。
+
+精确修改文件
+------------
+- engine/system-registry.cjs：cadence priority、calendar date validation、annual/monthly due 判定、phase-aware ordering、反向 phase dependency rejection。
+- tests/system-registry.test.cjs：覆盖年度/月度/周度/日度同日优先级、月初触发、日度持续触发、同日去重、非法日期和反向依赖。
+- docs/ENGINE_ARCHITECTURE.md：记录 cadence 规则、固定相位和未实现 Trigger System 的边界。
+- Astra/DISCUSSIONS/关于接下来的工作.txt：更新实现状态、记录 2026-11-22_03 推进结果和后续全局方向。
+- ASTRA_WORKLOG.md：刷新当前仓库/CI 状态、工作流索引和下一阶段入口。
+- Astra/WORKFLOWS/2026-11-22_03_calendar-settlement-cadence-foundation.txt：本工作流记录。
+
+实现边界与未完成项
+------------------
+这一步只实现 simulation system scheduler 的 calendar cadence，不是通用 Trigger System。当前 simulation registry 没有任何实际注册的 annual/monthly gameplay consumer；Example Mod 仍是 daily hook 中判断每 30 个经过日，未迁移成 calendar-month consumer。
+
+仍未实现：
+- 持久化 trigger instances 与 due queue；
+- elapsed-time、condition、domain-event trigger source；
+- trigger 到已登记 Effect / Command / Event 的批准调用契约；
+- 通用条件/阈值 evaluator；
+- source/target/operation/value 数值 modifier/effect layer；
+- permanent/temporary effect 生命周期与临时效果到期流程；
+- 实际雇佣 workforce 数据与建筑结算快照。
+
+后续继续按用户已确认的总体方向推进，不将下一步缩成单独的人口阈值。建筑 workforce 条件必须等真实就业群体与人数数据存在后再做。
+
+验证与用户测试
+--------------
+- Windows CI [44930171027](https://github.com/Sakurefa/test-game/actions/runs/44930171027)：成功，语法检查、204/204 测试、Renderer build、generated-renderer step 全部通过。
+- 本地测试：未执行。
+- 本地 build：未执行。
+- 用户设备 Windows GUI 验收：未执行；累积版本的综合 GUI 验收仍待用户实际运行。
+- Electron Runtime/Launcher 打包：本轮未运行，未改动 Renderer 或打包资源。
+
+下一项
+------
+继续通用触发器生命周期与批准调用契约：先建立最小、持久化的 date/elapsed due-trigger 记录与队列，再定义调用到已注册 Effect/Command/Event 的边界。条件与事件触发、通用数值影响层、临时效果生命周期随后分阶段接入；每一步需有真实消费者和测试。

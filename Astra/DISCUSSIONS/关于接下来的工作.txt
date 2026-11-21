@@ -67,6 +67,8 @@
 4. 条件消费者：先确认有真实可读取的业务数据再实现；建筑 workforce 条件必须等待实际雇佣群体与人数存在，不能用人口边际比例猜交叉分布。
 5. 每一阶段都要有实际消费者和聚焦测试；人口阈值只是可能的消费者之一，不能替代整套基础机制。
 
-人口权威数据本轮代码提交：`9e515649734269e2ef71ed40d530740b83c36017`；测试期望修订：`0aa769dc97bf9c76718c3215b3d786e2869d07a1`；当前 main：`c232c54c4f59cafdfb860ae93c62152ad1e1982d`。最新 Windows CI [44926906863](https://github.com/Sakurefa/test-game/actions/runs/44926906863) 成功，201/201 测试、语法检查和 Renderer build 通过。此次只读审计没有运行本地测试或构建，也没有进行用户设备 Windows GUI 验收。
+人口群体权威实现提交：9e515649734269e2ef71ed40d530740b83c36017；测试期望修订：0aa769dc97bf9c76718c3215b3d786e2869d07a1。通用触发/结算架构审计的代码基线为 c232c54c4f59cafdfb860ae93c62152ad1e1982d，档案归档后的 main 曾推进至 f232d8038dd9fab8292ae5c2e9f2530fe68d13f0。
+
+2026-11-22_03 日历结算 cadence 实现提交：6acd23b63d7776173a56186861dda24491736a3f；其首次 CI [44929912985](https://github.com/Sakurefa/test-game/actions/runs/44929912985) 因日期正则多转义一层而失败。修正提交：ac9cab507819af4852fdbe51ba16b6386b96d978；Windows CI [44930171027](https://github.com/Sakurefa/test-game/actions/runs/44930171027) 成功，语法检查通过，测试 204/204，Renderer build 与生成文件步骤通过。本阶段未运行本地测试/构建，也未进行用户设备 Windows GUI 验收。具体过程见 Astra/WORKFLOWS/2026-11-22_03_calendar-settlement-cadence-foundation.txt。
 
 每一步保持小而可测试，并同时遵守 AK 原则与 MOD 化原则。

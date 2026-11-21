@@ -10,6 +10,8 @@ const MAX_MOD_EFFECTS = 128;
 const MAX_MOD_EVENTS = 64;
 const MAX_MOD_HOOK_INPUT_BYTES = 2 * 1024 * 1024;
 const MAX_MOD_OUTPUT_BYTES = 128 * 1024;
+const MAX_MOD_STATE_BYTES = 64 * 1024;
+const MAX_MOD_STATE_KEYS = 128;
 const DEFAULT_MOD_TIMEOUT_MS = 50;
 const MAX_MOD_TIMEOUT_MS = 100;
 
@@ -165,10 +167,13 @@ function createModExtensionRuntime(modPackages = [], options = {}) {
     }
     if (!isRecord(input)) throw new TypeError("Mod hook input must be an object");
     const randomScope = typeof options.randomScope === "string" ? options.randomScope : "world";
+    const modStateById = isRecord(options.modStateById) ? options.modStateById : {};
     const outcomes = [];
     for (const definition of hooks.get(hookId) || []) {
       try {
-        const result = executeScript({ ...definition, hookId, input, timeoutMs, randomScope });
+        const modState = isRecord(modStateById[definition.modId]) ? modStateById[definition.modId] : {};
+        const hookInput = { ...input, modState };
+        const result = executeScript({ ...definition, hookId, input: hookInput, timeoutMs, randomScope });
         outcomes.push({ modId: definition.modId, hookId, ...result });
       } catch (error) {
         const failure = new Error("Mod " + definition.modId + " hook " + hookId + " failed: " + error.message, { cause: error });
@@ -200,9 +205,81 @@ function getRequired(collection, id, label) {
   return value;
 }
 
-function applyModEffect(effect, world, catalog) {
+function getModState(world, modId) {
+  if (!isRecord(world.modState)) world.modState = {};
+  if (!isRecord(world.modState[modId])) world.modState[modId] = {};
+  return world.modState[modId];
+}
+
+function validateModState(state) {
+  if (state === undefined) return true;
+  if (!isRecord(state)) throw new Error("Save contains invalid Mod state");
+  for (const [modId, values] of Object.entries(state)) {
+    if (!MOD_ID_PATTERN.test(modId) || !isRecord(values)) throw new Error("Save contains invalid Mod state for " + modId);
+    const keys = Object.keys(values);
+    if (keys.length > MAX_MOD_STATE_KEYS || keys.some((key) => !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(key))) {
+      throw new Error("Save contains invalid Mod state keys for " + modId);
+    }
+    const serialized = JSON.stringify(values);
+    if (Buffer.byteLength(serialized, "utf8") > MAX_MOD_STATE_BYTES) {
+      throw new Error("Saved Mod state exceeds the per-Mod limit: " + modId);
+    }
+  }
+  return true;
+}
+
+function applyModEffect(effect, world, catalog, modId) {
   const payload = effect.payload;
   switch (effect.type) {
+    case "mod.state.set": {
+      requireKeys(payload, ["key", "value"], effect.type);
+      if (typeof payload.key !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(payload.key)) {
+        throw new TypeError("Mod state key must be a stable lowercase ID");
+      }
+      const state = getModState(world, modId);
+      if (!Object.hasOwn(state, payload.key) && Object.keys(state).length >= MAX_MOD_STATE_KEYS) {
+        throw new RangeError("Mod state cannot exceed " + MAX_MOD_STATE_KEYS + " keys");
+      }
+      const value = cloneJson(payload.value, "Mod state value");
+      const nextState = { ...state, [payload.key]: value.value };
+      if (Buffer.byteLength(JSON.stringify(nextState), "utf8") > MAX_MOD_STATE_BYTES) {
+        throw new RangeError("Mod state for " + modId + " exceeds " + MAX_MOD_STATE_BYTES + " bytes");
+      }
+      const before = state[payload.key] ?? null;
+      state[payload.key] = value.value;
+      return { modId, key: payload.key, before, after: value.value };
+    }
+    case "mod.state.increment": {
+      requireKeys(payload, ["key", "delta"], effect.type);
+      if (typeof payload.key !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(payload.key)) {
+        throw new TypeError("Mod state key must be a stable lowercase ID");
+      }
+      const state = getModState(world, modId);
+      if (!Object.hasOwn(state, payload.key) && Object.keys(state).length >= MAX_MOD_STATE_KEYS) {
+        throw new RangeError("Mod state cannot exceed " + MAX_MOD_STATE_KEYS + " keys");
+      }
+      const before = state[payload.key] ?? 0;
+      if (typeof before !== "number" || !Number.isFinite(before)) {
+        throw new TypeError("Mod state increment requires an existing numeric value: " + payload.key);
+      }
+      const after = requireFinite(before + requireFinite(payload.delta, effect.type + ".delta"), effect.type + ".result");
+      const nextState = { ...state, [payload.key]: after };
+      if (Buffer.byteLength(JSON.stringify(nextState), "utf8") > MAX_MOD_STATE_BYTES) {
+        throw new RangeError("Mod state for " + modId + " exceeds " + MAX_MOD_STATE_BYTES + " bytes");
+      }
+      state[payload.key] = after;
+      return { modId, key: payload.key, before, after };
+    }
+    case "mod.state.delete": {
+      requireKeys(payload, ["key"], effect.type);
+      if (typeof payload.key !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(payload.key)) {
+        throw new TypeError("Mod state key must be a stable lowercase ID");
+      }
+      const state = getModState(world, modId);
+      const before = state[payload.key] ?? null;
+      delete state[payload.key];
+      return { modId, key: payload.key, before, deleted: before !== null };
+    }
     case "colony.population.delta": {
       requireKeys(payload, ["colonyId", "delta"], effect.type);
       const colony = world.colonies?.[payload.colonyId];
@@ -282,7 +359,7 @@ function applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey
   let eventCount = 0;
   for (const outcome of outcomes) {
     for (const [index, effect] of outcome.effects.entries()) {
-      const result = applyModEffect(effect, world, catalog);
+      const result = applyModEffect(effect, world, catalog, outcome.modId);
       emitDomainEvent({
         type: "mod.effect-applied",
         scope: "mod",
@@ -312,7 +389,10 @@ module.exports = {
   MAX_MOD_EFFECTS,
   MAX_MOD_HOOK_INPUT_BYTES,
   MAX_MOD_OUTPUT_BYTES,
+  MAX_MOD_STATE_BYTES,
+  MAX_MOD_STATE_KEYS,
   MAX_MOD_TIMEOUT_MS,
   createModExtensionRuntime,
-  applyModHookResults
+  applyModHookResults,
+  validateModState
 };

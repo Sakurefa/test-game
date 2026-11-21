@@ -8,7 +8,7 @@ const MOD_EVENT_PATTERN = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
 const MAX_MOD_HOOKS = 64;
 const MAX_MOD_EFFECTS = 128;
 const MAX_MOD_EVENTS = 64;
-const MAX_MOD_INPUT_BYTES = 2 * 1024 * 1024;
+const MAX_MOD_HOOK_INPUT_BYTES = 2 * 1024 * 1024;
 const MAX_MOD_OUTPUT_BYTES = 128 * 1024;
 const DEFAULT_MOD_TIMEOUT_MS = 50;
 const MAX_MOD_TIMEOUT_MS = 100;
@@ -42,7 +42,7 @@ function cloneJson(value, label) {
   }
   if (typeof serialized !== "string") throw new TypeError(label + " must be JSON serializable");
   const bytes = Buffer.byteLength(serialized, "utf8");
-  if (bytes > MAX_MOD_INPUT_BYTES) throw new RangeError(label + " exceeds the " + MAX_MOD_INPUT_BYTES + " byte limit");
+  if (bytes > MAX_MOD_HOOK_INPUT_BYTES) throw new RangeError(label + " exceeds the " + MAX_MOD_HOOK_INPUT_BYTES + " byte limit");
   return { value: JSON.parse(serialized), serialized };
 }
 

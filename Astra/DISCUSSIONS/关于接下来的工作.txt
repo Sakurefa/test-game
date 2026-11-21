@@ -106,3 +106,17 @@
 
 第一阶段源码 Windows CI 已通过：[44949943031](https://github.com/Sakurefa/test-game/actions/runs/44949943031)，215/215 tests、语法检查和 Renderer build 全部成功；Electron 存档 schema 9 写入/旧版读取边界也已接通。
 下一步建议：先明确 Resolution/Settlement 的“结果计算”与“Effect 执行”契约，再根据真实数据和消费者决定第二个通用 Resolution。条件触发、Domain Event 驱动、随机结算池与 UI Presentation 应分别设计，不要为了完整感一次性扩大框架。
+## 2026-11-22_10 Resolution 结果计划与 Effect 执行分离
+
+本次在已实现的 Trigger System 上继续补齐执行边界，不新增具体游戏规则：
+1. 所有 Resolution 必须返回 `{ result, effects }`；结果对象与有序 Effect 描述数组通过 JSON-safe 结构校验，Effect 最多 16 项。
+2. Resolution 只计算并生成计划，不负责修改 World。Trigger Runner 单独调用已有的 Effect 执行入口，逐项执行已注册 Effect，并记录 `mod.effect-applied`。
+3. Trigger 成功后写入的 `trigger.resolved` 同时记录 Resolution result 和已应用 Effect 的结果；计算失败或任一 Effect 失败都回滚整个 candidate day。
+4. 新增第二个真实消费者 `formula.effect`：只调用已有 Engine 公式注册表，输入是调度时保存的 JSON-safe 快照；Mod 提供有限 Effect 模板，以简单的顶层 `resultFields` 映射公式输出字段。它不新增公式语言，也不开放任意 JS resolver。
+5. 公式随机抽取使用由 Trigger ID 派生的独立命名随机流，计算记录和随机流状态沿用现有 candidate-world 提交路径。
+
+当前边界：不允许 Mod 注册公式/Resolution 函数；不支持嵌套字段路径、算术表达式、条件表达式或动态世界对象引用；Effect 仍必须通过现有 Mod Effect 白名单。Formula 输入数据是调度时快照，不是到期时实时读取。
+
+源码提交和 Windows CI 结果以本轮工作流记录 2026-11-22_10 为准；未验证之前不得将该实现标记为通过。
+
+下一步建议：在本阶段 CI 通过后，继续明确条件触发和 Domain Event 驱动触发的最小边界；先选有现成、权威事实数据的具体消费者，不建立通用表达式引擎或扫描全量事件历史。

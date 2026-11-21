@@ -44,14 +44,15 @@ test("date and elapsed Triggers share the campaign calendar and process in due o
 
   const emissions = [];
   const emit = (event) => { emissions.push(event); return event; };
+  const applyEffect = () => { throw new Error("No Effects expected in this resolution test"); };
   world.clock = { day: 11, date: "2480-02-29" };
   assert.equal(processDueTriggers(world, {
-    day: 11, date: "2480-02-29", catalog, resolutions, emitDomainEvent: emit
+    day: 11, date: "2480-02-29", catalog, resolutions, applyEffect, emitDomainEvent: emit
   }).length, 1);
   assert.equal(world.triggerQueue.pending[0].id, "test-mod.calendar");
   world.clock = { day: 12, date: "2480-03-01" };
   assert.equal(processDueTriggers(world, {
-    day: 12, date: "2480-03-01", catalog, resolutions, emitDomainEvent: emit
+    day: 12, date: "2480-03-01", catalog, resolutions, applyEffect, emitDomainEvent: emit
   }).length, 1);
   assert.equal(world.triggerQueue.pending.length, 0);
   assert.deepEqual(world.triggerQueue.receipts.map((item) => item.id), ["test-mod.elapsed", "test-mod.calendar"]);
@@ -63,6 +64,74 @@ test("date and elapsed Triggers share the campaign calendar and process in due o
     due: { kind: "date", date: "2480-03-01" },
     event: { type: "test.resolve", payload: { value: 4 } }
   }, { resolutions, catalog }).duplicate, true);
+});
+
+test("Resolution returns an Effect plan and the Engine applies it in a separate step", () => {
+  const world = triggerWorld();
+  world.value = 0;
+  const catalog = { modIds: ["test-mod"] };
+  const resolutions = createResolutionRegistry([{
+    id: "test.plan",
+    resolve: ({ event, world: currentWorld }) => {
+      assert.equal(currentWorld.value, 0);
+      currentWorld.value = 100;
+      return {
+        result: { calculated: event.payload.value + 1 },
+        effects: [{ type: "test.value.set", payload: { value: event.payload.value + 1 } }]
+      };
+    }
+  }]);
+  scheduleTrigger(world, {
+    id: "test-mod.plan",
+    ownerId: "test-mod",
+    due: { kind: "elapsed", days: 1 },
+    event: { type: "test.plan", payload: { value: 8 } }
+  }, { resolutions, catalog });
+  world.clock = { day: 11, date: "2480-02-29" };
+
+  const emitted = [];
+  const processed = processDueTriggers(world, {
+    day: 11,
+    date: world.clock.date,
+    catalog,
+    resolutions,
+    applyEffect: ({ effect, world: candidate }) => {
+      assert.equal(candidate.value, 0);
+      candidate.value = effect.payload.value;
+      return { after: candidate.value };
+    },
+    emitDomainEvent: (event) => { emitted.push(event); return event; }
+  });
+
+  assert.equal(world.value, 9);
+  assert.deepEqual(processed[0].resolution, { calculated: 9 });
+  assert.deepEqual(processed[0].effects, [{ effectType: "test.value.set", result: { after: 9 } }]);
+  assert.deepEqual(emitted[0].payload.resolution, { calculated: 9 });
+  assert.deepEqual(emitted[0].payload.effects, [{ effectType: "test.value.set", result: { after: 9 } }]);
+});
+
+test("Resolution rejects malformed plans and caps the number of planned Effects", () => {
+  const event = { type: "test.plan", payload: {} };
+  const missingEffects = createResolutionRegistry([{
+    id: "test.plan",
+    resolve: () => ({ result: {} })
+  }]);
+  assert.throws(() => missingEffects.resolve(event), /result, effects/);
+
+  const tooMany = createResolutionRegistry([{
+    id: "test.plan",
+    resolve: () => ({
+      result: {},
+      effects: Array.from({ length: 17 }, () => ({ type: "test.effect", payload: {} }))
+    })
+  }]);
+  assert.throws(() => tooMany.resolve(event), /cannot return more than 16 effects/);
+
+  const malformedEffect = createResolutionRegistry([{
+    id: "test.plan",
+    resolve: () => ({ result: {}, effects: [{ type: "test.effect", payload: {}, extra: true }] })
+  }]);
+  assert.throws(() => malformedEffect.resolve(event), /invalid Effect descriptor/);
 });
 
 test("Trigger scheduling is idempotent for identical IDs and rejects conflicting reuse", () => {
@@ -93,10 +162,11 @@ async function loadCatalogWithTriggerHook(id, source) {
   const mods = await readModPackages(path.join(__dirname, "..", "mods"));
   const compiled = compileCatalog(mods);
   if (!compiled.ok) throw new Error(compiled.error);
+  const script = typeof source === "function" ? source(compiled.catalog) : source;
   const extension = {
     id,
     version: "1.0.0",
-    scripts: { "trigger-test.js": source },
+    scripts: { "trigger-test.js": script },
     hooks: { "campaign.before-day": "trigger-test.js:onBeforeDay" }
   };
   return {
@@ -150,6 +220,100 @@ const failingHook = [
   "  }] };",
   "}"
 ].join("\n");
+
+const formulaHookFactory = (catalog) => {
+  const market = [...catalog.markets.values()].find((item) => item.commodityIds?.length > 0);
+  if (!market) throw new Error("Trigger formula test requires a market with a commodity");
+  const instrumentId = market.commodityIds[0];
+  const commodity = catalog.commodities.get(instrumentId);
+  const literal = (value) => JSON.stringify(value);
+  return [
+    "function onBeforeDay(input) {",
+    "  if (input.day !== 1) return {};",
+    `  const market = input.world.markets[${literal(market.id)}];`,
+    `  const colony = input.world.colonies[${literal(market.colonyId)}];`,
+    "  return { triggers: [{",
+    '    id: "test-trigger.formula-price_with_underscore",',
+    '    due: { kind: "elapsed", days: 1 },',
+    '    event: { type: "formula.effect", payload: {',
+    '      formulaId: "economy.commodity-price",',
+    "      inputs: {",
+    `        basePrice: ${literal(commodity.basePrice)},`,
+    `        targetStock: ${literal(commodity.targetStock)},`,
+    `        stock: colony.stockpiles[${literal(instrumentId)}] || 0,`,
+    `        priceElasticity: ${literal(commodity.priceElasticity)},`,
+    `        volatility: ${literal(commodity.volatility)},`,
+    `        previousPrice: market.prices[${literal(instrumentId)}]`,
+    "      },",
+    "      effects: [{",
+    '        type: "mod.state.set",',
+    '        payload: { key: "calculated-price" },',
+    '        resultFields: { value: "price" }',
+    "      }]",
+    "    } }",
+    "  }] };",
+    "}"
+  ].join("\n");
+};
+
+test("formula Resolution calculates a result plan before the Effect executor mutates Mod state", async () => {
+  const catalog = await loadCatalogWithTriggerHook("test-trigger", formulaHookFactory);
+  const world = createWorld(catalog, { seed: "trigger-formula-effect" });
+  const market = [...catalog.markets.values()].find((item) => item.commodityIds?.length > 0);
+  const instrumentId = market.commodityIds[0];
+  const scheduledStock = world.colonies[market.colonyId].stockpiles[instrumentId] || 0;
+  const scheduledPrice = world.markets[market.id].prices[instrumentId];
+
+  advanceDay(world, catalog);
+  assert.equal(world.triggerQueue.pending.length, 1);
+  assert.equal(world.modState["test-trigger"]?.["calculated-price"], undefined);
+
+  advanceDay(world, catalog);
+  assert.equal(world.triggerQueue.pending.length, 0);
+  assert.equal(world.triggerQueue.receipts.length, 1);
+
+  const resolved = world.domainEvents.find((item) => item.type === "trigger.resolved"
+    && item.subjectId === "test-trigger.formula-price_with_underscore");
+  assert.ok(resolved);
+  assert.equal(resolved.payload.resolution.formulaId, "economy.commodity-price");
+  const calculatedPrice = resolved.payload.resolution.output.price;
+  assert.equal(world.modState["test-trigger"]["calculated-price"], calculatedPrice);
+  assert.equal(resolved.payload.effects.length, 1);
+  assert.equal(resolved.payload.effects[0].effectType, "mod.state.set");
+  assert.equal(resolved.payload.effects[0].result.after, calculatedPrice);
+
+  const effectFact = world.domainEvents.find((item) => item.type === "mod.effect-applied"
+    && item.payload.triggerId === "test-trigger.formula-price_with_underscore");
+  assert.ok(effectFact);
+  assert.equal(effectFact.payload.result.after, calculatedPrice);
+  const formulaRecord = world.audit.calculations.find((record) => record.day === 2
+    && record.formulaId === "economy.commodity-price"
+    && record.result.price === calculatedPrice);
+  assert.ok(formulaRecord);
+  assert.equal(formulaRecord.inputs.stock, scheduledStock);
+  assert.equal(formulaRecord.inputs.previousPrice, scheduledPrice);
+  const triggerId = "test-trigger.formula-price_with_underscore";
+  const expectedStreamId = "t" + triggerId[0] + Array.from(triggerId.slice(1),
+    (character) => character.charCodeAt(0).toString(16).padStart(2, "0")).join("");
+  assert.ok(Object.hasOwn(world.rng.streams, expectedStreamId));
+  assert.equal(validateWorldState(world, catalog), true);
+});
+
+test("a missing formula result binding aborts the candidate day before applying any Effect", async () => {
+  const invalidFactory = (catalog) => {
+    const base = formulaHookFactory(catalog);
+    return base.replace('resultFields: { value: "price" }', 'resultFields: { value: "missing-field" }');
+  };
+  const catalog = await loadCatalogWithTriggerHook("test-trigger", invalidFactory);
+  const world = createWorld(catalog, { seed: "trigger-formula-invalid-binding" });
+  advanceDay(world, catalog);
+  const before = structuredClone(world);
+
+  assert.throws(() => advanceDay(world, catalog), /no field 'missing-field'/);
+  assert.deepEqual(world, before);
+  assert.equal(world.triggerQueue.pending.length, 1);
+  assert.equal(world.triggerQueue.receipts.length, 0);
+});
 
 test("a failed due Trigger leaves the live day, queue and prior world changes untouched", async () => {
   const catalog = await loadCatalogWithTriggerHook("test-trigger", failingHook);

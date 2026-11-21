@@ -33,7 +33,7 @@ The engine should remain plain Node.js modules. Do not add a framework for its o
 
 **Domain Event rule:** a Domain Event describes a completed fact (“cargo arrived”, “law enacted”, “fleet retreated”). The history stores facts and the Event Bus delivers immutable read-only snapshots after commit; it is not a hidden command channel.
 
-**System Event rule:** a System Event is a transient internal request for Engine processing, created when a persisted Trigger becomes due. A registered Resolution handles it and may apply an approved Effect. It is not a player-facing description and is not the same object as a Domain Event. Presentation may later turn committed facts into notifications, reports or other UI.
+**System Event rule:** a System Event is a transient internal request for Engine processing, created when a persisted Trigger becomes due. A registered Resolution returns a JSON-safe result and a list of approved Effect descriptors; the Engine applies those Effects in a separate step. The request is not a player-facing description and is not the same object as a Domain Event. Presentation may later turn committed facts into notifications, reports or other UI.
 
 **Query rule:** user interfaces and read-only Mod hooks receive detached projections. They cannot change the live world by editing an object.
 

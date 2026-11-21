@@ -244,12 +244,12 @@ function validateTriggerQueue(world, { modIds, isEventRegistered } = {}) {
   return true;
 }
 
-function processDueTriggers(world, { day, date, catalog, resolutions, emitDomainEvent } = {}) {
+function processDueTriggers(world, { day, date, catalog, resolutions, calculations, randomStreams, applyEffect, emitDomainEvent } = {}) {
   if (!world || !world.triggerQueue || !Array.isArray(world.triggerQueue.pending)
     || !Array.isArray(world.triggerQueue.receipts)) throw new Error("World has no valid Trigger Queue");
   if (!Number.isInteger(day) || day < 0 || typeof emitDomainEvent !== "function"
-    || !resolutions || typeof resolutions.resolve !== "function") {
-    throw new TypeError("Trigger processing requires a campaign boundary, resolution registry and Domain Event emitter");
+    || typeof applyEffect !== "function" || !resolutions || typeof resolutions.resolve !== "function") {
+    throw new TypeError("Trigger processing requires a campaign boundary, resolution registry, Effect executor and Domain Event emitter");
   }
   parseDate(date);
   validateTriggerQueue(world, {
@@ -265,7 +265,18 @@ function processDueTriggers(world, { day, date, catalog, resolutions, emitDomain
 
   for (const trigger of due) {
     const systemEvent = createSystemEvent(trigger, { day, date });
-    const result = resolutions.resolve(systemEvent, { world, catalog, day, trigger, emitDomainEvent });
+    const plan = resolutions.resolve(systemEvent, {
+      world: structuredClone(world), catalog, day, trigger, calculations, randomStreams
+    });
+    const appliedEffects = [];
+    for (const [index, effect] of plan.effects.entries()) {
+      const result = applyEffect({ event: systemEvent, effect, index, world, catalog, day, trigger });
+      if (result && typeof result.then === "function") {
+        if (typeof result.catch === "function") result.catch(() => {});
+        throw new TypeError("Trigger Effect execution must be synchronous");
+      }
+      appliedEffects.push({ effectType: effect.type, result });
+    }
     emitDomainEvent({
       type: "trigger.resolved",
       scope: "trigger",
@@ -275,7 +286,8 @@ function processDueTriggers(world, { day, date, catalog, resolutions, emitDomain
         ownerId: trigger.ownerId,
         systemEventId: systemEvent.id,
         eventType: systemEvent.type,
-        resolution: result
+        resolution: plan.result,
+        effects: appliedEffects
       }
     });
 
@@ -301,7 +313,8 @@ function processDueTriggers(world, { day, date, catalog, resolutions, emitDomain
       triggerId: trigger.id,
       ownerId: trigger.ownerId,
       eventType: trigger.event.type,
-      resolution: result
+      resolution: plan.result,
+      effects: appliedEffects
     });
   }
   return processed;

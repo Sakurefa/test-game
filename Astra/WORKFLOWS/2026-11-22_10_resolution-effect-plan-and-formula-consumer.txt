@@ -1,0 +1,73 @@
+【工作流记录】Resolution 结果计划与 Effect 执行分离
+=================================================
+
+工作日期：2026-11-22
+当日序号：10
+仓库：Sakurefa/test-game
+分支：main
+
+基线与目标
+----------
+- 基线提交：`b03bd69226f4191c63707cbec31128e93f909e26`。
+- 基线源码 Windows CI：[44950169269](https://github.com/Sakurefa/test-game/actions/runs/44950169269) 成功；第一阶段 Trigger System 的 215/215 测试、语法检查和 Renderer 构建均通过。
+- 本轮目标：在现有 Trigger System 上固定 Resolution 只计算、Effect 单独应用的接口，并用现有版本化公式服务构建第二个真实 Resolution 消费者。
+- 不增加存档字段，不升级 schema，不引入具体人口/经济玩法，不加入公式表达式语言或 Mod 自定义公式。
+
+本轮实现
+--------
+1. Resolution 注册表统一要求返回 `{ result, effects }`。结果对象及每个 Effect 描述均经过 JSON-safe 校验；单个计划最多 16 项 Effect。Resolution 读取当前候选世界的脱离快照，无法通过该引用直接修改权威 candidate world。
+2. Trigger Runner 接收 Resolution 计划后，单独调用 Engine 的 Effect 执行入口，按顺序执行已校验 Effect；每个成功应用的 Effect 写入标准 `mod.effect-applied` Domain Event。
+3. `trigger.resolved` 记录 Resolution 结果和实际应用的 Effect 结果。计算、随机流状态、计算审计、Effect、Domain Event、出队和 receipt 继续位于同一个 candidate-world 日结算事务内。
+4. 原 `effect.apply` 改为返回纯计划，不再直接修改 World；调度和执行阶段仍沿用现有 Effect 校验边界。
+5. 新增 `formula.effect` Resolution：只能选择 Engine 已注册的版本化公式，使用调度时捕获的 JSON-safe inputs；按 Trigger ID 派生独立随机流；把公式结果的顶层字段经 `resultFields` 映射到受限 Effect payload。
+6. Formula Effect 模板只有稳定 Effect type、静态 payload 和顶层字段映射；不支持表达式、任意 callback、嵌套路径或 Mod 注册公式。效果最终仍由既有 `applyModEffect` 白名单校验与执行。
+7. Trigger ID 到随机流 ID 使用可逆、有界编码，保持不同合法 Trigger ID 的独立性；下划线 ID 由集成测试覆盖。
+
+测试覆盖
+--------
+- Resolution 结果/Effect 分离：resolver 仅看到脱离快照；测试故意修改该快照，确认只有独立 Effect executor 会修改权威 candidate world。
+- Resolution 计划结构错误、Effect 描述错误和超过 16 项的计划被拒绝。
+- 真实 Mod Hook 安排 `formula.effect`，调用现有 `economy.commodity-price` 公式，并将输出字段应用为所属 Mod 的持久化状态。
+- 公式结果、计算审计、Effect 结果、Domain Event 与 Trigger receipt 的一致性。
+- 缺少公式输出字段映射时，日结算 candidate world 整体回滚，正式世界、pending Trigger 和 receipt 不变。
+- Trigger ID 含下划线时仍生成合法且独立的命名随机流。
+- 原日期/经过时间、直接 Effect、失败回滚和去重测试继续保留。
+
+精确变更文件
+------------
+Engine 与测试：
+- `engine/resolutions.cjs`
+- `engine/triggers.cjs`
+- `engine/simulation.cjs`
+- `tests/triggers.test.cjs`
+
+接口与架构文档：
+- `MOD_API.md`
+- `docs/ENGINE_ARCHITECTURE.md`
+- `docs/SIMULATION_DOMAIN_MAP.md`
+
+Astra 记录：
+- `Astra/DISCUSSIONS/Trigger System 与系统 Event 架构.txt`
+- `Astra/DISCUSSIONS/关于现状.txt`
+- `Astra/DISCUSSIONS/关于接下来的工作.txt`
+- `Astra/WORKING_MEMORY.txt`
+- `Astra/WORKFLOWS/2026-11-22_10_resolution-effect-plan-and-formula-consumer.txt`
+- `ASTRA_WORKLOG.md`（待 CI 结果确认后更新最新代码提交和验证摘要）
+
+边界与未完成事项
+----------------
+- 本轮只提供两个 Engine Resolution：`effect.apply` 与 `formula.effect`。
+- Formula inputs 是 Trigger 创建时快照，不是到期时重新读取的世界数据；后续若有实时结算需求，需明确使用新鲜上下文的契约。
+- 尚未实现 condition/threshold 和 Domain-Event-driven Trigger sources、Command/Event Resolution、通用 numeric modifier、临时效果生命周期、随机结果池与 Presentation/UI。
+- 没有新增任何 Core Mod 的人口、建筑、商品或经济规则。
+
+验证状态
+--------
+- 本地测试/构建：未执行；当前通过 GitHub 仓库树/提交接口编辑，没有在本地克隆运行 npm。
+- GitHub Windows CI：本轮代码提交后待触发，结果后续补记。
+- 用户 Windows GUI：未执行，不属于本次 Engine 源码 CI 的覆盖范围。
+- Electron Runtime/Launcher 独立打包：本轮未执行。
+
+后续方向
+--------
+待本轮 Windows CI 通过后，再选择有明确权威事实来源的下一种 Trigger source（条件/阈值或 Domain Event 驱动），先确定其检测频率、游标/重复语义和原子提交边界；不构建通用表达式系统，也不扫描全部 Domain Event 历史。

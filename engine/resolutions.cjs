@@ -1,6 +1,7 @@
 "use strict";
 
 const EVENT_TYPE_PATTERN = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
+const MAX_RESOLUTION_EFFECTS = 16;
 
 function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
@@ -28,6 +29,26 @@ function assertSync(value, label) {
     throw new TypeError(label + " must be synchronous");
   }
   return value;
+}
+
+function cloneResolutionPlan(value, label) {
+  if (!isRecord(value) || Object.keys(value).some((key) => key !== "result" && key !== "effects")
+    || !Object.hasOwn(value, "result") || !Array.isArray(value.effects)) {
+    throw new TypeError(label + " must return a { result, effects } plan");
+  }
+  if (value.effects.length > MAX_RESOLUTION_EFFECTS) {
+    throw new RangeError(label + " cannot return more than " + MAX_RESOLUTION_EFFECTS + " effects");
+  }
+  const result = cloneResult(value.result, label + " result");
+  const effects = value.effects.map((effect, index) => {
+    if (!isRecord(effect) || Object.keys(effect).some((key) => key !== "type" && key !== "payload")
+      || typeof effect.type !== "string" || !EVENT_TYPE_PATTERN.test(effect.type)
+      || !isRecord(effect.payload)) {
+      throw new TypeError(label + " returned an invalid Effect descriptor at index " + index);
+    }
+    return { type: effect.type, payload: cloneResult(effect.payload, label + " Effect " + index + " payload") };
+  });
+  return { result, effects };
 }
 
 function createResolutionRegistry(definitions = []) {
@@ -80,7 +101,7 @@ function createResolutionRegistry(definitions = []) {
       definition.resolve({ event, ...context }),
       "Resolution " + definition.id
     );
-    return cloneResult(result, "Resolution " + definition.id);
+    return cloneResolutionPlan(result, "Resolution " + definition.id);
   }
 
   return Object.freeze({
@@ -92,4 +113,4 @@ function createResolutionRegistry(definitions = []) {
   });
 }
 
-module.exports = { createResolutionRegistry };
+module.exports = { MAX_RESOLUTION_EFFECTS, createResolutionRegistry };

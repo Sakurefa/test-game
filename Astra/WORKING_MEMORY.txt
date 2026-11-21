@@ -108,7 +108,9 @@ The existing `colony.population.delta` effect remains compatible: positive delta
 - **Domain Event** is a completed fact recorded in the authoritative world history (for example, `trigger.resolved`). It is delivered through the read-only Event Bus only after the candidate world commits.
 - The two event types are not interchangeable. The Event Bus does not execute gameplay actions or mutate world state.
 - Player-facing descriptions, icons, notifications, reports and popups belong to Presentation. A System Event does not itself represent text shown to the player.
-- The first implemented Trigger Resolution is `effect.apply`, which delegates to the Engine's existing approved Mod Effect handler. Other resolution types need a real consumer and explicit validation contract before being added.
+- Engine Resolution handlers return a JSON-safe `{ result, effects }` plan and do not mutate authoritative World state. The Trigger runner applies the ordered Effect descriptors separately through the existing validated Mod Effect handler; plans are capped at 16 effects.
+- The current Resolution consumers are `effect.apply` and `formula.effect`. The latter only invokes an existing Engine-registered versioned formula; it captures JSON-safe inputs when the Trigger is scheduled, uses a stable random stream derived from the Trigger ID and maps top-level formula result fields into approved Effect payload fields. It does not provide Mod-defined formulas, arbitrary callbacks or an expression language.
+- A successful Trigger records the calculation result and applied Effect results in `trigger.resolved`; each Effect also uses the standard `mod.effect-applied` fact. Calculation audit, random state, effects, queue removal, Domain Events and receipts commit together with the candidate day.
 
 - Electron storage accepts schema 1–9 for reads and only schema 9 for new writes; main-process loading migrates legacy saves before activation.
 

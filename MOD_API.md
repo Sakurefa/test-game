@@ -177,7 +177,9 @@ Mod order is deterministic by stable Mod ID. Hook order follows the declared hoo
 
 ## Trigger scheduling and System Events
 
-A hook may return a bounded `triggers` array. Each descriptor has only an ID, a due condition and a System Event request:
+A hook may return a bounded `triggers` array. Each descriptor has only an ID, a due condition and a System Event request. The Engine supplies the owner Mod ID; a Trigger ID must be namespaced under that Mod.
+
+A direct approved Effect request uses `effect.apply`:
 
 ```js
 {
@@ -197,19 +199,58 @@ A hook may return a bounded `triggers` array. Each descriptor has only an ID, a 
 }
 ```
 
-The Engine supplies the owner Mod ID; a Trigger ID must be namespaced under that Mod. The ID is stable across saves and retries. Re-submitting the same ID with the same definition is ignored while its pending entry or recent receipt is retained. Reusing the ID with a different definition fails validation. The Engine retains the latest 256 Trigger receipts, so this is a bounded replay fence, not a permanent global identity ledger.
+A Resolution receives a detached snapshot of the current candidate world, calculates a result and returns a bounded plan; it does not mutate the authoritative world or apply world changes itself. The Engine then applies each planned Effect through the existing registered Mod Effect handler. This keeps calculation output separate from authoritative mutation.
 
-The initial due sources are:
+The second built-in Resolution, `formula.effect`, evaluates an existing Engine-registered versioned formula and maps selected top-level result fields into approved Effect payloads:
+
+```js
+{
+  triggers: [{
+    id: "my-mod.record-price-estimate",
+    due: { kind: "elapsed", days: 2 },
+    event: {
+      type: "formula.effect",
+      payload: {
+        formulaId: "economy.commodity-price",
+        inputs: {
+          basePrice: 20,
+          targetStock: 100,
+          stock: 35,
+          priceElasticity: 1,
+          volatility: 0.02,
+          previousPrice: 18
+        },
+        effects: [{
+          type: "mod.state.set",
+          payload: { key: "price-estimate" },
+          resultFields: { value: "price" }
+        }]
+      }
+    }
+  }]
+}
+```
+
+For `formula.effect`:
+- `formulaId` must already exist in the Engine formula registry. Mods cannot register formulas or execute arbitrary calculation callbacks through this request.
+- `inputs` are a JSON-safe snapshot captured when the Trigger is scheduled. They are not silently refreshed when the Trigger becomes due.
+- Each Effect template contains a registered Effect `type`, its static `payload`, and `resultFields` mapping **top-level formula result keys** to Effect payload fields. It is a field binding, not an expression language.
+- The formula uses a deterministic random stream derived from the Trigger ID. Its calculation record and random-stream state are retained by the normal candidate-world day commit.
+- Formula output and all mapped Effects are validated before the Effect plan is applied. A missing result field or rejected Effect aborts the candidate day; no partial Effect is committed.
+
+Resolution plans contain a JSON-safe result object and at most 16 Effect descriptors. The Effect executor applies them in listed order. Successfully applied Effects emit the normal `mod.effect-applied` Domain Events; the Trigger then emits `trigger.resolved` containing the calculation result and applied Effect results. All records and state changes commit with the day.
+
+Trigger IDs are stable across saves and retries. Re-submitting the same ID with the same definition is ignored while its pending entry or recent receipt is retained. Reusing the ID with a different definition fails validation. The Engine retains the latest 256 Trigger receipts, so this is a bounded replay fence, not a permanent global identity ledger.
+
+The due sources currently are:
 - `{ kind: "date", date: "YYYY-MM-DD" }`: a valid campaign calendar date strictly after the current date.
 - `{ kind: "elapsed", days: N }`: a positive integer number of completed campaign days.
 
 Both are processed only at whole-day boundaries; fractional day progress does not run Trigger actions. The Engine processes already-due Triggers immediately after advancing the campaign clock, before `campaign.before-day` and before annual/monthly/weekly/daily simulation systems. Triggers created later during that settlement can first run on a subsequent completed day, preventing same-boundary recursion.
 
-The current registered System Event resolution is `effect.apply`, which calls the Engine's existing validated Mod Effect handler and records the usual `mod.effect-applied` Domain Event alongside `trigger.resolved`. Trigger descriptors cannot contain JavaScript functions, arbitrary callbacks, command handlers or world patches. Resolution payloads are validated when scheduled and checked again when executed. Unsupported resolution types are rejected.
+A System Event is a transient internal processing request, not a player-facing narrative event and not a Domain Event. It is resolved inside the candidate-world day transaction. The read-only Event Bus receives completed Domain Event facts only after the whole world commits. If a resolution or Effect fails, the candidate day—including effects, event records, queue removal and receipt—is discarded.
 
-A System Event is a transient internal processing request, not a player-facing narrative event and not a Domain Event. It is resolved inside the candidate-world day transaction. A successful resolution appends a `trigger.resolved` Domain Event; the read-only Event Bus receives that fact only after the whole world commits. If a resolution fails, the candidate day—including the action, queue removal and receipt—is discarded.
-
-The current implementation does not yet provide condition/threshold or Domain-Event-driven Trigger sources, Command/Event resolution types, generic numeric modifiers or temporary-effect lifecycle management. API v3 data-only Mods remain unaffected.
+The Engine currently registers `effect.apply` and `formula.effect`. It does not yet provide condition/threshold or Domain-Event-driven Trigger sources, Command/Event resolution types, a generic numeric modifier language, temporary-effect lifecycle management, random result pools or Presentation/UI. API v3 data-only Mods remain unaffected.
 
 ## Current hook points
 

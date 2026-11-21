@@ -44,3 +44,23 @@ Presentation 以后可以把已提交事实转换为玩家可见通知、报告�
 ## 明确暂缓
 
 条件/阈值 evaluator、Domain Event 订阅/游标触发、Command/Event Resolution、通用 source/target/operation/value modifier、临时效果状态/到期管理、随机结算池与 UI Presentation 均不属于第一阶段。每项后续扩展都需要实际消费者、明确执行边界和聚焦测试；不为抽象本身堆叠框架。
+
+## Resolution 与 Effect 的执行分离（2026-11-22）
+
+第二阶段将 Resolution 的输出固定为一个受限计划：`{ result, effects }`。
+
+- Resolution 只接收当前 candidate world 的脱离快照，负责读取事件与结算上下文、计算结果并生成 Effect 描述；不得直接修改权威 World。即使 Resolution 修改了自己的快照，该改动也不会提交。
+- `result` 是本次结算的 JSON-safe 结果对象，供后续 Domain Event、审计和表现层使用。
+- `effects` 是有序的 Effect 描述数组，每项只有稳定类型 ID 与 payload，最多 16 项。
+- Trigger Runner 在 Resolution 成功返回并通过计划结构校验后，独立调用 Engine 的 Effect 执行入口；每个 Effect 仍复用已注册的 `applyModEffect` 校验和应用逻辑。
+- 每个已执行 Effect 写入标准 `mod.effect-applied` Domain Event；随后写入 `trigger.resolved`，记录 Resolution 结果与实际 Effect 结果。
+- Resolution 计算、随机流变化、计算审计、Effect、Domain Event、出队和 receipt 仍全部属于同一个 candidate-world 日结算事务。
+
+当前第二个真实 Resolution 消费者是 `formula.effect`：
+- 只允许使用 Engine 已注册的版本化公式，不允许 Mod 注册任意计算函数。
+- Formula 输入是调度 Trigger 时捕获的 JSON-safe 快照；到期时不自动重新读取当前世界数据。
+- Mod 可声明有限数量的 Effect 模板，并通过 `resultFields` 将公式结果的顶层字段映射到 Effect payload 字段。它不是表达式语言，也不允许覆盖同一模板的静态 payload 字段。
+- 随机计算使用从稳定 Trigger ID 派生的命名随机流；计算记录与流状态随 candidate world 一起提交。
+- 若公式输出缺少绑定字段、公式输入非法或 Effect 被拒绝，整日 candidate world 回滚，不会出现半完成效果。
+
+本阶段并未增加公式定义、随机事件池、条件表达式、数值 modifier、Command/Event Resolution 或 UI Presentation；只是让现有公式服务成为通用 Resolution 的真实消费者。

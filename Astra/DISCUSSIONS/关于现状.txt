@@ -17,10 +17,14 @@
 - 当前 due source 仅支持有效日历日期与经过整数个完整 campaign day；日期规则复用 `engine/clock.cjs`，不支持子日触发。
 - Mod API v4 hook 可以返回 `triggers`。Trigger ID 由所属 Mod 命名空间约束；同 ID、同定义重复创建会去重，同 ID、不同定义会报错。
 - 每个完整日结算开始时，Engine 先推进时钟，再处理已有到期 Trigger，随后执行 `campaign.before-day`、年度/月度/周度/日度系统，最后执行 `campaign.after-day`。本次结算期间新建的 Trigger 最早在下一个完整日边界运行，避免同一边界递归触发。
-- Trigger 到期时创建短生命周期 System Event；当前唯一注册 Resolution 是 `effect.apply`，它调用现有经校验的 Mod Effect 实现。Trigger 不能存储任意 JS 函数、Mod callback 或 world patch。
-- System Event 是待 Engine 处理的请求；Domain Event 是已经发生的事实。成功处理会在候选世界记录 `mod.effect-applied` 与 `trigger.resolved`，Event Bus 在世界提交后才收到它们。Presentation/玩家可见文本不属于 Trigger Queue。
+- Trigger 到期时创建短生命周期 System Event。当前注册 `effect.apply` 与 `formula.effect` 两种 Resolution；它们都返回 `{ result, effects }` 计划，Trigger Runner 再分离应用已注册、已校验的 Mod Effect。`formula.effect` 只调用已有版本化 Engine 公式，以 Trigger ID 生成独立随机流，并用顶层 `resultFields` 映射公式结果。Trigger 不能存储任意 JS 函数、Mod callback 或 world patch。
+- System Event 是待 Engine 处理的请求；Domain Event 是已经发生的事实。Resolution 计算结果与 Effect 应用分开；成功处理会在候选世界记录每个 `mod.effect-applied` 和 `trigger.resolved`，Event Bus 在世界提交后才收到它们。Presentation/玩家可见文本不属于 Trigger Queue。
 - Queue、Effect 变更、Domain Event 和处理回执处于同一个 candidate-world 事务。处理失败时整日回滚，待处理 Trigger 仍保留。
 - 近期回执保留 256 条；在回执窗口内可防止已处理 ID 被重复执行。该机制不是永久全局 ID 数据库。
+
+- Resolution 结果对象与 Effect 计划是分离字段；每次最多 16 个 Effect。
+- `formula.effect` 的输入在 Trigger 调度时捕获；它只能选择 Engine 已注册公式，并通过顶层结果字段映射向已注册 Effect 填值，不提供公式表达式/回调扩展。
+- 公式使用按 Trigger ID 派生的稳定随机流；结果记录与流状态在 candidate world 成功后一起提交。
 
 ## 人口与经济现状
 

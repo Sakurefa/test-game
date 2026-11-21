@@ -7,7 +7,7 @@ const { validateCommandReceiptState } = require("./commands.cjs");
 const { createFinancialLedger, validateWorldFinancialState } = require("./ledger.cjs");
 const { createModExtensionRuntime, applyModHookResults, validateModState, applyModEffect } = require("./mod-runtime.cjs");
 const { createPopulationGroups, getPopulationTotal, validatePopulationGroups } = require("./population.cjs");
-const { createResolutionRegistry } = require("./resolutions.cjs");
+const { createResolutionRegistry, MAX_RESOLUTION_EFFECTS } = require("./resolutions.cjs");
 const { createTriggerQueue, scheduleTrigger: scheduleTriggerInstance, processDueTriggers, validateTriggerQueue } = require("./triggers.cjs");
 
 
@@ -15,12 +15,55 @@ function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
+const formulaDefinitions = createCalculationService();
+const FORMULA_EFFECT_FIELD_PATTERN = /^[a-z][a-zA-Z0-9]*$/;
+const FORMULA_EFFECT_TYPE_PATTERN = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
+const MAX_FORMULA_EFFECTS = MAX_RESOLUTION_EFFECTS;
+
+function validateSystemEventSource(event, catalog) {
+  if (!catalog?.modIds?.includes(event.sourceId)) {
+    throw new Error("System Event source Mod is not part of the loaded catalog: " + event.sourceId);
+  }
+}
+
+function validateFormulaEffectRequest({ event, catalog }) {
+  validateSystemEventSource(event, catalog);
+  const payload = event.payload;
+  if (!isRecord(payload) || Object.keys(payload).some((key) => !["formulaId", "inputs", "effects"].includes(key))
+    || typeof payload.formulaId !== "string" || !formulaDefinitions.getDefinition(payload.formulaId)
+    || !isRecord(payload.inputs) || !Array.isArray(payload.effects)
+    || payload.effects.length < 1 || payload.effects.length > MAX_FORMULA_EFFECTS) {
+    throw new TypeError("formula.effect requires a registered formula, input object and 1–" + MAX_FORMULA_EFFECTS + " Effect templates");
+  }
+
+  for (const [index, template] of payload.effects.entries()) {
+    if (!isRecord(template) || Object.keys(template).some((key) => !["type", "payload", "resultFields"].includes(key))
+      || typeof template.type !== "string" || !FORMULA_EFFECT_TYPE_PATTERN.test(template.type)
+      || !isRecord(template.payload) || !isRecord(template.resultFields)
+      || Object.keys(template.resultFields).length < 1
+      || Object.keys(template.resultFields).length > MAX_FORMULA_EFFECTS) {
+      throw new TypeError("formula.effect has an invalid Effect template at index " + index);
+    }
+    for (const [targetField, resultField] of Object.entries(template.resultFields)) {
+      if (!FORMULA_EFFECT_FIELD_PATTERN.test(targetField) || !FORMULA_EFFECT_FIELD_PATTERN.test(resultField)
+        || Object.hasOwn(template.payload, targetField)) {
+        throw new TypeError("formula.effect has an invalid or conflicting result field binding at index " + index);
+      }
+    }
+  }
+  return true;
+}
+
+function triggerRandomStreamId(triggerId) {
+  return "t" + triggerId[0] + Array.from(triggerId.slice(1), (character) =>
+    character.charCodeAt(0).toString(16).padStart(2, "0")
+  ).join("");
+}
+
 const triggerResolutions = createResolutionRegistry([{
   id: "effect.apply",
   validate({ event, world, catalog }) {
-    if (!catalog?.modIds?.includes(event.sourceId)) {
-      throw new Error("System Event source Mod is not part of the loaded catalog: " + event.sourceId);
-    }
+    validateSystemEventSource(event, catalog);
     if (!isRecord(event.payload) || Object.keys(event.payload).length !== 1
       || !isRecord(event.payload.effect)
       || Object.keys(event.payload.effect).some((key) => key !== "type" && key !== "payload")
@@ -31,23 +74,47 @@ const triggerResolutions = createResolutionRegistry([{
     applyModEffect(event.payload.effect, draft, catalog, event.sourceId);
     return true;
   },
-  resolve({ event, world, catalog, emitDomainEvent }) {
-    const effect = event.payload.effect;
-    const result = applyModEffect(effect, world, catalog, event.sourceId);
-    emitDomainEvent({
-      type: "mod.effect-applied",
-      scope: "mod",
-      subjectId: event.sourceId,
-      idempotencyKey: "trigger:" + event.triggerId + ":effect-applied",
-      payload: {
-        modId: event.sourceId,
-        triggerId: event.triggerId,
-        effectType: effect.type,
-        input: effect.payload,
-        result
-      }
+  resolve({ event }) {
+    return {
+      result: { effectType: event.payload.effect.type },
+      effects: [event.payload.effect]
+    };
+  }
+}, {
+  id: "formula.effect",
+  validate: validateFormulaEffectRequest,
+  resolve({ event, calculations, randomStreams, day }) {
+    if (!calculations || typeof calculations.evaluate !== "function"
+      || !randomStreams || typeof randomStreams.get !== "function") {
+      throw new TypeError("formula.effect requires the day's calculation and random-stream services");
+    }
+    const streamId = triggerRandomStreamId(event.triggerId);
+    const calculated = calculations.evaluate(event.payload.formulaId, event.payload.inputs, {
+      day,
+      random: randomStreams.get(streamId),
+      randomStreamId: streamId
     });
-    return { effectType: effect.type, result };
+    if (!isRecord(calculated.result)) throw new TypeError("formula.effect requires an object calculation result");
+
+    const effects = event.payload.effects.map((template, index) => {
+      const payload = { ...template.payload };
+      for (const [targetField, resultField] of Object.entries(template.resultFields)) {
+        if (!Object.hasOwn(calculated.result, resultField)) {
+          throw new Error("formula.effect result has no field '" + resultField + "' for Effect template " + index);
+        }
+        payload[targetField] = calculated.result[resultField];
+      }
+      return { type: template.type, payload };
+    });
+
+    return {
+      result: {
+        formulaId: event.payload.formulaId,
+        formulaVersion: calculated.record.version,
+        output: calculated.result
+      },
+      effects
+    };
   }
 }]);
 
@@ -544,6 +611,26 @@ function settleDay(world, catalog) {
     date: world.clock.date,
     catalog,
     resolutions: triggerResolutions,
+    calculations,
+    randomStreams,
+    applyEffect: ({ event, effect, index }) => {
+      const result = applyModEffect(effect, world, catalog, event.sourceId);
+      emitDomainEvent({
+        type: "mod.effect-applied",
+        scope: "mod",
+        subjectId: event.sourceId,
+        idempotencyKey: "trigger:" + event.triggerId + ":effect:" + index,
+        payload: {
+          modId: event.sourceId,
+          triggerId: event.triggerId,
+          resolutionType: event.type,
+          effectType: effect.type,
+          input: effect.payload,
+          result
+        }
+      });
+      return result;
+    },
     emitDomainEvent
   });
   runModHook(modRuntime, "campaign.before-day", {

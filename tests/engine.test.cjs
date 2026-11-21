@@ -9,6 +9,55 @@ test("seeded random generator can be resumed",()=>{const a=new SeededRandom("fro
 test("Core and community Mod INI definitions compile",async()=>{const c=await catalog();assert.equal(c.universe.name,undefined);assert.equal(c.localizations["zh-CN"][c.universe.nameKey],"赫利俄斯边境");assert.equal(c.systems.size,4);assert.equal(c.colonies.size,3);assert.equal(c.fleets.size,2);assert.equal(c.wars.size,1);assert.ok(c.events.has("supply-rumor"));assert.ok(c.events.has("example-positive-news"));});
 test("catalog rejects unresolved production references",async()=>{const m=await mods(),core=m.find(x=>x.id==="core");core.data.content["universe.ini"].colonies[0].industries[0].recipeId="missing-recipe";const r=compileCatalog(m);assert.equal(r.ok,false);assert.match(r.error,/industry recipe/);});
 test("daily market and war systems run daily while colony production runs weekly",async()=>{const c=await catalog(),w=createWorld(c,{seed:42,createdAt:"2478-04-01T00:00:00.000Z"}),ore=w.colonies["new-dawn-colony"].stockpiles.ore,food=w.colonies["verdant-colony"].stockpiles.food,price=w.markets["verdant-exchange"].prices.food;advanceDay(w,c);assert.equal(w.clock.date,"2478-04-02");assert.equal(w.clock.day,1);assert.equal(w.colonies["new-dawn-colony"].stockpiles.ore,ore);assert.equal(w.colonies["verdant-colony"].stockpiles.food,food);assert.notEqual(w.markets["verdant-exchange"].prices.food,price);assert.equal(w.wars["cinder-conflict"].daysActive,16);assert.deepEqual(w.events.at(-1).systemsRun,["economy.market-pricing","military.war-chronology"]);for(let day=0;day<6;day++)advanceDay(w,c);assert.equal(w.clock.day,7);assert.ok(w.colonies["new-dawn-colony"].stockpiles.ore>ore);assert.ok(w.colonies["verdant-colony"].stockpiles.food>food);assert.deepEqual(w.events.at(-1).systemsRun,["colonies.production","economy.market-pricing","military.war-chronology"]);});
+test("weekly production report explains limited inputs and matches the stockpile settlement",async()=>{
+  const c=await catalog(),w=createWorld(c,{seed:"production-report-limited"});
+  const colony=w.colonies["new-dawn-colony"],industry=colony.industries[0],recipe=c.recipes.get(industry.recipeId);
+  colony.industries=[structuredClone(industry)];
+  const requestedBatches=industry.level*Math.max(.1,Math.min(1,colony.stability/100));
+  const inputTotals=new Map();
+  for(const input of recipe.inputs||[])inputTotals.set(input.commodityId,(inputTotals.get(input.commodityId)||0)+input.quantity);
+  for(const [id,quantity] of inputTotals)colony.stockpiles[id]=quantity*requestedBatches*2;
+  const limitingId=recipe.inputs[0].commodityId;
+  colony.stockpiles[limitingId]=inputTotals.get(limitingId)*requestedBatches/2;
+  const before={...colony.stockpiles};
+  advanceDays(w,c,7);
+  const report=colony.lastProductionReport;
+  assert.equal(report.day,7);
+  assert.equal(report.industries.length,1);
+  const entry=report.industries[0];
+  assert.equal(entry.status,"limited");
+  assert.equal(entry.limitingInput,limitingId);
+  assert.equal(entry.limitingAvailable,before[limitingId]);
+  assert.ok(Math.abs(entry.limitingRequired-inputTotals.get(limitingId)*requestedBatches)<1e-9);
+  assert.ok(Math.abs(entry.actualBatches-requestedBatches/2)<1e-9);
+  assert.equal(entry.requestedBatches,requestedBatches);
+  for(const id of new Set([...Object.keys(before),...Object.keys(entry.consumed),...Object.keys(entry.produced)])){
+    const expected=Math.round(((before[id]||0)-(entry.consumed[id]||0)+(entry.produced[id]||0)+Number.EPSILON)*1000)/1000;
+    assert.equal(colony.stockpiles[id],expected);
+  }
+});
+test("weekly production report keeps zero-output facilities and identifies the empty limiting stockpile",async()=>{
+  const c=await catalog(),w=createWorld(c,{seed:"production-report-empty"});
+  const colony=w.colonies["new-dawn-colony"],industry=colony.industries[0],recipe=c.recipes.get(industry.recipeId);
+  colony.industries=[structuredClone(industry)];
+  const requestedBatches=industry.level*Math.max(.1,Math.min(1,colony.stability/100));
+  const inputTotals=new Map();
+  for(const input of recipe.inputs||[])inputTotals.set(input.commodityId,(inputTotals.get(input.commodityId)||0)+input.quantity);
+  for(const [id,quantity] of inputTotals)colony.stockpiles[id]=quantity*requestedBatches*2;
+  const limitingId=recipe.inputs[0].commodityId;
+  colony.stockpiles[limitingId]=0;
+  const before={...colony.stockpiles};
+  advanceDays(w,c,7);
+  const entry=colony.lastProductionReport.industries[0];
+  assert.equal(entry.status,"no-output");
+  assert.equal(entry.actualBatches,0);
+  assert.equal(entry.limitingInput,limitingId);
+  assert.equal(entry.limitingAvailable,0);
+  assert.ok(entry.limitingRequired>0);
+  assert.deepEqual(entry.consumed,{[limitingId]:0});
+  assert.deepEqual(entry.produced,Object.fromEntries((recipe.outputs||[]).map(item=>[item.commodityId,0])));
+  assert.deepEqual(colony.stockpiles,before);
+});
 test("continuous campaign time preserves fractions and catches up every daily and weekly boundary",async()=>{const c=await catalog(),w=createWorld(c,{seed:51});let result=advanceCampaignTime(w,c,0.4);assert.equal(result.daysAdvanced,0);assert.equal(w.clock.day,0);assert.equal(w.clock.dayFraction,0.4);result=advanceCampaignTime(w,c,13.6);assert.equal(result.daysAdvanced,14);assert.equal(w.clock.day,14);assert.equal(w.clock.dayFraction,0);assert.equal(w.scheduler.lastRunDayBySystem["colonies.production"],14);assert.equal(w.scheduler.lastRunDayBySystem["economy.market-pricing"],14);assert.equal(w.scheduler.lastRunDayBySystem["military.war-chronology"],14);});
 test("legacy world schemas 1 and 2 migrate to event-enabled schema without changing calendar time",async()=>{const c=await catalog(),legacy=createWorld(c,{seed:5});legacy.schemaVersion=1;delete legacy.clock.dayFraction;delete legacy.scheduler;delete legacy.commandReceipts;delete legacy.finance;delete legacy.player.accountId;legacy.player.account={cash:250000,holdings:{}};legacy.clock.date="2478-04-13";legacy.clock.day=12;legacy.rng={seed:5,state:123};const migrated=migrateWorldState(legacy);assert.equal(migrated.schemaVersion,7);assert.deepEqual(migrated.clock,{date:"2478-04-13",day:12,dayFraction:0});assert.deepEqual(migrated.scheduler,{lastRunDayBySystem:{}});assert.deepEqual(migrated.rng,{seed:5,streams:{}});assert.deepEqual(migrated.audit,{calculations:[]});assert.deepEqual(migrated.domainEvents,[]);assert.equal(migrated.domainEventSequence,0);assert.deepEqual(migrated.commandReceipts,[]);assert.equal(migrated.finance.accounts["player-main"].balanceMinor,25000000);assert.equal(migrated.finance.transactions[0].day,12);assert.equal(migrated.finance.transactions[0].date,"2478-04-13");assert.equal(validateWorldState(migrated,c),true);const schema2=createWorld(c,{seed:6});schema2.schemaVersion=2;schema2.rng={seed:6,state:999};delete schema2.audit;delete schema2.commandReceipts;delete schema2.finance;delete schema2.player.accountId;schema2.player.account={cash:125000,holdings:{}};assert.equal(migrateWorldState(schema2).schemaVersion,7);assert.equal(schema2.finance.accounts["player-main"].balanceMinor,12500000);assert.equal(validateWorldState(schema2,c),true);const schema3=createWorld(c,{seed:7});schema3.schemaVersion=3;delete schema3.domainEvents;delete schema3.domainEventSequence;delete schema3.commandReceipts;delete schema3.finance;delete schema3.player.accountId;schema3.player.account={cash:75000,holdings:{}};assert.equal(migrateWorldState(schema3).schemaVersion,7);assert.equal(schema3.finance.accounts["player-main"].balanceMinor,7500000);assert.equal(validateWorldState(schema3,c),true);});
 test("schema-five saves migrate player cash and positions into the canonical ledger",async()=>{const c=await catalog(),legacy=createWorld(c,{seed:9});legacy.schemaVersion=5;delete legacy.finance;delete legacy.player.accountId;legacy.player.account={cash:12345.67,holdings:{"frontier-industries":4}};const migrated=migrateWorldState(legacy);assert.equal(migrated.schemaVersion,7);assert.equal(migrated.player.accountId,"player-main");assert.equal(migrated.finance.accounts["player-main"].balanceMinor,1234567);assert.deepEqual(migrated.finance.accounts["player-main"].positions,{"frontier-industries":4});assert.equal(migrated.player.account,undefined);assert.equal(validateWorldState(migrated,c),true);});

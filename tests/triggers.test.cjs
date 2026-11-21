@@ -14,7 +14,7 @@ function simpleRegistry() {
   return createResolutionRegistry([{
     id: "test.resolve",
     validate: ({ event }) => event.payload.value >= 0,
-    resolve: ({ event }) => ({ value: event.payload.value * 2 })
+    resolve: ({ event }) => ({ result: { value: event.payload.value * 2 }, effects: [] })
   }]);
 }
 
@@ -302,14 +302,14 @@ test("formula Resolution calculates a result plan before the Effect executor mut
 test("a missing formula result binding aborts the candidate day before applying any Effect", async () => {
   const invalidFactory = (catalog) => {
     const base = formulaHookFactory(catalog);
-    return base.replace('resultFields: { value: "price" }', 'resultFields: { value: "missing-field" }');
+    return base.replace('resultFields: { value: "price" }', 'resultFields: { value: "missingField" }');
   };
   const catalog = await loadCatalogWithTriggerHook("test-trigger", invalidFactory);
   const world = createWorld(catalog, { seed: "trigger-formula-invalid-binding" });
   advanceDay(world, catalog);
   const before = structuredClone(world);
 
-  assert.throws(() => advanceDay(world, catalog), /no field 'missing-field'/);
+  assert.throws(() => advanceDay(world, catalog), /no field 'missingField'/);
   assert.deepEqual(world, before);
   assert.equal(world.triggerQueue.pending.length, 1);
   assert.equal(world.triggerQueue.receipts.length, 0);

@@ -223,3 +223,44 @@ test("runs the example Mod hook through real world day settlement", async () => 
   assert.deepEqual(world.modState["example-market"], { monthsObserved: 2 });
   assert.equal(world.schemaVersion, 7);
 });
+
+
+test("enabled Mod script source participates in the deterministic content fingerprint", async () => {
+  const modsDirectory = path.join(__dirname, "..", "mods");
+  const original = await readModPackages(modsDirectory);
+  const first = compileCatalog(original);
+  assert.equal(first.ok, true, first.error);
+
+  const changed = structuredClone(original);
+  changed.find((item) => item.id === "example-market").scripts["market-events.js"] += "\n// fingerprint change\n";
+  const second = compileCatalog(changed);
+  assert.equal(second.ok, true, second.error);
+  assert.notEqual(first.catalog.contentHash, second.catalog.contentHash);
+});
+
+test("a failing Mod hook aborts the candidate day and preserves the previous world", async () => {
+  const modsDirectory = path.join(__dirname, "..", "mods");
+  const mods = await readModPackages(modsDirectory);
+  const compiled = compileCatalog(mods);
+  assert.equal(compiled.ok, true, compiled.error);
+  const brokenCatalog = {
+    ...compiled.catalog,
+    extensions: [
+      ...compiled.catalog.extensions,
+      {
+        id: "broken-hook",
+        version: "1.0.0",
+        scripts: { "failure.js": "function failDay() { while (true) {} }" },
+        hooks: { "campaign.after-day": "failure.js:failDay" }
+      }
+    ]
+  };
+  const world = createWorld(brokenCatalog, { seed: "failed-mod-day" });
+  const before = structuredClone(world);
+  assert.throws(() => advanceDay(world, brokenCatalog), {
+    code: "MOD_HOOK_FAILURE",
+    modId: "broken-hook",
+    hookId: "campaign.after-day"
+  });
+  assert.deepEqual(world, before);
+});

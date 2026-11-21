@@ -142,7 +142,7 @@ test("applies only registered colony, market, fleet and war effects and records 
     colonies: {
       colonyOne: { id: "colonyOne", population: 100, stability: 50, stockpiles: { ore: 10 } }
     },
-    markets: { marketOne: { id: "marketOne", prices: { ore: 5 } } },
+    markets: { marketOne: { id: "marketOne", prices: { ore: 5 }, lastChanges: { ore: 0 } } },
     fleets: { fleetOne: { id: "fleetOne", readiness: 70, morale: 80 } },
     wars: {
       warOne: {
@@ -179,6 +179,7 @@ test("applies only registered colony, market, fleet and war effects and records 
   assert.equal(world.colonies.colonyOne.stability, 52);
   assert.equal(world.colonies.colonyOne.stockpiles.ore, 13);
   assert.equal(world.markets.marketOne.prices.ore, 10);
+  assert.equal(world.markets.marketOne.lastChanges.ore, 100);
   assert.equal(world.fleets.fleetOne.readiness, 75);
   assert.equal(world.fleets.fleetOne.morale, 75);
   assert.equal(world.wars.warOne.warWeariness.factionOne, 14);

@@ -2,6 +2,13 @@ const { performance } = require("node:perf_hooks");
 
 const VALID_SPEEDS = new Set([0, 1, 2, 3, 4]);
 
+function validateBaseDayDuration(value) {
+  if (!Number.isFinite(value) || value < 1000 || value > 3600000) {
+    throw new RangeError("Base game-day duration must be between 1 and 3600 seconds");
+  }
+  return value;
+}
+
 class CampaignTimeController {
   constructor({ baseDayDurationMs = 60000, onAdvance = () => {}, now = () => performance.now() } = {}) {
     this.now = now;
@@ -12,10 +19,7 @@ class CampaignTimeController {
   }
 
   setInitialDuration(value) {
-    if (!Number.isFinite(value) || value < 1000 || value > 3600000) {
-      throw new RangeError("Base game-day duration must be between 1 and 3600 seconds");
-    }
-    this.baseDayDurationMs = value;
+    this.baseDayDurationMs = validateBaseDayDuration(value);
   }
 
   readNow() {
@@ -52,9 +56,10 @@ class CampaignTimeController {
   }
 
   setBaseDayDurationMs(value) {
+    const nextDuration = validateBaseDayDuration(value);
     const timestamp = this.readNow();
     this.tick(timestamp);
-    this.setInitialDuration(value);
+    this.baseDayDurationMs = nextDuration;
     this.lastTimestamp = timestamp;
     return this.getState();
   }

@@ -20,7 +20,8 @@ test("loads Core and ignores disabled optional package",async t=>{const r=await 
 test("loads API v4 JavaScript hooks only when scripts are declared",async t=>{
  const root=await fixture(t);
  const api4=manifest("scripted", "").replace("api_version = 3","api_version = 4")
-  .replace("localization =","localization =\nscripts = world.js");
+  .replace("localization =","localization =\nscripts = world.js")
+  .concat("\n[hooks]\ncampaign.after-day = world.js:onDay\n");
  await write(root,"scripted",api4,{scripts:{
   "world.js":"function onDay(input, api) { return { events: [{ type: 'daily-note', payload: { day: input.day, roll: api.random() } }] }; }"
  }});
@@ -44,7 +45,7 @@ test("rejects API v3 scripts and undeclared or invalid hook targets",async t=>{
  assert.match(mods.find(mod=>mod.id==="newer").error,/declared script function/);
 });
 
-test("rejects undeclared JavaScript files and script symlinks",async t=>{
+test("rejects undeclared JavaScript files and oversized script files",async t=>{
  const root=await fixture(t);
  const api4=manifest("scripted","").replace("api_version = 3","api_version = 4")
   .replace("localization =","localization =\nscripts = declared.js");
@@ -53,8 +54,7 @@ test("rejects undeclared JavaScript files and script symlinks",async t=>{
  let [mod]=await readModPackages(root);
  assert.match(mod.error,/Undeclared JavaScript files/);
  await fs.rm(path.join(directory,"scripts","extra.js"));
- await fs.rm(path.join(directory,"scripts","declared.js"));
- await fs.symlink(path.join(directory,"manifest.ini"),path.join(directory,"scripts","declared.js"));
+ await fs.writeFile(path.join(directory,"scripts","declared.js")," ".repeat(require("../electron/mod-loader.cjs").MAX_SCRIPT_BYTES+1));
  [mod]=await readModPackages(root);
- assert.match(mod.error,/missing, linked or exceeds/);
+ assert.match(mod.error,/exceeds 256 KiB/);
 });

@@ -31,8 +31,21 @@ and easy to modify.
 
 - Prefer direct, understandable code and a small number of proven seams.
 - Add an abstraction only when a concrete current consumer needs it.
-- The AK principle and the Mod principle are complementary: simulation logic stays generic and direct, while game-specific definitions and balance values belong in Mod data. Core must provide the required baseline definitions in INI; optional Mods may extend them. Do not hard-code professions, wealth tiers, need baskets, consumption rates, wages, recipe content or economic tuning into engine/Renderer logic. API v4 JavaScript remains for explicitly declared behavior hooks, not as a replacement for INI content.
-- Do not allow display rounding to alter economic calculations or stored inventory. Keep requested, fulfilled and unmet quantities precise in the simulation; apply formatting only at the presentation boundary. If a displayed unit needs finer precision to explain a real shortage, format that view accordingly.
+- The AK principle and the Mod principle are complementary: simulation logic
+  stays generic and direct, while game-specific definitions and balance values
+  belong in Mod data. Core must provide the required baseline definitions in
+  INI; optional Mods may extend them. Do not hard-code professions, wealth
+  tiers, species, subspecies, class names, need baskets, consumption rates,
+  wages, recipe content or economic tuning into engine/Renderer logic.
+  API v4 JavaScript remains for explicitly declared behavior hooks, not as a
+  replacement for INI content.
+- Do not hard-code player-visible strings. Keep them in localization INI and
+  reference stable keys from content definitions.
+- Do not allow display rounding to alter economic calculations or stored
+  inventory. Keep requested, fulfilled and unmet quantities precise in the
+  simulation; apply formatting only at the presentation boundary. If a
+  displayed unit needs finer precision to explain a real shortage, format
+  that view accordingly.
 - Do not build speculative frameworks for hypothetical future features.
 - The program is a machine that executes defined work and records what
   happened; it is not an autonomous agent that must constantly inspect,
@@ -83,11 +96,11 @@ and easy to modify.
   transaction-replay database.
 
 5. CONTINUITY AND RECORD KEEPING
--------------------------------
+--------------------------------
 
 - Conversation context and reasoning mode may vary between sessions.
   Project continuity must come from these tracked files and the current
-  repository, not from assuming Astra remembers every previous message.
+  repository, not from assuming Astra remembers every message.
 - At task start, follow the reading order in Astra/README.txt and AGENTS.md.
 - At task end, record exact engineering facts in ASTRA_WORKLOG.md:
   date, base/current commit, files, inspected or changed scope, actual tests
@@ -101,32 +114,94 @@ and easy to modify.
   acting on them.
 
 6. CURRENT GAMEPLAY PRIORITY
------------------------------
-
-The user has stated that the next major gameplay priority is a Victoria 3-
-inspired population supply/demand and goods production/consumption economy.
-The goal is to make populations meaningful economic actors and connect their
-needs with industrial production, local goods supply, market prices and
-consumption before expanding into the broader logistics, political and
-military domains.
-
-This is a confirmed high-level direction, not a finalized design. The exact
-population groups, wealth/income model, need baskets and substitutions,
-employment/wage rules, market-clearing model, stock allocation and settlement
-cadence remain open design questions. Do not silently invent those rules or
-implement them merely from this summary. First establish which current
-foundations can be reused and agree on the smallest coherent economic loop.
-
-7. CURRENT SESSION GUARDRAIL
 ----------------------------
 
-The recent repository reviews are audits, not implementation authorization.
-Their maintenance findings remain recorded in ASTRA_WORKLOG.md and are not
-automatically approved tasks. The user has now identified the population and
-goods economy as the next gameplay priority, but this note authorizes design
-alignment only; implementation scope must still follow the user's explicit
-instructions. Preserve the existing launcher distribution, Mod format and
-AK engineering principles.
+The user's next major gameplay priority is a Victoria 3-inspired population
+supply/demand and goods production/consumption economy. The goal is to make
+populations meaningful economic actors and connect their needs with
+industrial production, local goods supply, market prices and consumption
+before expanding into the broader logistics, political and military domains.
+
+This is a confirmed high-level direction, not a finalized economic rulebook.
+The exact need baskets, substitutions, affordability, labor allocation,
+wage formation, market-clearing model, stock allocation and settlement
+cadence remain open design questions. Do not silently invent those rules.
+
+7. CONFIRMED POPULATION SIMULATION MODEL
+----------------------------------------
+
+The user has confirmed these four foundational choices:
+
+- Population simulation is purely aggregate/group-based. There is no
+  continuously simulated person record for every resident.
+- Group attributes initially store aggregate values and proportions/averages,
+  not a full joint distribution across every dimension.
+- Temporary effects and their date/condition triggers are separate systems.
+  Effects describe what changes; triggers schedule/check when an effect or
+  follow-up action should occur.
+- Needs are settled at group level in aggregate. Individual-by-individual
+  consumption and household/person account books are out of scope.
+
+The governing distinction is: **groups are simulation entities; individuals
+are narrative entities.** A named engineer, manager or other person may appear
+in an event or occupy a genuinely important unique role. Such a character can
+have only the attributes needed for that narrative or role and may influence
+a group, building or event through the approved effect/command boundary.
+This does not create a hidden individual population simulation, and such
+characters must not be counted twice in population totals. The exact
+relationship between a named role-holder and the aggregate group they came
+from remains a future modeling detail.
+
+Population dimensions should remain independently extensible and data-defined:
+social class/stratum, profession, wealth, species, subspecies and capability
+or qualification distributions are examples. Their definitions and labels
+belong in Core/optional Mod INI data, not engine constants. "Upper/middle/
+lower/other" are possible data-defined categories, not built-in engine
+semantics. Species-specific needs (including non-human resource needs) and
+building workforce-composition thresholds are future content/rules, not
+current content to invent.
+
+Do not automatically construct every cross-product of dimensions. A group
+may have aggregate attributes and dimension-level proportions; a combined
+statistic such as "high-capability technicians of species X" must only be
+asserted when the data model actually records or derives that relationship.
+Independent marginal percentages do not prove an intersection percentage.
+The initial model should stay small and avoid combinatorial group explosion.
+
+The effect foundation should allow relevant simulation values to be influenced
+without hard-coding specific laws/events into the engine. A configured effect
+needs a target, source, operation and value; relevant operations include
+addition, subtraction and multiplication. Permanent effects have no timer and
+remain until changed or removed. Temporary effects have an explicit expiry
+or trigger relationship. Do not force every numeric field to support every
+operation if that has no meaningful domain semantics.
+
+Triggers are separate scheduled/conditional records. A temporary effect may
+register a future trigger; when it fires, configured behavior may remove or
+change the effect, emit an event, or invoke an approved action. Date-bound
+processing should use the due-trigger path rather than repeatedly scanning
+all historical effects. Mod content remains INI; any optional executable
+behavior remains subject to the existing narrow API v4 hook contract.
+
+Population needs, income/purchasing power, market access and affordability,
+wages, labor capacity, capability matching, fertility and mortality are
+future aggregate systems. Their interfaces should be designed for group-level
+inputs and outputs. Do not add personal debt, personal wage ledgers, personal
+purchases or per-person need settlement to the population runtime.
+
+8. CURRENT SESSION GUARDRAIL
+----------------------------
+
+The user has confirmed the aggregate population model above and authorized
+continuing its design and foundation work, while explicitly prohibiting
+premature game content and invented balance rules. The next foundation work
+should first define a minimal aggregate group representation and its
+independent statistical dimensions, preserving compatibility with the current
+scalar colony population and legacy population-delta Mod effect. Then define
+the data contracts for group-level needs and effects/triggers. Keep each step
+small, INI-driven where it represents game content, and consistent with AK
+and Mod principles. This does not authorize adding actual social classes,
+species, needs, wages, laws, events or economic tuning as Core gameplay
+content.
 
 END
----

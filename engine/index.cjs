@@ -3,6 +3,7 @@ module.exports = {
   ...require("./formulas.cjs"),
   ...require("./domain-events.cjs"),
   ...require("./event-bus.cjs"),
+  ...require("./mod-runtime.cjs"),
   ...require("./commands.cjs"),
   ...require("./command-runtime.cjs"),
   ...require("./ledger.cjs"),

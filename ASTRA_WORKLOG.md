@@ -669,3 +669,17 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 - Exact file changed by this audit: `ASTRA_WORKLOG.md` only. No source, Mod, test, workflow, build or runtime file was changed; no local tests/builds were run. CI evidence is the successful Windows run above.
 - Recommended next work, in order: (1) add explicit `.gitignore` entries for user save/settings/log directories; (2) retire/fix the stale `build:win` packaging path while preserving the separate launcher architecture; (3) fix and regression-test the sub-mill population-needs report precision; (4) synchronize architecture/README/playtest docs with the current daily needs/refresh/four-formula implementation and current test count; (5) improve readability incrementally as core modules are next changed. Do not expand into cohorts/labor/logistics until these small reliability/maintenance items are addressed.
 - Windows desktop test: required for the accumulated campaign clock, daily needs, weekly production, readable audits/events, save receipts, autosave rotations, legacy save compatibility and Mod API v4 paths; not yet performed for the current main revision.
+
+
+### 2026-11-21 — add Astra working memory and user-readable diary
+
+- Read root `AGENTS.md`, the complete `ASTRA_WORKLOG.md`, the current main commit and the latest main CI before editing. Base main SHA: `06018dfbcb7a6232cb388a300a6564199c6f1ea7`.
+- Latest main CI before this documentation change: [44903873584](https://github.com/Sakurefa/test-game/actions/runs/44903873584), completed successfully on `06018dfbcb7a6232cb388a300a6564199c6f1ea7`. The run reported Electron/engine syntax checks passing, `npm test` 172/172 with zero failures, Vite Renderer build passing and generated-renderer commit step passing.
+- Added `Astra/README.txt`, `Astra/WORKING_MEMORY.txt` and `Astra/DIARY/2026-11-21.txt`. The folder separates durable collaboration agreements, dated user-readable reflections and the formal engineering evidence log.
+- Updated `AGENTS.md` to include the Astra reading order and to distinguish audit findings/recommendations from authorized tasks. The complete work log remains mandatory under the existing protocol; this change does not discard the historical record.
+- The first diary entry records the user's concern about continuity across reasoning-mode changes, the distinction between inspection and modification, and the need not to turn the previous audit's recommendations into automatic work.
+- Exact files changed: `AGENTS.md`, `Astra/README.txt`, `Astra/WORKING_MEMORY.txt`, `Astra/DIARY/2026-11-21.txt` and `ASTRA_WORKLOG.md`.
+- This was a documentation-only update. No game source, Mod, tests, save format, build script, workflow, launcher or distribution behavior was changed. No local tests or builds were run. The cited CI run predates this documentation commit; no claim is made that it tested this commit. No Windows desktop test was needed or performed for this note-only change.
+- Current main SHA at session start: `06018dfbcb7a6232cb388a300a6564199c6f1ea7`. The commit created by this documentation update is reported in the session response.
+- No implementation maintenance task from the previous audit is implicitly approved. Next step: let the user review the folder and refine the memory/diary format from their feedback before resuming game work.
+- Windows desktop test: not required for this documentation-only update; not performed.

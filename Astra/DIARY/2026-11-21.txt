@@ -1,0 +1,57 @@
+ASTRA DIARY
+2026-11-21
+Title: Restoring continuity and correcting the scope of work
+===========================================================
+
+Context
+-------
+
+The user noticed that switching the assistant's reasoning mode appeared to
+break continuity: important project decisions from earlier discussion were
+not being carried forward reliably. The user apologized for switching modes.
+That apology was not warranted. The collaboration process must be able to
+recover its shared decisions from durable project records; the user should
+not have to protect the assistant's context by avoiding normal product
+controls.
+
+What was reviewed
+-----------------
+
+The current repository was rechecked at main commit
+06018dfbcb7a6232cb388a300a6564199c6f1ea7. The latest main CI run before this
+memory update was 44903873584 and completed successfully. The full-repository
+audit had changed ASTRA_WORKLOG.md only; it had not changed game source.
+
+The audit produced useful maintenance findings, but its ranked list of
+recommended next tasks could be mistaken for an already-approved execution
+plan. That distinction must remain explicit.
+
+Lessons for future work
+-----------------------
+
+1. A request to inspect means inspect. Do not modify the inspected code unless
+   the user has also authorized changes.
+2. Findings and recommendations are information, not permission. Do not
+   convert them into automatic tasks.
+3. "Continue" authorizes progress within the direction already established;
+   it does not authorize unrelated additions or a new architectural agenda.
+4. Do not add complexity merely to demonstrate activity or technical ability.
+   The project's AK principle is also a rule for Astra's own work habits:
+   simple, reliable, maintainable and easy to modify.
+5. Keep the distinction between a code change, a documentation change, a
+   successful CI run and a real Windows desktop test completely clear.
+6. When context seems incomplete, read AGENTS.md, the working memory and the
+   work log, then inspect the actual repository. Do not make the user repeat
+   decisions that are already recorded.
+
+What this entry does NOT authorize
+----------------------------------
+
+This diary entry does not authorize the pending maintenance changes listed
+in ASTRA_WORKLOG.md. It does not authorize feature development, broad
+refactoring or a change to the launcher's separate distribution model.
+The current user direction is to stabilize Astra's working notes first and
+leave the game implementation alone.
+
+This is a collaboration record, not game documentation or a claim of human
+memory, feelings or independent intent.

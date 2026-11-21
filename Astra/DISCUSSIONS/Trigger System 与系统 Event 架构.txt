@@ -1,0 +1,46 @@
+Trigger System 与 System Event 架构
+=====================================
+
+本文件记录 Trigger System 的 Engine 架构边界。它与玩家可见的事件文本、通知和叙事 UI 分离。
+
+## 概念边界
+
+### Trigger
+Trigger 是持久化的单次调度记录。它回答“何时需要处理一次动作”。它不是周期性模拟系统，不是效果本体，也不存放可执行 JS 函数。
+
+### System Event
+System Event 是 Trigger 到期时创建的一次性内部处理请求。它包含稳定类型 ID、Trigger ID、来源 Mod、当前 campaign day/date 和 JSON-safe payload。它由 Engine Resolution 接收和处理，处理完成后不作为独立历史保存。
+
+### Resolution
+Resolution 是 Engine 注册的同步处理入口。它根据 System Event 类型校验请求、计算/决定结果并调用批准的 Effect/Command/Event 入口。未经注册的 event type 必须拒绝。Mod 不能注册任意 Resolution 函数。
+
+### Effect
+Effect 表示经过 Engine 校验的世界状态变化。Trigger 与 Effect 分离：Trigger 负责何时发生，System Event 负责表达一次待处理请求，Resolution 负责执行流程，Effect 负责实际状态变化。
+
+### Domain Event 与 Presentation
+Domain Event 是已经发生的事实，存于 `world.domainEvents`，并在世界提交后经只读 Event Bus 发送。它不是待处理请求，也不会自行修改其他子系统状态。
+Presentation 以后可以把已提交事实转换为玩家可见通知、报告、文本、图标或弹窗。System Event 本身不要求任何 UI 表现。
+
+## 已确认的调度规则
+
+- Recurring simulation-system cadence 负责重复工作：annual → monthly → weekly → daily；manual 仍仅由显式调用运行。
+- Persisted Trigger instance 负责单次日期或经过时间动作，以及以后需要的条件/Domain Event 响应、临时效果到期动作。
+- Trigger 使用现有 campaign clock 与 `engine/clock.cjs` 日期规则；不另造日历。
+- 当前仅在完整 campaign-day 边界结算，不支持子日触发。
+- 每日顺序固定为：推进 campaign clock → 处理此前已到期 Trigger → `campaign.before-day` Hook → recurring simulation systems（annual/monthly/weekly/daily）→ `campaign.after-day` Hook。
+- Hook 在当前结算中创建的 Trigger 要等下一个完整日边界处理，避免同一结算内递归触发。
+- 到期动作、Domain Event、pending 出队和 receipt 写入都在 detached candidate world 中；整日成功后一起提交，失败则全部回滚。
+- Trigger 只能引用已注册且 payload 经验证的 Engine Resolution，不允许任意 JS callback、Mod 任意函数或 world patch。
+
+## 第一阶段实现范围
+
+- World schema 9 新增 `triggerQueue: { pending, receipts }`。
+- due kinds 只有 `date`（有效且晚于当前日期的 campaign date）与 `elapsed`（正整数完整游戏日）。
+- Hook 返回有限数量的 `triggers`，Owner 由 Engine 注入，ID 必须以 Owner Mod ID 为命名空间前缀。
+- 相同 ID + 相同定义去重；相同 ID + 不同定义报错。最近处理回执保留 256 条，回执淘汰后不再保证永久去重。
+- 当前唯一 System Event Resolution 为 `effect.apply`，通过现有 `applyModEffect` 执行已批准 Effect；调度时在副本上预验证，到期时重新验证并应用。
+- 成功后写入 `mod.effect-applied` 与 `trigger.resolved` Domain Event；只有 world commit 后 Event Bus 才收到事实。
+
+## 明确暂缓
+
+条件/阈值 evaluator、Domain Event 订阅/游标触发、Command/Event Resolution、通用 source/target/operation/value modifier、临时效果状态/到期管理、随机结算池与 UI Presentation 均不属于第一阶段。每项后续扩展都需要实际消费者、明确执行边界和聚焦测试；不为抽象本身堆叠框架。

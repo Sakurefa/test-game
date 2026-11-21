@@ -14,6 +14,7 @@ const MOD_EVENT_PATTERN = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
 const MAX_MOD_HOOKS = 64;
 const MAX_MOD_EFFECTS = 128;
 const MAX_MOD_EVENTS = 64;
+const MAX_MOD_TRIGGERS = 32;
 const MAX_MOD_HOOK_INPUT_BYTES = 2 * 1024 * 1024;
 const MAX_MOD_OUTPUT_BYTES = 128 * 1024;
 const MAX_MOD_STATE_BYTES = 64 * 1024;
@@ -57,11 +58,15 @@ function cloneJson(value, label) {
 function normalizeHookResult(value, modId, hookId) {
   if (value === undefined || value === null) value = {};
   if (!isRecord(value)) throw new TypeError("Mod " + modId + " hook " + hookId + " must return an object");
-  if (Object.keys(value).some((key) => key !== "effects" && key !== "events")) {
+  if (Object.keys(value).some((key) => key !== "effects" && key !== "events" && key !== "triggers")) {
     throw new TypeError("Mod " + modId + " hook " + hookId + " returned an unsupported result field");
   }
   const effects = value.effects ?? [];
   const events = value.events ?? [];
+  const triggers = value.triggers ?? [];
+  if (!Array.isArray(triggers) || triggers.length > MAX_MOD_TRIGGERS) {
+    throw new RangeError("Mod " + modId + " hook " + hookId + " exceeded the trigger limit");
+  }
   if (!Array.isArray(effects) || effects.length > MAX_MOD_EFFECTS) {
     throw new RangeError("Mod " + modId + " hook " + hookId + " exceeded the effect limit");
   }
@@ -80,7 +85,13 @@ function normalizeHookResult(value, modId, hookId) {
       throw new TypeError("Mod " + modId + " hook " + hookId + " returned an invalid event at index " + index);
     }
   }
-  return { effects, events };
+  for (const [index, trigger] of triggers.entries()) {
+    if (!isRecord(trigger) || Object.keys(trigger).some((key) => !["id", "due", "event"].includes(key))
+      || typeof trigger.id !== "string" || !isRecord(trigger.due) || !isRecord(trigger.event)) {
+      throw new TypeError("Mod " + modId + " hook " + hookId + " returned an invalid trigger at index " + index);
+    }
+  }
+  return { effects, events, triggers };
 }
 
 function executeScript({ modId, hookId, source, handler, input, timeoutMs, randomScope = "world" }) {
@@ -418,11 +429,12 @@ function applyModEffect(effect, world, catalog, modId) {
   }
 }
 
-function applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey = "world", emitDomainEvent }) {
+function applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey = "world", emitDomainEvent, scheduleTrigger }) {
   if (!Array.isArray(outcomes)) throw new TypeError("Mod hook outcomes must be an array");
   if (typeof emitDomainEvent !== "function") throw new TypeError("Mod effects require a domain-event emitter");
   let effectCount = 0;
   let eventCount = 0;
+  let triggerCount = 0;
   for (const outcome of outcomes) {
     for (const [index, effect] of outcome.effects.entries()) {
       const result = applyModEffect(effect, world, catalog, outcome.modId);
@@ -445,13 +457,21 @@ function applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey
       });
       eventCount += 1;
     }
+    for (const trigger of outcome.triggers || []) {
+      if (typeof scheduleTrigger !== "function") {
+        throw new TypeError("Mod hook triggers require an Engine Trigger Queue");
+      }
+      scheduleTrigger({ modId: outcome.modId, trigger });
+      triggerCount += 1;
+    }
   }
-  return { effectCount, eventCount };
+  return { effectCount, eventCount, triggerCount };
 }
 
 module.exports = {
   DEFAULT_MOD_HOOK_TIMEOUT_MS: DEFAULT_MOD_TIMEOUT_MS,
   MAX_MOD_EVENTS,
+  MAX_MOD_TRIGGERS,
   MAX_MOD_EFFECTS,
   MAX_MOD_HOOK_INPUT_BYTES,
   MAX_MOD_OUTPUT_BYTES,
@@ -459,6 +479,7 @@ module.exports = {
   MAX_MOD_STATE_KEYS,
   MAX_MOD_TIMEOUT_MS,
   createModExtensionRuntime,
+  applyModEffect,
   applyModHookResults,
   validateModState
 };

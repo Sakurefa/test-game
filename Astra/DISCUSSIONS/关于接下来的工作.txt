@@ -4,12 +4,12 @@
 当前阶段是通用 Engine 开发，不是直接实现人口经济玩法。所有可运行的游戏内容都由 `mods/` 下的 Mod 提供；`mods/core` 是必需的基础内容 Mod，本身不属于 Engine。Engine 负责可复用的数据表示、装载、验证、结算、持久化与扩展接口；具体分类、规则、效果配置和数值由 Core/可选 Mod 通过 INI 提供。
 
 已完成的 Engine 地基：
-1. World schema 8 的通用聚合人口群体存储。**人口群体的人数是权威人口记录；殖民地总人口等于所有群体人数之和。**标量 `population` 仅作为兼容/读取投影，由 Engine 从群体重新汇总，不是另一份人口账本。每组包含稳定 ID、人口数量和独立统计维度；每个维度内部比例合计为 1，不同维度不生成隐含联合分布。
+1. World schema 9 的通用聚合人口群体存储。**人口群体的人数是权威人口记录；殖民地总人口等于所有群体人数之和。**标量 `population` 仅作为兼容/读取投影，由 Engine 从群体重新汇总，不是另一份人口账本。每组包含稳定 ID、人口数量和独立统计维度；每个维度内部比例合计为 1，不同维度不生成隐含联合分布。
 2. Mod INI 初始群体声明契约。Mod 注册 `population_group`，使用 `colony_id`、`population` 和 `dimension.<id>` 定义群体。只要任一启用 Mod 为殖民地声明群体，这些群体就构成完整初始人口，其人数之和直接定义运行时总人口；不要求与 colony 定义中的 fallback `population` 相等，不额外补 `unclassified`。只有完全没有群体定义时，才从 colony `population` fallback 创建一个中性群体。
 3. 人口群体运行时变更契约。旧 `colony.population.delta` 继续表达真实总人口增减：正增量进入 `unclassified`，负增量按现有人群比例扣减，操作后重新汇总总数。新增 Mod Effect 支持群体拆分、合并和维度分布更新。拆分/合并不改变殖民地总人口，且沿用现有 `mod.effect-applied` 记录路径。
 4. 查询投影 `colony.summary` 提供群体快照，并从群体汇总总人口；派系摘要同样取派系殖民地的人群总数。现有需求系统仍只消费派生总人数，无需理解群体维度。
 
-## 已确认但尚未完整实现的通用触发/结算设计
+## 已确认的通用触发/结算设计与实现状态
 
 这组设计不是新的提议，已经记录在 `Astra/WORKING_MEMORY.txt` 第 7、9 节、`Astra/DISCUSSIONS/人员与建筑结算设计.txt`，以及 `Astra/WORKFLOWS/2026-11-21_03_clock-observability-save-integrity-and-population-foundation.txt`。
 
@@ -22,7 +22,7 @@
 - 多个周期性 simulation systems 在同一边界到期时，固定顺序为 **年度 → 月度 → 周度 → 日度**。年度/月度由 registry cadence 按真实日历日期判定；周度按每七个经过日，日度按每个完整游戏日。
 - 周期性 system cadence 与单个持久化 Trigger instance 是两种不同职责：前者负责重复运行的系统结算；后者负责单次日期/经过时间/条件/领域事件动作，以及临时效果到期。Trigger Queue 不应复制 annual/monthly recurring scheduler，也不应维护另一套日历算法。
 
-## 当前实现状态（截至 2026-11-22_03）
+## 历史实现状态（截至 2026-11-22_03；保留当时状态用于追溯）
 
 已存在的底层：
 - campaign clock、暂停/倍速和日期/日分数推进。
@@ -85,6 +85,23 @@
 4. **与每日原子结算绑定。** 到期动作、触发器出队和由动作产生的领域事件都先写入 candidate world；只有整日成功后才一起提交。失败时丢弃 candidate，不允许出现动作已应用但触发器仍被移除，或触发器已出队但动作未应用的半完成状态。Event Bus 只在 world commit 后接收新事件。
 5. **只调用批准动作。** Trigger record 只引用明确登记并校验的 Effect/Command/Event 入口；不能存放任意 JS 函数、任意 Mod 回调或任意 world patch。
 
-开始实现完整队列前仍需和第一个真实消费者一起钉死：触发器动作相对 annual/monthly/weekly/daily systems 的准确执行相位；触发创建的稳定 ID 与重放/重复创建语义；事件触发的游标与防止同一结算中递归触发的规则。初期不支持子日触发；若未来确有需求，再为子日模拟定义独立、明确的结算边界。
+## 2026-11-22_09 Trigger System 第一阶段 Engine 实现
 
-当前建议的下一步仍是先实现最小 date/elapsed due queue 与批准调用契约，并用 Engine 内的真实通用动作消费者及聚焦测试验证；不要先做人口阈值、建筑 workforce 或具体经济玩法。
+本次将此前的事件概念明确为两种不同对象：
+- **System Event**：Trigger 到期后创建的短生命周期内部处理请求，由 Engine 注册的 Resolution 接收；不是面向玩家的叙事/通知。
+- **Domain Event**：已经发生的事实，保存于 `world.domainEvents`，并在 world commit 后通过只读 Event Bus 发布。
+- Presentation 后续可以根据处理结果和已提交事实生成通知、报告、图标或弹窗；本阶段不实现表现层。
+
+第一阶段实际实现：
+1. World schema 升为 9；旧 schema 1–8 迁移时初始化空 Trigger Queue，保留其他已有世界数据。
+2. `world.triggerQueue` 保存待处理 Trigger 与最近处理回执；支持 `date` 和 `elapsed` 两类整日 due condition，日期校验/日数计算复用 `engine/clock.cjs`。
+3. Mod API v4 hooks 可返回有限数量的 `triggers` 描述。Owner 由 Engine 从 Hook 所属 Mod 注入；Trigger ID 必须以该 Mod ID 为前缀。相同定义去重，不同定义复用 ID 报错。
+4. Trigger 的待处理项按 dueDay、稳定 ID 排序，只处理到期项。已存在于队列中的 due Trigger 在每日结算开头执行：时钟推进之后、`campaign.before-day` 之前，因此早于全部 recurring cadence systems。
+5. Hook 在本日结算中创建的 Trigger 不会在本次被重新扫描；最早下一个完整 campaign-day 边界执行，避免同一结算内递归触发。
+6. 内部 System Event 首期只注册 `effect.apply` Resolution。它调用 Engine 现有的 `applyModEffect`；在调度时先用候选副本验证一次，实际到期时再次验证并应用。没有开放任意 JS handler、命令分发器或 world patch。
+7. 成功处理会在候选世界写入 `mod.effect-applied` 与 `trigger.resolved` Domain Event、从 pending 队列移除并记入最近回执；回执保留最新 256 条。相同 ID 的永久去重不在本阶段承诺。
+8. 触发执行、效果变化、Domain Event、出队和回执都在 `advanceDay` 的 candidate world 内；任一步失败，正式世界保留原待处理 Trigger，整日候选被丢弃。
+
+本阶段仍未实现：条件/阈值来源、Domain Event 驱动来源、Command/Event Resolution 类型、通用数值 modifier、临时效果生命周期以及 UI Presentation。也没有加入人口、建筑、经济等具体玩法。
+
+下一步建议：先运行并审查本阶段 Windows CI，再继续完善 System Event/Resolution 的第二个真实通用消费者；只有在对应数据和契约明确后，再增加条件触发或 Domain Event 驱动。

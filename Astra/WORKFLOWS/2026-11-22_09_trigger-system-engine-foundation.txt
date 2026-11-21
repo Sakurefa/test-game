@@ -1,0 +1,68 @@
+【工作流记录】Trigger System 第一阶段 Engine 地基
+=================================================
+
+工作日期：2026-11-22
+当日序号：09
+仓库：Sakurefa/test-game
+分支：main
+
+基线
+----
+- 本轮实现基线：b32a35d1ed9ac09861edbc0f75c084be9c5e14cb。
+- 该基线最新相关验证来自前一代码提交 5efd1b35b6b90fea11ee8456e06248c6786a3bb7 的 Windows CI [44942765033](https://github.com/Sakurefa/test-game/actions/runs/44942765033)：209/209 tests、syntax check、Renderer build 和 generated-renderer 步骤均成功。
+- 本轮新实现提交与 CI 结果将在提交后补记；在得到真实 Actions 结果前不得标记通过。
+- 本轮没有在用户 Windows 设备上做 GUI 验收。
+
+用户授权与目标
+--------------
+用户明确要求按本次讨论更新工作区，并开始 Trigger System 的 Engine 开发。目标仍是通用 Engine 地基，不新增具体人口、建筑、经济或战争玩法。
+
+强制原则及相关档案
+------------------
+遵循 AK 原则与 MOD 化原则：
+- Engine 保持通用、简单、可维护；只增加第一阶段实际需要的模块与调用边界。
+- Mod 内容和玩家可见文本继续使用 INI；API v3 INI-only 保持兼容；API v4 JS 只通过声明 Hook 返回受限、经校验结果。
+- 不把任意 Mod 函数、回调或 world patch 存进 Trigger。
+- 本轮新增并更新的主题档案：`Astra/DISCUSSIONS/Trigger System 与系统 Event 架构.txt`、`Astra/DISCUSSIONS/关于现状.txt`、`Astra/DISCUSSIONS/关于接下来的工作.txt`、`Astra/WORKING_MEMORY.txt`。
+
+已固定的语义边界
+----------------
+- Trigger 是持久化的单次调度实例；不承担 recurring cadence。
+- System Event 是 Trigger 到期时创建的短生命周期内部处理请求；不是玩家可见叙事事件。
+- Resolution 是 Engine 注册的处理入口；Effect 是实际世界状态变化。
+- Domain Event 是已发生事实；它记录在 world history，且只在 world commit 后经只读 Event Bus 发布。
+- Presentation 将来负责把已提交事实转成 UI；本阶段不涉及。
+- 日历日期复用 `engine/clock.cjs`；经过时间按完整 campaign-day 处理，不支持 dayFraction 子日触发。
+
+阶段一执行契约
+--------------
+- 每日顺序：campaign clock 推进 → 处理此前到期 Trigger → campaign.before-day → annual/monthly/weekly/daily cadence systems → campaign.after-day。
+- 当前 settlement 新建的 Trigger 最早在下一个完整日边界执行，避免同一边界的递归触发。
+- due kinds 支持 date 和 elapsed；Trigger ID 必须使用 owner Mod 命名空间。相同 ID/相同定义去重；冲突定义报错。
+- 第一阶段只有 `effect.apply` Resolution，复用现有受检 `applyModEffect`；调度时在副本上预验证，执行时再次校验。
+- 已成功处理的 Trigger 写入 `mod.effect-applied` 与 `trigger.resolved` Domain Event、移出 pending 并登记最近 receipt；回执最近 256 条。
+- Trigger、Effect、Domain Event、出队与 receipt 均属于 detached candidate world 事务；失败整日回滚。
+
+预定变更文件
+------------
+- `engine/system-events.cjs`：短生命周期 System Event 数据对象。
+- `engine/resolutions.cjs`：同步、稳定 ID 的 Engine Resolution 注册表。
+- `engine/triggers.cjs`：date/elapsed 队列、ID 去重、回执、到期执行与存档校验。
+- `engine/simulation.cjs`：schema 9、队列迁移/验证、日结算接入。
+- `engine/mod-runtime.cjs`：API v4 Hook 可返回有限的 triggers；Owner 由 Engine 注入。
+- `engine/catalog.cjs`：暴露已启用 Mod ID，供队列来源校验。
+- `engine/index.cjs`、`package.json`。
+- `tests/triggers.test.cjs`、`tests/engine.test.cjs`、`tests/mod-runtime.test.cjs`。
+- `MOD_API.md`、`docs/ENGINE_ARCHITECTURE.md`、`docs/SIMULATION_DOMAIN_MAP.md`。
+- `Astra/WORKING_MEMORY.txt` 与讨论档案。
+
+验证状态
+--------
+- 本地语法检查：未执行（当前通过 GitHub 仓库编辑接口直接提交；未在本地克隆运行时）。
+- 本地测试：未执行。
+- GitHub Windows CI：待提交后触发，结果补记。
+- 用户 Windows GUI：未执行，仍待真实桌面验收。
+
+后续建议
+--------
+CI 成功且代码审查通过后，再根据真实消费者确定第二个 Resolution 类型或触发源；不应先同时加入条件表达式、Domain Event cursor、随机事件池与通用数值 modifier。

@@ -175,7 +175,7 @@ test("applies only registered colony, market, fleet and war effects and records 
     emitDomainEvent: createDomainEventEmitter(world, world.clock)
   });
 
-  assert.deepEqual(emitted, { effectCount: 7, eventCount: 1 });
+  assert.deepEqual(emitted, { effectCount: 7, eventCount: 1, triggerCount: 0 });
   assert.equal(world.colonies.colonyOne.population, 105);
   assert.equal(world.colonies.colonyOne.populationGroups.unclassified.population, 105);
   assert.equal(world.colonies.colonyOne.stability, 52);

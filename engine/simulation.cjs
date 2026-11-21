@@ -5,8 +5,51 @@ const { createSystemRegistry } = require("./system-registry.cjs");
 const { createDomainEventEmitter, validateDomainEventState } = require("./domain-events.cjs");
 const { validateCommandReceiptState } = require("./commands.cjs");
 const { createFinancialLedger, validateWorldFinancialState } = require("./ledger.cjs");
-const { createModExtensionRuntime, applyModHookResults, validateModState } = require("./mod-runtime.cjs");
+const { createModExtensionRuntime, applyModHookResults, validateModState, applyModEffect } = require("./mod-runtime.cjs");
 const { createPopulationGroups, getPopulationTotal, validatePopulationGroups } = require("./population.cjs");
+const { createResolutionRegistry } = require("./resolutions.cjs");
+const { createTriggerQueue, scheduleTrigger: scheduleTriggerInstance, processDueTriggers, validateTriggerQueue } = require("./triggers.cjs");
+
+
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
+}
+
+const triggerResolutions = createResolutionRegistry([{
+  id: "effect.apply",
+  validate({ event, world, catalog }) {
+    if (!catalog?.modIds?.includes(event.sourceId)) {
+      throw new Error("System Event source Mod is not part of the loaded catalog: " + event.sourceId);
+    }
+    if (!isRecord(event.payload) || Object.keys(event.payload).length !== 1
+      || !isRecord(event.payload.effect)
+      || Object.keys(event.payload.effect).some((key) => key !== "type" && key !== "payload")
+      || typeof event.payload.effect.type !== "string" || !isRecord(event.payload.effect.payload)) {
+      throw new TypeError("effect.apply requires one registered Effect descriptor");
+    }
+    const draft = structuredClone(world);
+    applyModEffect(event.payload.effect, draft, catalog, event.sourceId);
+    return true;
+  },
+  resolve({ event, world, catalog, emitDomainEvent }) {
+    const effect = event.payload.effect;
+    const result = applyModEffect(effect, world, catalog, event.sourceId);
+    emitDomainEvent({
+      type: "mod.effect-applied",
+      scope: "mod",
+      subjectId: event.sourceId,
+      idempotencyKey: "trigger:" + event.triggerId + ":effect-applied",
+      payload: {
+        modId: event.sourceId,
+        triggerId: event.triggerId,
+        effectType: effect.type,
+        input: effect.payload,
+        result
+      }
+    });
+    return { effectType: effect.type, result };
+  }
+}]);
 
 const modRuntimeCache = new WeakMap();
 
@@ -22,10 +65,16 @@ function runModHook(modRuntime, hookId, input, { world, catalog, day, subjectKey
     randomScope: subjectKey,
     modStateById: world.modState || {}
   });
-  return applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey, emitDomainEvent });
+  return applyModHookResults(outcomes, {
+    world, catalog, day, hookId, subjectKey, emitDomainEvent,
+    scheduleTrigger: ({ modId, trigger }) => scheduleTriggerInstance(
+      world, { ...trigger, ownerId: modId },
+      { resolutions: triggerResolutions, catalog }
+    )
+  });
 }
 
-const GAME_STATE_SCHEMA_VERSION = 8;
+const GAME_STATE_SCHEMA_VERSION = 9;
 const MAX_ADVANCE_DAYS = 30;
 const MAX_CAMPAIGN_CATCH_UP_DAYS = 3650;
 const LOG_LIMIT = 100;
@@ -132,6 +181,7 @@ function createWorld(catalog, options = {}) {
     universeId: catalog.universe.id,
     clock: createClock(catalog.universe.startDate),
     scheduler: { lastRunDayBySystem: {} },
+    triggerQueue: createTriggerQueue(),
     rng: randomStreams.snapshot(),
     audit: { calculations: [] },
     domainEventSequence: 0,
@@ -439,6 +489,7 @@ function validateWorldState(world, catalog) {
   if (!world.audit || !Array.isArray(world.audit.calculations)) throw new Error("Save has an invalid calculation audit");
   validateDomainEventState(world);
   validateCommandReceiptState(world);
+  validateTriggerQueue(world, { modIds: catalog.modIds, isEventRegistered: (id) => triggerResolutions.has(id) });
   if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day) || world.clock.day < 0
     || !Number.isFinite(world.clock.dayFraction) || world.clock.dayFraction < 0 || world.clock.dayFraction >= 1) {
     throw new Error("Save has an invalid game clock");
@@ -488,6 +539,13 @@ function settleDay(world, catalog) {
   world.clock = advanceClock(world.clock, 1);
   const summary = { production: {}, needs: {}, market: {} };
   const emitDomainEvent = createDomainEventEmitter(world, world.clock);
+  const triggersProcessed = processDueTriggers(world, {
+    day: world.clock.day,
+    date: world.clock.date,
+    catalog,
+    resolutions: triggerResolutions,
+    emitDomainEvent
+  });
   runModHook(modRuntime, "campaign.before-day", {
     day: world.clock.day, date: world.clock.date, world
   }, { world, catalog, day: world.clock.day, emitDomainEvent });
@@ -520,7 +578,7 @@ function settleDay(world, catalog) {
     type: "daily-report", text: report, production: summary.production,
     marketChanges: summary.market, systemsRun
   });
-  return { day: world.clock.day, date: world.clock.date, summary, systemsRun, calculations: calculationRecords };
+  return { day: world.clock.day, date: world.clock.date, summary, systemsRun, triggersProcessed, calculations: calculationRecords };
 }
 
 function validateDayInputs(world, catalog) {
@@ -544,6 +602,7 @@ function validateDayInputs(world, catalog) {
   if (!world.scheduler?.lastRunDayBySystem || typeof world.scheduler.lastRunDayBySystem !== "object") {
     throw new Error("DAY_INPUT world.scheduler.lastRunDayBySystem is missing");
   }
+  validateTriggerQueue(world, { modIds: catalog.modIds, isEventRegistered: (id) => triggerResolutions.has(id) });
   if (!Array.isArray(world.events) || !Array.isArray(world.domainEvents) || !Number.isInteger(world.domainEventSequence)) {
     throw new Error("DAY_INPUT world event history state is missing or invalid");
   }
@@ -630,7 +689,7 @@ function advanceCampaignTime(world, catalog, elapsedGameDays, options = {}) {
 
 function migrateWorldState(world) {
   if (!world || typeof world !== "object" || Array.isArray(world)) throw new TypeError("Invalid saved world");
-  if (![1, 2, 3, 4, 5, 6, 7, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
+  if (![1, 2, 3, 4, 5, 6, 7, 8, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
     throw new Error("Unsupported or invalid game-state schema: " + world.schemaVersion);
   }
   if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)) {
@@ -688,6 +747,10 @@ function migrateWorldState(world) {
       colony.population = population;
     }
     world.schemaVersion = 8;
+  }
+  if (world.schemaVersion < 9) {
+    world.triggerQueue = createTriggerQueue();
+    world.schemaVersion = 9;
   }
   return world;
 }

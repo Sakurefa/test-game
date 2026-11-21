@@ -31,7 +31,9 @@ The engine should remain plain Node.js modules. Do not add a framework for its o
 
 **Command rule:** a command expresses intent (“buy”, “build”, “move”, “enact law”). It does not directly mutate a UI model. The trusted main process resolves actor identity, the engine validates the request and then commits it.
 
-**Event rule:** an event describes a completed fact (“cargo arrived”, “law enacted”, “fleet retreated”). Events are not a hidden command channel.
+**Domain Event rule:** a Domain Event describes a completed fact (“cargo arrived”, “law enacted”, “fleet retreated”). The history stores facts and the Event Bus delivers immutable read-only snapshots after commit; it is not a hidden command channel.
+
+**System Event rule:** a System Event is a transient internal request for Engine processing, created when a persisted Trigger becomes due. A registered Resolution handles it and may apply an approved Effect. It is not a player-facing description and is not the same object as a Domain Event. Presentation may later turn committed facts into notifications, reports or other UI.
 
 **Query rule:** user interfaces and read-only Mod hooks receive detached projections. They cannot change the live world by editing an object.
 

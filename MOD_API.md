@@ -171,9 +171,45 @@ Each Mod owns a persistent key/value state namespace stored in the world save. U
 
 The state namespace is isolated by Mod ID. A hook can read only its own state snapshot. State changes are still requested as approved effects and are committed with the candidate day; a failed day does not partially save Mod state.
 
-A hook returns an object with optional effects and events arrays. It may return an empty object or undefined to do nothing. It must be synchronous. Promise/async results are rejected.
+A hook returns an object with optional `effects`, `events` and `triggers` arrays. `effects` request approved world transitions. `events` append completed-fact Domain Events. `triggers` schedule individual future System Events for Engine processing. A hook may return an empty object or undefined to do nothing. It must be synchronous. Promise/async results are rejected.
 
 Mod order is deterministic by stable Mod ID. Hook order follows the declared hook-point sequence within the simulation. A Mod random sequence is isolated by Mod ID, hook ID, campaign day and entity scope. Adding a draw in one Mod or colony does not consume the random stream of another Mod or colony.
+
+## Trigger scheduling and System Events
+
+A hook may return a bounded `triggers` array. Each descriptor has only an ID, a due condition and a System Event request:
+
+```js
+{
+  triggers: [{
+    id: "my-mod.colony-relief",
+    due: { kind: "elapsed", days: 3 },
+    event: {
+      type: "effect.apply",
+      payload: {
+        effect: {
+          type: "colony.stability.delta",
+          payload: { colonyId: "my-colony", delta: 2 }
+        }
+      }
+    }
+  }]
+}
+```
+
+The Engine supplies the owner Mod ID; a Trigger ID must be namespaced under that Mod. The ID is stable across saves and retries. Re-submitting the same ID with the same definition is ignored while its pending entry or recent receipt is retained. Reusing the ID with a different definition fails validation. The Engine retains the latest 256 Trigger receipts, so this is a bounded replay fence, not a permanent global identity ledger.
+
+The initial due sources are:
+- `{ kind: "date", date: "YYYY-MM-DD" }`: a valid campaign calendar date strictly after the current date.
+- `{ kind: "elapsed", days: N }`: a positive integer number of completed campaign days.
+
+Both are processed only at whole-day boundaries; fractional day progress does not run Trigger actions. The Engine processes already-due Triggers immediately after advancing the campaign clock, before `campaign.before-day` and before annual/monthly/weekly/daily simulation systems. Triggers created later during that settlement can first run on a subsequent completed day, preventing same-boundary recursion.
+
+The current registered System Event resolution is `effect.apply`, which calls the Engine's existing validated Mod Effect handler and records the usual `mod.effect-applied` Domain Event alongside `trigger.resolved`. Trigger descriptors cannot contain JavaScript functions, arbitrary callbacks, command handlers or world patches. Resolution payloads are validated when scheduled and checked again when executed. Unsupported resolution types are rejected.
+
+A System Event is a transient internal processing request, not a player-facing narrative event and not a Domain Event. It is resolved inside the candidate-world day transaction. A successful resolution appends a `trigger.resolved` Domain Event; the read-only Event Bus receives that fact only after the whole world commits. If a resolution fails, the candidate day—including the action, queue removal and receipt—is discarded.
+
+The current implementation does not yet provide condition/threshold or Domain-Event-driven Trigger sources, Command/Event resolution types, generic numeric modifiers or temporary-effect lifecycle management. API v3 data-only Mods remain unaffected.
 
 ## Current hook points
 

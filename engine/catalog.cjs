@@ -401,7 +401,7 @@ function compileCatalog(modPackages) {
       ok: true,
       catalog: {
         ...catalog, universe, contentHash, legacyContentHash, serializable,
-        localizations, defaultLocale, extensions,
+        localizations, defaultLocale, extensions, modIds: enabled.map((mod) => mod.id),
         compatibleContentHashes: [classificationCompatibleHash],
         compatibleLegacyContentHashes: [classificationCompatibleLegacyHash]
       }

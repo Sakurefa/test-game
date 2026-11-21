@@ -69,8 +69,8 @@ function normalizeHookResult(value, modId, hookId) {
     }
   }
   for (const [index, event] of events.entries()) {
-    if (!isRecord(event) || typeof event.type !== "string" || !MOD_EVENT_PATTERN.test(event.type)
-      || !isRecord(event.payload ?? {})) {
+    if (!isRecord(event) || typeof event.type !== "string" || event.type.length > 48
+      || !MOD_EVENT_PATTERN.test(event.type) || !isRecord(event.payload ?? {})) {
       throw new TypeError("Mod " + modId + " hook " + hookId + " returned an invalid event at index " + index);
     }
   }

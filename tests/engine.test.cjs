@@ -308,3 +308,15 @@ test("catalog rejects negative daily population need rates",async()=>{
  const result=compileCatalog(packages);
  assert.equal(result.ok,false);assert.match(result.error,/dailyNeedPerThousand/);
 });
+
+test("zero population demand does not round or mutate untouched stockpiles",async()=>{
+ const c=await catalog(),w=createWorld(c,{seed:"zero-population-demand"});
+ const colonyId="new-dawn-colony";
+ w.colonies[colonyId].population=0;
+ w.colonies[colonyId].stockpiles.water=1.23456;
+ w.colonies[colonyId].stockpiles.food=9.87654;
+ advanceDay(w,c);
+ assert.equal(w.colonies[colonyId].stockpiles.water,1.23456);
+ assert.equal(w.colonies[colonyId].stockpiles.food,9.87654);
+ assert.equal(w.colonies[colonyId].lastNeedsReport.shortageCount,0);
+});

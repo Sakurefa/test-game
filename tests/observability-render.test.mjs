@@ -138,7 +138,7 @@ test("colony needs audit explains actual consumption and shortage without hiding
   assert.match(markup, /人口日常需求/);
   assert.match(markup, /供应不足/);
   assert.match(markup, /45\.98%/);
-  assert.match(markup, /缺口 1\.18/);
+  assert.match(markup, /缺口 1\.175/);
 });
 
 test("domain event panel explains daily population demand settlement", () => {
@@ -156,7 +156,7 @@ test("domain event panel explains daily population demand settlement", () => {
   const markup = renderDomainEventPanel(view);
   assert.match(markup, /殖民地日常需求结算/);
   assert.match(markup, /每座殖民地每天一次/);
-  assert.match(markup, /缺口 1\.18/);
+  assert.match(markup, /缺口 1\.175/);
 });
 
 test("colony needs formula renders commodity satisfaction and unmet demand", () => {
@@ -177,7 +177,7 @@ test("colony needs formula renders commodity satisfaction and unmet demand", () 
   assert.match(markup, /人口日常需求/);
   assert.match(markup, /供应不足/);
   assert.match(markup, /45\.98%/);
-  assert.match(markup, /缺口 1\.18/);
+  assert.match(markup, /缺口 1\.175/);
 });
 test("colony needs event renders its daily cadence and unmet quantity", () => {
   const view = snapshot();
@@ -194,7 +194,7 @@ test("colony needs event renders its daily cadence and unmet quantity", () => {
   const markup = renderDomainEventPanel(view);
   assert.match(markup, /殖民地日常需求结算/);
   assert.match(markup, /每座殖民地每天一次/);
-  assert.match(markup, /缺口 1\.18/);
+  assert.match(markup, /缺口 1\.175/);
 });
 
 test("colony needs panel displays sub-mill shortages with enough precision", () => {

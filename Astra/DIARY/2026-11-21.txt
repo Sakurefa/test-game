@@ -184,3 +184,14 @@ The implementation's new sub-mill renderer test passed. The failing assertions
 were corrected to compare exact accounting with a tolerance and to expect the
 intentional three-decimal display for the existing 1.175 example. The failed CI
 run remains recorded in the work log.
+
+
+Render assertion escape correction
+----------------------------------
+
+A second CI run showed that four renderer expectations still contained the old
+two-decimal value. The attempted text replacement had matched a double-escaped
+string rather than the single-backslash regex literals in the test file. The
+four assertions are now directly replaced and checked in the retrieved file.
+The engine-side precision behavior and the new sub-mill shortage regression
+passed in that run.

@@ -75,7 +75,7 @@ test("calculation panel leads with a localized explanation and tucks raw JSON in
   assert.match(markup, /新曙光市场 · 矿石/);
   assert.match(markup, /13\.2 CR/);
   assert.match(markup, /class="audit-raw-details"/);
-  assert.match(markup, /"scarcity"/);
+  assert.match(markup, /&quot;scarcity&quot;/);
 });
 
 test("domain event panel explains weekly recurrence before exposing raw payload", () => {

@@ -437,7 +437,11 @@ Long-term direction:
 - Tests/builds: GitHub Actions run 44857923951 on Windows Runner / Node.js 22.23.5 completed successfully for code head 6f7993f0805a0629bdb40666087feebb067c7c3d. `npm run check:syntax` passed; `npm test` passed 137/137 with zero failures; `npm run build:web` passed. No local test suite was run. This is Windows CI, not a user Windows desktop GUI session. Earlier PR runs exposed and fixed schema-7 storage reads, autosave test fixtures, legacy code-declaration messaging, invalid JS state-key syntax and the example market quote-count expectation.
 - Known issues/limits: the current VM is not a hardened untrusted-code sandbox; the JS API exposes only the currently registered hooks/effects (not arbitrary new simulation systems or custom UI); the query registry is not yet wired to renderer IPC; the domain map is partly a future plan, not implemented gameplay; tactical combat, true logistics, population cohorts, politics, diplomacy, market order books and company accounting remain future work.
 - Distribution: No Electron runtime bootstrap or standalone launcher EXE has been changed in this batch. The independent launcher remains outside the source repository as previously agreed.
-- Next: verify the final PR-head CI run after this worklog update, then squash-merge PR #2 only if it is green. The separate runtime-build workflow is not required for this PR because no Electron bootstrap/runtime dependency or launcher source was modified. After merge, ask for one consolidated Windows desktop test covering daily/weekly autosave, fatal report handling, API v4 monthly Mod state persistence/reload, legacy schema/content-fingerprint migration and basic campaign-time UI. Do not make the user test one commit at a time.
+- Merge: PR #2 was squash-merged successfully. Merge commit: 8b20e97a81f2809a004978ce23efc99d19952e9a. The final feature branch was verified by CI run 44858064467 (syntax, 137/137 tests, web build all green).
+- Post-merge source CI: run 44858299067 on main code head 9336e5540b36603aef4083e265d50e3b7a1d4da0 completed successfully, including syntax, 137/137 tests, renderer build and generated-file commit step.
+- Post-merge runtime CI: run 44858154248 completed successfully. Mod loader tests, renderer build, minimal Electron app preparation, Windows Electron runtime build, runtime dependency sync and standalone launcher EXE artifact upload all passed. Artifact name Market-Simulator-Launcher-EXE, 92,728,532 bytes, expiry 2026-12-05T02:52:37Z. EXE is an Actions artifact and is not committed to the source repository.
+- A race was observed when build.yml and runtime.yml both pushed main concurrently: the renderer workflow's direct git push was rejected as non-fast-forward. Fixed .github/workflows/build.yml to run git pull --rebase origin main before pushing generated renderer output. The subsequent main run 44858299067 passed through this step.
+- Next: one consolidated user Windows desktop test is still required for autosaves, fatal report handling, API v4 monthly Mod state persistence/reload, legacy schema/content-fingerprint migration and campaign-time UI. Do not split this into commit-by-commit tests.
 - Windows desktop test: required for the new runtime/Mod-loading/save-migration batch; not yet performed.
 
 
@@ -450,3 +454,15 @@ Long-term direction:
 - A further compatibility review found old schema 1–6 saves had an INI-only content fingerprint. The catalog now retains that fingerprint; only a schema migration marker permits a one-time exact INI fingerprint upgrade to the new script-inclusive fingerprint. Schema 7 saves remain strict.
 - Final code-head CI run 44857923951: syntax check SUCCESS; simulation/Mod tests SUCCESS (137 tests, 137 pass, 0 fail); renderer build SUCCESS. CI run URL: https://github.com/Sakurefa/test-game/actions/runs/44857923951
 - PR #2: https://github.com/Sakurefa/test-game/pull/2. The code head tested by run 44857923951 was 6f7993f0805a0629bdb40666087feebb067c7c3d. This worklog update itself creates a new PR head and therefore needs one final CI confirmation.
+
+
+### Final merge and main-branch verification — 2026-11-21
+
+- PR #2 https://github.com/Sakurefa/test-game/pull/2 merged by squash as 8b20e97a81f2809a004978ce23efc99d19952e9a.
+- Feature-branch CI 44858064467 on 148769c93f821f0e929cf2522316dd3ebb92ec38 passed all checks; the underlying test run reported 137 tests, 137 pass, 0 fail.
+- Runtime workflow 44858154248 passed and produced the Windows runtime plus a separate Market-Simulator-Launcher-EXE Actions artifact (92,728,532 bytes, retained until 2026-12-05T02:52:37Z). The executable was not committed.
+- Runtime sync committed only resources/app/package.json as 6d9215684e6f99639950818b79eda1d1b6bf5106.
+- Renderer push race fix: .github/workflows/build.yml now rebases generated renderer commits against origin/main before pushing. Fix commit 9336e5540b36603aef4083e265d50e3b7a1d4da0.
+- Final post-fix main CI 44858299067 on code head 9336e5540b36603aef4083e265d50e3b7a1d4da0 passed syntax, all 137 tests, renderer build and commit step.
+- Windows desktop GUI validation has not been performed. All new runtime/gameplay paths still require the single consolidated manual test documented in docs/PLAYTEST_GUIDE.md.
+- Remaining architecture limits: JS Mod VM wrapper is not a hardened sandbox for hostile code; Mods remain trusted/opt-in. Renderer has not migrated to the new query registry. Domain areas not yet implemented are explicitly listed as future phases in docs/SIMULATION_DOMAIN_MAP.md.

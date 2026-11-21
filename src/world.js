@@ -59,8 +59,9 @@ function renderAuditRecord(snapshot, record) {
   const limiting = summary.limitingInput
     ? `<p class="audit-limiter">${escapeHtml(tr(snapshot, "audit.field.limiting_input"))}：${escapeHtml(commodityLabel(snapshot, summary.limitingInput))}</p>`
     : "";
+  const statusClass = summary.statusKey?.split(".").at(-1) || "unknown";
   const status = summary.statusKey
-    ? `<b class="audit-status ${escapeHtml(summary.kind)}">${escapeHtml(tr(snapshot, summary.statusKey))}</b>`
+    ? `<b class="audit-status ${escapeHtml(statusClass)}">${escapeHtml(tr(snapshot, summary.statusKey))}</b>`
     : "";
   const statusPreview = summary.statusKey
     ? `<small class="audit-record-status-note">${escapeHtml(tr(snapshot, summary.statusKey))}</small>`

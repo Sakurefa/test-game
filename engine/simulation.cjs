@@ -54,7 +54,8 @@ function createWorld(catalog, options = {}) {
       stability: definition.stability,
       stockpiles: { ...definition.stockpiles },
       industries: definition.industries.map((industry) => ({ ...industry })),
-      lastProduction: {}
+      lastProduction: {},
+      lastProductionReport: null
     };
   }
 
@@ -137,8 +138,10 @@ function produceForColony(catalog, colonyState, calculations, day, emitDomainEve
     day, colonyId: colonyState.id, colony: colonyState
   }, { world, catalog, day, subjectKey: colonyState.id, emitDomainEvent });
   const output = {};
+  const industryReports = [];
   let activeIndustryCount = 0;
-  for (const industry of colonyState.industries) {
+  for (let industryIndex = 0; industryIndex < colonyState.industries.length; industryIndex += 1) {
+    const industry = colonyState.industries[industryIndex];
     const recipe = catalog.recipes.get(industry.recipeId);
     const recipeInputs = (recipe.inputs || []).map((input) => ({
       commodityId: input.commodityId,
@@ -149,18 +152,57 @@ function produceForColony(catalog, colonyState, calculations, day, emitDomainEve
       level: industry.level, stability: colonyState.stability,
       recipeInputs, recipeOutputs: recipe.outputs || []
     }, { day });
+
+    const inputTotals = new Map();
+    for (const input of recipeInputs) {
+      const prior = inputTotals.get(input.commodityId);
+      inputTotals.set(input.commodityId, {
+        quantity: (prior?.quantity || 0) + input.quantity,
+        available: input.available
+      });
+    }
+    const requestedOutput = {};
+    for (const item of recipe.outputs || []) {
+      requestedOutput[item.commodityId] = round(
+        (requestedOutput[item.commodityId] || 0) + item.quantity * result.requestedBatches, 3
+      );
+    }
+    const consumed = { ...result.consumed };
+    const produced = Object.fromEntries(Object.entries(result.produced)
+      .map(([commodityId, quantity]) => [commodityId, round(quantity, 3)]));
+    const limitingStock = result.limitingInput ? inputTotals.get(result.limitingInput) : null;
+    const status = result.batchScale <= 0 ? "no-output"
+      : result.batchScale + 1e-9 < result.requestedBatches ? "limited" : "normal";
+
+    industryReports.push({
+      industryIndex,
+      recipeId: industry.recipeId,
+      level: industry.level,
+      requestedBatches: result.requestedBatches,
+      actualBatches: result.batchScale,
+      efficiency: result.efficiency,
+      status,
+      limitingInput: result.limitingInput,
+      limitingAvailable: limitingStock?.available ?? null,
+      limitingRequired: limitingStock ? round(limitingStock.quantity * result.requestedBatches, 3) : null,
+      requestedOutput,
+      consumed,
+      produced
+    });
+
     if (result.batchScale <= 0) continue;
     activeIndustryCount += 1;
-    for (const [commodityId, consumed] of Object.entries(result.consumed)) {
-      colonyState.stockpiles[commodityId] = round(Math.max(0, (colonyState.stockpiles[commodityId] || 0) - consumed), 3);
+    for (const [commodityId, quantity] of Object.entries(result.consumed)) {
+      colonyState.stockpiles[commodityId] = round(Math.max(0, (colonyState.stockpiles[commodityId] || 0) - quantity), 3);
     }
-    for (const [commodityId, produced] of Object.entries(result.produced)) {
-      const quantity = round(produced, 3);
-      colonyState.stockpiles[commodityId] = round((colonyState.stockpiles[commodityId] || 0) + quantity, 3);
-      output[commodityId] = round((output[commodityId] || 0) + quantity, 3);
+    for (const [commodityId, quantity] of Object.entries(result.produced)) {
+      const actualQuantity = round(quantity, 3);
+      colonyState.stockpiles[commodityId] = round((colonyState.stockpiles[commodityId] || 0) + actualQuantity, 3);
+      output[commodityId] = round((output[commodityId] || 0) + actualQuantity, 3);
     }
   }
   colonyState.lastProduction = output;
+  colonyState.lastProductionReport = { day, industries: industryReports };
   runModHook(modRuntime, "colony.after-production", {
     day, colonyId: colonyState.id, colony: colonyState, production: output
   }, { world, catalog, day, subjectKey: colonyState.id, emitDomainEvent });

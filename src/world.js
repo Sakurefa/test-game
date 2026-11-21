@@ -165,16 +165,45 @@ function colonies(snapshot) {
             const commodity = snapshot.commodities.find((item) => item.id === id);
             return `<span><small>${escapeHtml(entityName(snapshot, commodity, id))}</small><b>${number(amount)} ${escapeHtml(commodity?.unitKey ? tr(snapshot, commodity.unitKey) : "")}</b></span>`;
           }).join("");
-          const industry = colony.state.industries.map((item) => {
+          const productionReport = colony.state.lastProductionReport;
+          const reportByIndustry = new Map((productionReport?.industries || [])
+            .map((entry) => [entry.industryIndex, entry]));
+          const formatAmounts = (amounts) => Object.entries(amounts || {}).map(([id, amount]) => {
+            const commodity = snapshot.commodities.find((item) => item.id === id);
+            const unit = commodity?.unitKey ? tr(snapshot, commodity.unitKey) : "";
+            return `${escapeHtml(entityName(snapshot, commodity, id))} ${number(amount)} ${escapeHtml(unit)}`;
+          }).join("、") || "无";
+          const industry = colony.state.industries.map((item, index) => {
             const recipe = snapshot.recipes.find((entry) => entry.id === item.recipeId);
-            return `<li>${escapeHtml(entityName(snapshot, recipe, item.recipeId))} <small>等级 ${item.level}</small></li>`;
+            const report = reportByIndustry.get(index);
+            if (!report) {
+              return `<li class="industry-entry"><div class="industry-entry-heading"><span>${escapeHtml(entityName(snapshot, recipe, item.recipeId))} <small>等级 ${item.level}</small></span></div><div class="industry-pending">等待首次周生产结算</div></li>`;
+            }
+            const statusLabel = report.status === "normal" ? "生产正常"
+              : report.status === "no-output" ? "无产出" : "原料受限";
+            const statusClass = report.status === "normal" ? "normal" : "limited";
+            const limitingCommodity = report.limitingInput
+              ? snapshot.commodities.find((entry) => entry.id === report.limitingInput) : null;
+            const limitingUnit = limitingCommodity?.unitKey ? tr(snapshot, limitingCommodity.unitKey) : "";
+            const limitingText = report.limitingInput
+              ? `限制原料：${escapeHtml(entityName(snapshot, limitingCommodity, report.limitingInput))} · 库存 ${number(report.limitingAvailable)} / 计划需求 ${number(report.limitingRequired)} ${escapeHtml(limitingUnit)}`
+              : "原料充足";
+            return `<li class="industry-entry">
+              <div class="industry-entry-heading"><span>${escapeHtml(entityName(snapshot, recipe, item.recipeId))} <small>等级 ${item.level}</small></span><b class="industry-status ${statusClass}">${statusLabel}</b></div>
+              <div class="industry-batches">生产批次：${number(report.actualBatches)} / ${number(report.requestedBatches)}</div>
+              <div class="industry-output"><span>计划产出</span><b>${formatAmounts(report.requestedOutput)}</b></div>
+              <div class="industry-output"><span>实际产出</span><b>${formatAmounts(report.produced)}</b></div>
+              <div class="industry-limiter ${report.limitingInput ? "warning" : ""}">${limitingText}</div>
+            </li>`;
           }).join("");
+          const productionDate = productionReport
+            ? `最近结算：第 ${productionReport.day} 天` : "等待首次周生产结算";
           return `
             <article class="colony-card">
               <div class="colony-heading"><div><span class="world-eyebrow">${escapeHtml(colony.location.systemId)}</span><h4>${escapeHtml(entityName(snapshot, colony))}</h4><p>${escapeHtml(entityName(snapshot, colony.faction))} · ${escapeHtml(entityName(snapshot, colony.location))}</p></div><b class="stability">${colony.state.stability}%</b></div>
               <div class="colony-population"><span>人口</span><b>${number(colony.state.population)}</b></div>
               <div class="stock-grid">${stock}</div>
-              <div class="industry-list"><b>生产设施</b><ul>${industry}</ul></div>
+              <div class="industry-list"><div class="industry-list-heading"><b>生产设施</b><small>${productionDate}</small></div><ul>${industry}</ul></div>
             </article>`;
         }).join("")}
       </div>

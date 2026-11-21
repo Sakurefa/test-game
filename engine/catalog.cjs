@@ -156,6 +156,9 @@ function validateCatalog(catalog, registryEntries) {
     requireFinite(commodity.targetStock, `commodity ${commodity.id} targetStock`, { min: 0, exclusiveMin: true });
     requireFinite(commodity.priceElasticity, `commodity ${commodity.id} priceElasticity`, { min: 0, max: 10 });
     requireFinite(commodity.volatility, `commodity ${commodity.id} volatility`, { min: 0, max: 1 });
+    if (commodity.dailyNeedPerThousand !== undefined) {
+      requireFinite(commodity.dailyNeedPerThousand, `commodity ${commodity.id} dailyNeedPerThousand`, { min: 0 });
+    }
     if (typeof commodity.unitKey !== "string" || !commodity.unitKey.trim()) throw new Error(`Commodity ${commodity.id} requires a localization unitKey`);
   }
   for (const recipe of catalog.recipes.values()) {

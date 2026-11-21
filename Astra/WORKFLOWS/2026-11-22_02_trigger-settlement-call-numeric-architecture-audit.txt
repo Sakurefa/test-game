@@ -93,6 +93,12 @@
 4. numeric influence：source、target、operation、value；永久/临时效果生命周期；计算公式与效果应用分离。
 5. 用实际已确认的通用消费者作验证；建筑 workforce 条件须等真实就业数据存在后再做完整验收，人口阈值可以是简单消费者但不能代替基础设施。
 
+归档与验证补记
+--------------
+- 本次讨论、工作流和索引的首个归档提交：`137e9578ad7882f965d95ddc4b7878394af68e68`。
+- 该归档提交的 Windows CI [44928444960](https://github.com/Sakurefa/test-game/actions/runs/44928444960) 已成功：语法检查、201/201 测试、Renderer build 与生成 Renderer 步骤全部通过。
+- 归档更新只涉及 Astra 讨论/工作流/索引，不涉及游戏代码或 Mod 内容。
+
 验证与边界
 ----------
 - 当前 main HEAD 为 c232c54c4f59cafdfb860ae93c62152ad1e1982d。

@@ -4,8 +4,8 @@
 
 ## Repository snapshot
 - Repository: https://github.com/Sakurefa/test-game
-- Branch: `main`; current HEAD: `c232c54c4f59cafdfb860ae93c62152ad1e1982d`.
-- Latest relevant Windows CI: [44926906863](https://github.com/Sakurefa/test-game/actions/runs/44926906863), successful on current HEAD: Electron/Engine syntax checks passed; `npm test` passed **201/201**; Renderer build and generated-renderer step succeeded. No local full suite/build was run.
+- Branch: `main`; audited game-source baseline: `c232c54c4f59cafdfb860ae93c62152ad1e1982d`; trigger/settlement audit first archived in documentation commit `137e9578ad7882f965d95ddc4b7878394af68e68`.
+- Latest completed Windows CI for the audited source/documentation baseline: [44928444960](https://github.com/Sakurefa/test-game/actions/runs/44928444960), successful on audit archive commit `137e9578ad7882f965d95ddc4b7878394af68e68`: Electron/Engine syntax checks passed; `npm test` passed **201/201**; Renderer build and generated-renderer step succeeded. No local full suite/build was run.
 - Population implementation source commit: `9e515649734269e2ef71ed40d530740b83c36017`; test expectation correction: `0aa769dc97bf9c76718c3215b3d786e2869d07a1`.
 - No user-side Windows GUI acceptance was performed for the current accumulated revision. The recent population/trigger audit did not trigger Electron Runtime/Launcher packaging.
 

@@ -397,7 +397,9 @@ function validateWorldState(world, catalog) {
     const canUpgradeLegacyFingerprint = world.contentHashUpgradePending === true
       && typeof catalog.legacyContentHash === "string"
       && world.contentHash === catalog.legacyContentHash;
-    if (!canUpgradeLegacyFingerprint) {
+    const canUpgradeKnownPopulationClassification = Array.isArray(catalog.compatibleContentHashes)
+      && catalog.compatibleContentHashes.includes(world.contentHash);
+    if (!canUpgradeLegacyFingerprint && !canUpgradeKnownPopulationClassification) {
       throw new Error("This save was created with different Mod content. Restore the matching Mods before loading.");
     }
     world.contentHash = catalog.contentHash;

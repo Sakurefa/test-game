@@ -340,9 +340,25 @@ function compileCatalog(modPackages) {
       ? JSON.stringify({ content: serializable, extensions })
       : JSON.stringify(serializable);
     const contentHash = crypto.createHash("sha256").update(contentFingerprint).digest("hex");
+
+    // Exact one-time alias for the pre-classification catalog. It preserves existing
+    // Schema-7 saves while still rejecting every other content or extension change.
+    const classificationCompatibleContent = { ...serializable };
+    delete classificationCompatibleContent.professions;
+    delete classificationCompatibleContent.wealthTiers;
+    const classificationCompatibleFingerprint = extensions.length > 0
+      ? JSON.stringify({ content: classificationCompatibleContent, extensions })
+      : JSON.stringify(classificationCompatibleContent);
+    const classificationCompatibleHash = crypto.createHash("sha256")
+      .update(classificationCompatibleFingerprint).digest("hex");
+
     return {
       ok: true,
-      catalog: { ...catalog, universe, contentHash, legacyContentHash, serializable, localizations, defaultLocale, extensions }
+      catalog: {
+        ...catalog, universe, contentHash, legacyContentHash, serializable,
+        localizations, defaultLocale, extensions,
+        compatibleContentHashes: [classificationCompatibleHash]
+      }
     };
   } catch (error) {
     return { ok: false, error: error.message };

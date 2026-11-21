@@ -287,6 +287,21 @@ test("schema-six saves upgrade the legacy INI fingerprint when the enabled v4 Mo
   assert.equal(Object.hasOwn(migrated, "contentHashUpgradePending"), false);
 });
 
+test("Schema-seven saves upgrade only the exact pre-classification content fingerprint", async () => {
+  const c = await catalog();
+  const world = createWorld(c, { seed: "population-classification-hash-upgrade" });
+  const previousFingerprint = c.compatibleContentHashes?.[0];
+  assert.match(previousFingerprint || "", /^[a-f0-9]{64}$/);
+  world.contentHash = previousFingerprint;
+
+  assert.equal(validateWorldState(world, c), true);
+  assert.equal(world.contentHash, c.contentHash);
+
+  const unrelatedChange = createWorld(c, { seed: "population-classification-hash-reject" });
+  unrelatedChange.contentHash = "unrelated-mod-content-fingerprint";
+  assert.throws(() => validateWorldState(unrelatedChange, c), /different Mod content/);
+});
+
 test("schema-seven saves still reject changed JavaScript Mod content", async () => {
   const c = await catalog();
   const world = createWorld(c, { seed: "strict-v4-fingerprint" });

@@ -13,19 +13,29 @@ test("player-readable audit and event labels are available through the Core cont
     "audit.formula.commodity_price",
     "audit.formula.security_price",
     "audit.formula.colony_production",
+    "audit.formula.population_needs",
     "audit.explanation.commodity_scarce",
     "audit.explanation.commodity_surplus",
     "audit.explanation.security_price",
     "audit.explanation.colony_production",
+    "audit.explanation.population_needs_met",
+    "audit.explanation.population_needs_shortage",
     "audit.event.market_settled",
     "audit.event.war_advanced",
     "audit.event.colony_production",
+    "audit.event.colony_needs",
     "audit.cadence.market_daily",
     "audit.cadence.war_daily",
     "audit.cadence.colony_weekly",
+    "audit.cadence.colony_needs_daily",
     "audit.cadence.event_driven",
     "audit.raw_calculation",
-    "audit.raw_event"
+    "audit.raw_event",
+    "audit.status.needs_met",
+    "audit.status.needs_shortage",
+    "audit.field.population",
+    "audit.field.need_count",
+    "audit.field.shortage_count"
   ];
   for (const key of keys) assert.ok(strings[key], "Missing localization key: " + key);
 });

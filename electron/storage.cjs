@@ -278,7 +278,7 @@ async function readGameState(root, id) {
     throw new Error("Game-state file is missing, linked or too large");
   }
   const state = JSON.parse(await fs.readFile(file, "utf8"));
-  if (!state || typeof state !== "object" || ![1, 2, 3, 4, 5, 6].includes(state.schemaVersion)) throw new Error("Unsupported game-state schema");
+  if (!state || typeof state !== "object" || ![1, 2, 3, 4, 5, 6, 7].includes(state.schemaVersion)) throw new Error("Unsupported game-state schema");
   return state;
 }
 

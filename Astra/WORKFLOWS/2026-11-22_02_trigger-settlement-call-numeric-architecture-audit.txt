@@ -1,0 +1,110 @@
+【工作流记录】通用触发器、结算期、调用与数值影响架构审计
+====================================================
+
+工作日期：2026-11-22
+当日序号：02
+工作基线：c232c54c4f59cafdfb860ae93c62152ad1e1982d
+结果：只读架构审计；无游戏源码变更
+
+用户请求
+--------
+用户提醒：此前已经讨论过通用触发器、结算期、调用关系与数值计算机制，要求检查工作文件夹，确认这些设计是否实现、是否曾查阅，以及是否留有记录。
+
+核查范围
+--------
+先按 AGENTS.md 要求读取：
+- AGENTS.md、Astra/README.txt、完整 Astra/WORKING_MEMORY.txt、ASTRA_WORKLOG.md。
+- 两份最高优先级原则：AK 原则、MOD 化原则。
+
+再检查相关设计记录：
+- Astra/DISCUSSIONS/人员与建筑结算设计.txt
+- Astra/DISCUSSIONS/人口系统设计.txt
+- Astra/DISCUSSIONS/经济系统设计.txt
+- Astra/DISCUSSIONS/关于接下来的工作.txt
+- Astra/WORKFLOWS/2026-11-20_01_engine-contract-and-campaign-time-foundation.txt
+- Astra/WORKFLOWS/2026-11-21_01_simulation-calculation-command-and-finance-foundation.txt
+- Astra/WORKFLOWS/2026-11-21_02_ak-maintainability-observability-mod-api-and-handoffs.txt
+- Astra/WORKFLOWS/2026-11-21_03_clock-observability-save-integrity-and-population-foundation.txt
+- Astra/WORKFLOWS/2026-11-21_06_engine-vs-mod-boundary-and-next-step.txt
+- Astra/WORKFLOWS/2026-11-21_07_aggregate-population-groups-engine-foundation.txt
+- Astra/WORKFLOWS/2026-11-21_08_mod-defined-population-groups-ini-foundation.txt
+- Astra/WORKFLOWS/2026-11-22_01_population-group-authoritative-runtime-transitions.txt
+
+源码与文档：
+- engine/system-registry.cjs、engine/simulation.cjs、engine/campaign-time.cjs、engine/clock.cjs
+- engine/formulas.cjs、engine/mod-runtime.cjs、engine/commands.cjs、engine/command-runtime.cjs
+- engine/event-bus.cjs、engine/domain-events.cjs、engine/queries.cjs
+- electron/mod-loader.cjs
+- mods/example-market/manifest.ini、mods/example-market/scripts/market-events.js
+- MOD_API.md、docs/ENGINE_ARCHITECTURE.md、docs/SIMULATION_DOMAIN_MAP.md
+- tests/system-registry.test.cjs、tests/mod-runtime.test.cjs
+
+已记录的设计事实
+----------------
+工作记忆第 7、9 节及 2026-11-21_03 工作流早已记下：
+- 效果与触发器分离。
+- 永久效果不需要计时器；临时效果由独立触发器处理到期/变化。
+- 到期触发器可以结束/改变效果、发出事件或调用经过批准的动作。
+- 时间推进只处理到期触发器，不扫描全部历史效果。
+- 通用数值影响应有 source、target、operation、value；按语义支持 addition、subtraction、multiplication。
+- 建筑条件使用实际雇佣群体与人数，不从平均值或独立边际比例推导交叉统计。
+- 在配置的结算期只检查条件需要的数据，按实际雇佣人数计算比例，应用/移除效果，并让效果在下一结算点前保持稳定。
+- 周期重合的顺序为 annual → monthly → weekly → daily；月度/年度未来通过固定日历日期触发，而不是后台持续扫描。
+- 这些属于明确设计方向，不是对具体职业标签、阈值、建筑效果或游戏平衡的批准。
+
+当前实现状态
+------------
+已实现的通用底层：
+- campaign clock、日期与日分数、暂停/倍速。
+- system registry 支持 daily、weekly、manual；稳定 system ID、order、dependsOn、拓扑排序、同步更新、每个系统的 lastRunDayBySystem。
+- 当前周日重合顺序：weekly colonies.production → daily population.needs-consumption → daily economy.market-pricing；military.war-chronology 日度运行。
+- 已定义固定 Mod Hook：campaign.before-day/after-day、colony.before-production/after-production、market.before-pricing/after-pricing、war.after-chronology。
+- 已存在显式 command dispatcher、world command runtime、主进程 command gateway；当前玩家网关实际注册的命令只有 finance.transfer。
+- 已存在 typed Domain Event 历史与 Event Bus。Event Bus 将已发生事实交付给只读订阅者，不是游戏状态触发器。
+- 已存在版本化公式计算服务和审计记录，当前四个 Engine 公式：economy.population-needs、economy.colony-production、economy.commodity-price、economy.security-price。
+- 已存在若干逐项定义的 Mod Effects；每种效果的 payload 与合法性规则由 Engine 单独登记。
+
+尚未实现：
+- 通用 trigger 定义/注册/持久化/到期队列。
+- 条件/阈值求值及日期、条件、事件驱动的通用游戏动作。
+- 真实日历月/年 cadence 和 annual → monthly → weekly → daily 的统一结算顺序。
+- 从触发器到经批准的 effects/commands/events 的通用调用契约。
+- 通用 source/target/operation/value 数值影响层；当前是逐类型硬编码 Effect，不是可组合的通用数值 modifier。
+- 临时效果持久化、到期、变更和移除流程。
+- 实际就业群体数据及建筑条件结算快照；recipe workforce 当前只是 metadata。
+
+特别澄清的反例：
+- example-market 的 monthly-market-observation Hook 实际挂在 campaign.after-day；每天调用 JS，代码用 `input.day % 30 === 0` 判断。它是每 30 个经过日的示例脚本，不是真实日历月 scheduler。
+- Domain Event 的 subscriber 只能观察已提交事件快照；MOD_API 明确指出自定义事件不会自动改变其他子系统。
+- Hook 只在 Engine 固定列出的调用点执行；Mod JS API 只给 random/clamp/round，不提供任意 command invoke 或通用 effect registry。
+- formula service 可记录输入、步骤、修正、随机抽取和结果，但具体四个公式仍由 Engine 代码定义，不能等同通用数值影响系统。
+- runManual 是对手动注册模拟系统的显式调用，不是日期/条件/event trigger。
+
+纠正上一轮的工作方向
+--------------------
+上一轮把下一项过度缩窄为“人口总量阈值触发”。这个例子只是未来通用触发机制的一个消费者；真正的既定设计覆盖触发器生命周期、结算期、调用/批准动作、临时效果和通用数值影响。上一轮没有充分查阅/整合已有工作记忆与 2026-11-21_03 工作流，导致错误地把已讨论设计当成新的局部提议。
+
+下一项建议（尚未获代码施工授权）
+------------------------------
+应按整体机制审查并制定最小契约：
+1. trigger lifecycle：日期、经过时间、条件与事件触发；到期队列、持久化、去重、失败边界；只处理 due 项。
+2. settlement periods：真实日历月/年及 annual → monthly → weekly → daily 顺序，与已有 daily/weekly 系统兼容。
+3. approved invocation：触发器如何调用经过批准的 Effect、Command 或 Event；不开放任意 Mod 函数或任意 world patch。
+4. numeric influence：source、target、operation、value；永久/临时效果生命周期；计算公式与效果应用分离。
+5. 用实际已确认的通用消费者作验证；建筑 workforce 条件须等真实就业数据存在后再做完整验收，人口阈值可以是简单消费者但不能代替基础设施。
+
+验证与边界
+----------
+- 当前 main HEAD 为 c232c54c4f59cafdfb860ae93c62152ad1e1982d。
+- 最新 Windows GitHub Actions [44926906863](https://github.com/Sakurefa/test-game/actions/runs/44926906863) 成功：语法检查通过，npm test 201/201、0 失败，Renderer build 成功，generated-renderer 步骤成功。
+- 该 CI 验证当前已实现源码和文档提交；不能证明上文列出的未实现机制存在。
+- 本轮只读审计，没有本地 npm test/build，没有 Windows GUI 验收，也没有修改游戏源码/Mod 内容/测试。
+
+精确文档变更
+------------
+- 更新 Astra/DISCUSSIONS/关于接下来的工作.txt：将下一步从单独的人口阈值，修正为已确认通用触发/结算/调用/数值影响机制的整体缺口审查。
+- 新增本工作流记录。
+- 更新 ASTRA_WORKLOG.md 的当前实现状态、最新 main/CI 和下一步导航。
+- Astra/WORKING_MEMORY.txt 与人员/建筑结算设计的既有设计决定无需重写；它们已有对应规则。
+
+Windows GUI 验收：本轮为只读代码/档案审计，不新增 GUI 验收结果。

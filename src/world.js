@@ -1,6 +1,6 @@
 import { getCampaignWeekFraction } from "./time-display.mjs";
-import { getRecentCalculationRecords } from "./calculation-audit.mjs";
-import { getRecentDomainEvents } from "./domain-event-view.mjs";
+import { getRecentCalculationRecords, summarizeCalculationRecord } from "./calculation-audit.mjs";
+import { getRecentDomainEvents, summarizeDomainEvent } from "./domain-event-view.mjs";
 
 function escapeHtml(value) {
   return String(value ?? "").replace(/[&<>"']/g, (char) => ({
@@ -8,31 +8,89 @@ function escapeHtml(value) {
   })[char]);
 }
 
-const FORMULA_LABELS = Object.freeze({
-  "economy.commodity-price": "商品市场定价",
-  "economy.security-price": "证券价格计算",
-  "economy.colony-production": "殖民地生产结算"
-});
-
 function auditJson(value) {
   return escapeHtml(JSON.stringify(value ?? null, null, 2));
 }
 
-function renderAuditRecord(record) {
-  const label = FORMULA_LABELS[record.formulaId] || record.formulaId;
+function findAuditInstrument(snapshot, record) {
+  const streams = new Set((record.randomDraws || []).map((draw) => draw.streamId).filter(Boolean));
+  for (const market of snapshot.markets || []) {
+    for (const instrument of market.instruments || []) {
+      const streamId = `economy.market.${market.id}.${instrument.id}`;
+      if (streams.has(streamId)) return { ...instrument, marketName: entityName(snapshot, market) };
+    }
+  }
+  return null;
+}
+
+function commodityLabel(snapshot, commodityId) {
+  const commodity = snapshot.commodities.find((item) => item.id === commodityId);
+  const unit = commodity?.unitKey ? tr(snapshot, commodity.unitKey) : "";
+  return `${entityName(snapshot, commodity, commodityId)}${unit ? " · " + unit : ""}`;
+}
+
+function renderAuditFacts(snapshot, facts, instrument) {
+  if (!facts?.length) return "";
+  return `<div class="audit-fact-grid">${facts.map((fact) => {
+    if (!Number.isFinite(fact.value)) return "";
+    const value = fact.percentScale ? fact.value * fact.percentScale : fact.value;
+    const suffix = fact.commodityUnit ? ` ${escapeHtml(instrument?.unit || "")}` : escapeHtml(fact.suffix || "");
+    return `<span><small>${escapeHtml(tr(snapshot, fact.labelKey))}</small><b>${number(value)}${suffix}</b></span>`;
+  }).join("")}</div>`;
+}
+
+function renderCommodityAmounts(snapshot, labelKey, amounts) {
+  const entries = Object.entries(amounts || {});
+  if (!entries.length) return "";
+  const values = entries.map(([id, quantity]) => `<span>${escapeHtml(commodityLabel(snapshot, id))}<b>${number(quantity)}</b></span>`).join("");
+  return `<div class="audit-resource-group"><small>${escapeHtml(tr(snapshot, labelKey))}</small><div>${values}</div></div>`;
+}
+
+function renderAuditRecord(snapshot, record) {
+  const summary = summarizeCalculationRecord(record);
   const draws = Array.isArray(record.randomDraws) ? record.randomDraws : [];
+  const instrument = findAuditInstrument(snapshot, record);
+  const subject = instrument ? `${instrument.marketName} · ${instrument.ticker || instrument.name}` : "";
+  const inputRows = (summary.inputs || []).map((item) => `
+    <span>${escapeHtml(commodityLabel(snapshot, item.commodityId))}
+      <b>每批 ${number(item.perBatch)} · 可用 ${number(item.available)}</b>
+    </span>`).join("");
+  const limiting = summary.limitingInput
+    ? `<p class="audit-limiter">${escapeHtml(tr(snapshot, "audit.field.limiting_input"))}：${escapeHtml(commodityLabel(snapshot, summary.limitingInput))}</p>`
+    : "";
+  const statusClass = summary.statusKey?.split(".").at(-1) || "unknown";
+  const status = summary.statusKey
+    ? `<b class="audit-status ${escapeHtml(statusClass)}">${escapeHtml(tr(snapshot, summary.statusKey))}</b>`
+    : "";
+  const statusPreview = summary.statusKey
+    ? `<small class="audit-record-status-note">${escapeHtml(tr(snapshot, summary.statusKey))}</small>`
+    : "";
   return `
     <details class="audit-record">
       <summary>
-        <span><b>第 ${record.day ?? "—"} 天 · ${escapeHtml(label)}</b><small>${escapeHtml(record.formulaId)} · v${record.version}</small></span>
-        <em>${draws.length} 次随机抽取</em>
+        <span><b>第 ${record.day ?? "—"} 天 · ${escapeHtml(tr(snapshot, summary.titleKey))}</b><small>${escapeHtml(record.formulaId)} · v${record.version}${subject ? " · " + escapeHtml(subject) : ""}</small>${statusPreview}</span>
+        <em>${escapeHtml(tr(snapshot, "audit.random_draws"))}：${draws.length}</em>
       </summary>
       <div class="audit-record-body">
-        <section><h5>输入参数</h5><pre>${auditJson(record.inputs)}</pre></section>
-        <section><h5>中间步骤</h5><pre>${auditJson(record.steps)}</pre></section>
-        <section><h5>修正项</h5><pre>${auditJson(record.modifiers)}</pre></section>
-        <section><h5>实际随机抽取</h5><pre>${auditJson(draws)}</pre></section>
-        <section><h5>最终结果</h5><pre>${auditJson(record.result)}</pre></section>
+        <div class="audit-readable-summary">
+          <p class="audit-explanation">${escapeHtml(tr(snapshot, summary.explanationKey))}</p>
+          ${status}
+          ${renderAuditFacts(snapshot, summary.facts, instrument)}
+          ${inputRows ? `<div class="audit-resource-group"><small>${escapeHtml(tr(snapshot, "audit.field.recipe_inputs"))}</small><div>${inputRows}</div></div>` : ""}
+          ${limiting}
+          ${renderCommodityAmounts(snapshot, "audit.field.consumed", summary.consumed)}
+          ${renderCommodityAmounts(snapshot, "audit.field.produced", summary.produced)}
+        </div>
+        <details class="audit-raw-details">
+          <summary>${escapeHtml(tr(snapshot, "audit.raw_calculation"))}</summary>
+          <div class="audit-record-body">
+            <section><h5>${escapeHtml(tr(snapshot, "audit.raw_inputs"))}</h5><pre>${auditJson(record.inputs)}</pre></section>
+            <section><h5>${escapeHtml(tr(snapshot, "audit.raw_steps"))}</h5><pre>${auditJson(record.steps)}</pre></section>
+            <section><h5>${escapeHtml(tr(snapshot, "audit.raw_modifiers"))}</h5><pre>${auditJson(record.modifiers)}</pre></section>
+            <section><h5>${escapeHtml(tr(snapshot, "audit.raw_random"))}</h5><pre>${auditJson(draws)}</pre></section>
+            <section><h5>${escapeHtml(tr(snapshot, "audit.raw_result"))}</h5><pre>${auditJson(record.result)}</pre></section>
+          </div>
+        </details>
       </div>
     </details>`;
 }
@@ -40,31 +98,66 @@ function renderAuditRecord(record) {
 export function renderCalculationAuditPanel(snapshot) {
   const records = getRecentCalculationRecords(snapshot.world, 30);
   const content = records.length
-    ? records.map(renderAuditRecord).join("")
-    : `<div class="audit-empty">尚无计算记录。市场完成下一次每日结算后，相关公式记录会出现在这里。</div>`;
+    ? records.map((record) => renderAuditRecord(snapshot, record)).join("")
+    : `<div class="audit-empty">${escapeHtml(tr(snapshot, "audit.empty_calculations"))}</div>`;
   return `
-    <aside class="calculation-audit-panel" data-audit-panel aria-label="计算审计只读面板">
+    <aside class="calculation-audit-panel" data-audit-panel aria-label="${escapeHtml(tr(snapshot, "audit.calculation_panel"))}">
       <header class="audit-panel-header">
-        <div><span class="world-eyebrow">CALCULATION TRACE / READ ONLY</span><h3>计算审计</h3><small>最近 ${records.length} 条记录 · 最多显示 30 条</small></div>
-        <button data-world-action="toggle-audit" aria-label="关闭计算审计">关闭</button>
+        <div><span class="world-eyebrow">CALCULATION TRACE / READ ONLY</span><h3>${escapeHtml(tr(snapshot, "audit.calculation_panel"))}</h3><small>${records.length} / 30</small></div>
+        <button data-world-action="toggle-audit" aria-label="${escapeHtml(tr(snapshot, "audit.close"))}">${escapeHtml(tr(snapshot, "audit.close"))}</button>
       </header>
       <div class="audit-panel-body">${content}</div>
-      <footer class="audit-panel-footer">只读历史记录 · 不参与公式、时间调度或随机数生成</footer>
+      <footer class="audit-panel-footer">${escapeHtml(tr(snapshot, "audit.calculation_footer"))}</footer>
     </aside>`;
 }
 
+function domainEventSubject(snapshot, event) {
+  const collection = event.scope === "colony" ? snapshot.colonies
+    : event.scope === "market" ? snapshot.markets
+      : event.scope === "war" ? snapshot.wars : [];
+  const entity = collection.find((item) => item.id === event.subjectId);
+  return entity ? entityName(snapshot, entity) : event.subjectId || tr(snapshot, "audit.no_subject");
+}
 
-function renderDomainEventRecord(event) {
-  const scope = event.scope || "world";
+function renderEventChanges(snapshot, changes) {
+  const entries = Object.entries(changes || {});
+  if (!entries.length) return "";
+  const values = entries.map(([id, change]) => {
+    const market = snapshot.markets.find((item) => item.instruments.some((instrument) => instrument.id === id));
+    const instrument = market?.instruments.find((item) => item.id === id);
+    const name = instrument?.ticker || instrument?.name || id;
+    return `<span>${escapeHtml(name)}<b>${change > 0 ? "+" : ""}${number(change)}%</b></span>`;
+  }).join("");
+  return `<div class="audit-resource-group"><small>${escapeHtml(tr(snapshot, "audit.field.quote_changes"))}</small><div>${values}</div></div>`;
+}
+
+function renderDomainEventRecord(snapshot, event) {
+  const summary = summarizeDomainEvent(event);
+  const subject = domainEventSubject(snapshot, event);
   return `
     <details class="audit-record domain-event-record">
       <summary>
-        <span><b>#${event.sequence} · 第 ${event.day} 天 · ${escapeHtml(event.type)}</b><small>${escapeHtml(event.date)} · ${escapeHtml(scope)} · ${escapeHtml(event.subjectId || "无主体")}</small></span>
-        <em>${Object.keys(event.payload || {}).length} 个字段</em>
+        <span><b>#${event.sequence} · 第 ${event.day} 天 · ${escapeHtml(tr(snapshot, summary.titleKey))}</b><small>${escapeHtml(event.date)} · ${escapeHtml(subject)}</small><small class="audit-cadence">${escapeHtml(tr(snapshot, summary.cadenceKey))}</small></span>
+        <em>${Object.keys(event.payload || {}).length}</em>
       </summary>
       <div class="audit-record-body">
-        <section><h5>事件元数据</h5><pre>${auditJson({ id: event.id, sequence: event.sequence, day: event.day, date: event.date, type: event.type, scope, subjectId: event.subjectId })}</pre></section>
-        <section><h5>事件载荷</h5><pre>${auditJson(event.payload)}</pre></section>
+        <div class="audit-readable-summary">
+          <p class="audit-explanation">${escapeHtml(tr(snapshot, summary.explanationKey))}</p>
+          ${renderAuditFacts(snapshot, summary.facts)}
+          ${renderEventChanges(snapshot, summary.changes)}
+          ${renderCommodityAmounts(snapshot, "audit.field.production_output", summary.production)}
+        </div>
+        <details class="audit-raw-details">
+          <summary>${escapeHtml(tr(snapshot, "audit.raw_event"))}</summary>
+          <div class="audit-record-body">
+            <section><h5>${escapeHtml(tr(snapshot, "audit.raw_metadata"))}</h5><pre>${auditJson({
+              id: event.id, sequence: event.sequence, day: event.day, date: event.date,
+              type: event.type, scope: event.scope, subjectId: event.subjectId,
+              idempotencyKey: event.idempotencyKey
+            })}</pre></section>
+            <section><h5>${escapeHtml(tr(snapshot, "audit.raw_payload"))}</h5><pre>${auditJson(event.payload)}</pre></section>
+          </div>
+        </details>
       </div>
     </details>`;
 }
@@ -72,16 +165,16 @@ function renderDomainEventRecord(event) {
 export function renderDomainEventPanel(snapshot) {
   const records = getRecentDomainEvents(snapshot.world, 30);
   const content = records.length
-    ? records.map(renderDomainEventRecord).join("")
-    : `<div class="audit-empty">目前还没有领域事件。推进世界时间后，生产、市场和战争系统会在结算时写入记录。</div>`;
+    ? records.map((event) => renderDomainEventRecord(snapshot, event)).join("")
+    : `<div class="audit-empty">${escapeHtml(tr(snapshot, "audit.empty_events"))}</div>`;
   return `
-    <aside class="calculation-audit-panel domain-event-panel" data-domain-event-panel aria-label="领域事件只读面板">
+    <aside class="calculation-audit-panel domain-event-panel" data-domain-event-panel aria-label="${escapeHtml(tr(snapshot, "audit.event_panel"))}">
       <header class="audit-panel-header">
-        <div><span class="world-eyebrow">DOMAIN EVENT STREAM / READ ONLY</span><h3>世界事件</h3><small>最近 ${records.length} 条 · 最多显示 30 条 · 世界保留上限 300 条</small></div>
-        <button data-world-action="toggle-domain-events" aria-label="关闭世界事件">关闭</button>
+        <div><span class="world-eyebrow">DOMAIN EVENT STREAM / READ ONLY</span><h3>${escapeHtml(tr(snapshot, "audit.event_panel"))}</h3><small>${records.length} / 30 · ${escapeHtml(tr(snapshot, "audit.event_history_retention"))}</small></div>
+        <button data-world-action="toggle-domain-events" aria-label="${escapeHtml(tr(snapshot, "audit.close"))}">${escapeHtml(tr(snapshot, "audit.close"))}</button>
       </header>
       <div class="audit-panel-body">${content}</div>
-      <footer class="audit-panel-footer">只读事件历史 · 不执行命令、不修改模拟状态</footer>
+      <footer class="audit-panel-footer">${escapeHtml(tr(snapshot, "audit.event_footer"))}</footer>
     </aside>`;
 }
 

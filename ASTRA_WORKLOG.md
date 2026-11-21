@@ -5,9 +5,9 @@
 ## Repository snapshot
 
 - Repository: https://github.com/Sakurefa/test-game
-- Branch: `main`; latest architecture/source revision recorded for this session: `b6617ac99551fb329dcd5d967639f7a74a369ca0` (cadence/Trigger boundary docs plus shared campaign-date validation).
-- Latest completed Windows CI for that revision: [44933468019](https://github.com/Sakurefa/test-game/actions/runs/44933468019), successful. Electron/Engine syntax check passed; `npm test` passed **204/204** with 0 failures; Renderer build and generated-renderer step succeeded.
-- No local full test suite/build was run in this session. GitHub Windows CI is not user-side Windows GUI acceptance.
+- Branch: `main`; current documented HEAD: `6c429f719efee005058032eda7bf58c0c893a01b` (Astra audit record); latest code/test revision: `9011f03d6bf5808f7d01bab3ecb71863584f24e1` (campaign-clock validation and regression test).
+- Latest completed Windows CI for the code/test revision: [44934853240](https://github.com/Sakurefa/test-game/actions/runs/44934853240), successful. Electron/Engine syntax check passed; `npm test` passed **205/205** with 0 failures; Renderer build and generated-renderer step succeeded.
+- No local full test suite/build was run. GitHub Windows CI is not user-side Windows GUI acceptance.
 - No user-side Windows GUI acceptance has been completed for the accumulated version. Launcher/Runtime packaging was not part of this session.
 
 ## Mandatory high-priority principles
@@ -26,9 +26,9 @@ Files use `YYYY-MM-DD_NN_topic.txt`. NN is one shared chronological sequence for
 
 - 2026-11-20: 01
 - 2026-11-21: 01–08
-- 2026-11-22: 01–05
+- 2026-11-22: 01–06
 
-Latest focused record: `Astra/WORKFLOWS/2026-11-22_05_discussion-and-trigger-boundary-update.txt`.
+Latest focused record: `Astra/WORKFLOWS/2026-11-22_06_code-audit-clock-validation-fix.txt`.
 
 ## Current foundation state
 
@@ -69,4 +69,4 @@ Continue the approved generic direction:
 4. Add condition/event-driven sources and generic numeric effects only when a real consumer and test contract exist.
 5. Defer workforce conditions until actual employed group records and headcounts exist.
 
-The design rationale and current implementation state are in `Astra/DISCUSSIONS/关于接下来的工作.txt`, `Astra/DISCUSSIONS/人员与建筑结算设计.txt`, and workflow 05. Historical workflow records retain the state at the time and must not be rewritten as current status.
+The design rationale and current implementation state are in `Astra/DISCUSSIONS/关于接下来的工作.txt` and `Astra/DISCUSSIONS/人员与建筑结算设计.txt`; the latest code audit and clock-validation fix are recorded in workflow 06. Workflow 05 records the preceding cadence/Trigger boundary update. Historical workflow records retain the state at the time and must not be rewritten as current status.

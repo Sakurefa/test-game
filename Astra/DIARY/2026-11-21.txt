@@ -246,3 +246,48 @@ and maintainable; put game definitions and balance values in INI Mod data.
 Repository work in this session was limited to Astra's durable collaboration
 records. No simulation code, Mod content, schema, tests, Renderer or game
 balance values were changed.
+
+Title: Personnel entities and deterministic settlement snapshots
+===============================================================
+
+The user clarified how named people relate to aggregate population:
+
+- People are introduced through events. Ordinary hiring may create a selectable
+  list of candidates abstracted from population groups; special events may
+  introduce predefined or generated people.
+- A separate persistent personnel pool stores already generated/acquired
+  people serving the player (for example friends, partners or recruited
+  personnel). Each personnel record may store profession and other role
+  attributes, optional affiliations, and its own identity/relationships.
+- A person may belong to a class/species/organization or other affiliation,
+  or may have no normal population affiliation and serve independently.
+  Exceptional entities such as royals and agitators may be managed in their
+  own lists and appear at locations through their own mechanics.
+- Personnel records are not a second population ledger. If a candidate is
+  abstracted from a population group, the hiring/creation rule must explicitly
+  define whether the aggregate group count is reduced. Do not double-count
+  the person. No individual economic simulation follows from the personnel
+  record.
+
+The user also clarified the principle for conditional building effects:
+avoid deriving frequently changing values from other frequently changing
+averages or marginal percentages. Prefer direct operational data, especially
+the building's actual employed workforce and headcounts. At a scheduled
+settlement, inspect only the workforce attributes relevant to configured
+conditions; skip irrelevant calculations when no employed group carries the
+relevant trait/tag. Compute the qualifying share from actual employed people,
+apply or remove the configured persistent building effect, then keep that
+result unchanged through the interval. Staff changes during the interval do
+not continuously invalidate the effect; the next scheduled settlement
+re-evaluates it.
+
+The user's intended coincident settlement priority is annual, monthly,
+weekly, then daily. Weekly and daily are the ordinary current simulation
+cadences; monthly and annual are future fixed-date settlement operations
+invoked by triggers, not additional recurring scans. The thresholds, tags,
+conditions and resulting effects remain Mod-defined INI content.
+
+The resulting architecture principle is: direct source data over volatile
+derived dependencies; calculate only relevant conditions; deterministic
+settlement priority; stable effects between scheduled evaluations. No game
+content or numerical thresholds were authorized by this clarification.

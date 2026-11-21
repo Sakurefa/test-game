@@ -4,10 +4,10 @@
 
 ## Repository snapshot
 - Repository: https://github.com/Sakurefa/test-game
-- Branch: main; aggregate group implementation: `f383d2978e3db76d7909f336d4e407a4b6f85982`; schema-test correction: `eef6c49995af3ea06f5bd94dd12809e6c3a6922f`; Astra state-record commit: `900c43cfb796e2341d5ef6b06a8b30a083889bd4`; Mod INI group-loading commit: `6d17b9b86cdc9589aa71bb3f3ef58c37763ac06c`.
-- Latest main Actions run: [44921871092](https://github.com/Sakurefa/test-game/actions/runs/44921871092), successful on `6d17b9b86cdc9589aa71bb3f3ef58c37763ac06c`: Engine/Electron syntax checks passed, `npm test` passed **188/188**, Renderer build passed, and generated-renderer step completed. No local full test suite/build was run.
-- The earlier schema-8 runtime preparation run [44920738556](https://github.com/Sakurefa/test-game/actions/runs/44920738556) failed on the first implementation commit because six old tests still expected schema 7; the test-only correction then passed the main workflow with 185/185. Runtime packaging was not rerun because the correction did not change runtime/package paths. The new population_group batch also did not touch the runtime workflow's path filters, so no fresh Electron Runtime build or Launcher upload is claimed.
-- This session changes generic Engine/Mod-loading contracts, tests and docs; it adds no actual Core demographic composition or population balance values. CI is Windows Runner evidence, not user-side desktop GUI acceptance.
+- Branch: `main`; latest population source commit: `9e515649734269e2ef71ed40d530740b83c36017`; test expectation correction: `0aa769dc97bf9c76718c3215b3d786e2869d07a1`.
+- Latest relevant Windows CI: [44926697353](https://github.com/Sakurefa/test-game/actions/runs/44926697353), successful on `0aa769dc97bf9c76718c3215b3d786e2869d07a1): Electron/Engine syntax checks passed; `npm test` passed **201/201**; Renderer build and generated-renderer step succeeded. No local full suite/build was run.
+- First CI for source commit [44926516064](https://github.com/Sakurefa/test-game/actions/runs/44926516064) passed syntax checks but found two test expectation mismatches (199/201); the follow-up test-only correction is the successful commit above.
+- No user-side Windows GUI acceptance was performed. This change did not trigger Electron Runtime/Launcher packaging; no new runtime build or standalone Launcher is claimed.
 
 ## Mandatory high-priority principles
 Read both before design or implementation:
@@ -24,26 +24,21 @@ See Astra/DISCUSSIONS/: 关于游戏设计的讨论.txt, 经济系统设计.txt,
 Files use YYYY-MM-DD_NN_topic.txt. NN is one shared chronological sequence for the whole date. Historical grouped archives were numbered in their preserved source-log order:
 - 2026-11-20: 01
 - 2026-11-21: 01–08
+- 2026-11-22: 01
 
 ## Current project state
 The project remains in generic Engine development. All playable game content is supplied through Mods under `mods/`; `mods/core` is the required baseline content Mod, not Engine code. The Engine remains independent of specific game definitions and balance.
 
-World save schema is 8. Each colony retains scalar `population` and persists generic `populationGroups` with stable IDs, counts and independent dimension distributions. Mod INI can initialize groups through registered `population_group` definitions. All group counts for a colony across enabled Mods must equal its configured population; absent definitions use a neutral `unclassified` fallback. Profession and wealth categories reference the registered catalogs; other dimensions remain generic stable IDs. Empty populationGroups are omitted from content fingerprint serialization to preserve old schema-8 fingerprints; actual definitions enter the fingerprint. Positive `colony.population.delta` adds to `unclassified`; negative delta reduces groups proportionally. Schema 1–7 saves migrate by creating a neutral group when needed.
+World save schema is 8. Population group counts are the authoritative runtime population records; each colony's total population is their sum. The scalar `population` field is retained only as a derived compatibility/read projection, recalculated from group counts after population operations and checked against the group sum at save/day boundaries. It is not an independent ledger.
 
-No actual demographic composition was added to Core: new colonies begin entirely `unclassified` unless an enabled Mod supplies groups. Daily needs still settle against scalar colony population, not per group. Weekly production exists; recipe workforce remains metadata. Personnel entities and workforce snapshots remain confirmed designs, not implemented systems. Consolidated Windows desktop acceptance remains outstanding.
+Enabled Mod `population_group` INI definitions, when present for a colony, constitute its complete initial population; their sum determines the runtime total. No automatic `unclassified` remainder is appended and the sum need not equal the colony definition's fallback `population` value. Only a colony with no group definitions receives one `unclassified` group initialized from that fallback. Schema 1–7 saves migrate their legacy scalar once into a neutral group; after migration, group counts are authoritative.
+
+The existing `colony.population.delta` effect remains compatible. New Mod effects split a group, merge groups and replace a group's dimension distribution. Split/merge preserve the colony total; each effect is applied through the existing Mod result pipeline and recorded by `mod.effect-applied`. `colony.summary` exposes detached group data and derives total population from group counts; faction summaries likewise use derived totals.
+
+Core has no actual demographic composition yet. Daily needs still use derived colony total, not per-group demand. No concrete employment, wages, demographic movement or market rules were added. Personnel entities and workforce snapshots remain future designs. Consolidated Windows desktop acceptance remains outstanding.
 
 ## Next unresolved Engine foundation design
-Review the existing effect/command/event contracts and define safe generic runtime semantics for population-group transitions (create/remove/split/merge/change a dimension) while preserving total population and traceability. Do not implement mutation APIs or gameplay rules until the operation semantics are clear.
-## Engine / Mod boundary clarification
-- Long-term population and goods economy is a game-content direction, not the current Engine task list.
-- All playable content is provided by Mods. Core is the required baseline Mod at `mods/core`; it is not part of the Engine.
-- The Engine now loads Mod-defined `population_group` INI records while Core remains neutral and supplies no demographic composition.
-- Detailed implementation and next direction are in `Astra/DISCUSSIONS/关于接下来的工作.txt` and `Astra/WORKFLOWS/2026-11-21_08_mod-defined-population-groups-ini-foundation.txt`.
+Review Query projections, Mod hook inputs, domain events and scheduler conditions to define how Mods can refer to the derived colony population total through generic threshold/condition triggers (such as colony-size limits or crossed population thresholds). Engine supplies the reusable condition/trigger mechanism; Mod content supplies the actual thresholds and effects. Do not hardcode a particular colony-level or population-reward rule.
 
-## Documentation organization update
-Baseline for this update: cd9c7bb78443a0ba18a5b944840e064111accfbb.
-- Added Astra/IMPORTANT_PRINCIPLES/ with separate AK and Mod principles.
-- Renamed historical workflows to YYYY-MM-DD_NN_... using preserved source-log order.
-- 2026-11-21 sequence: 01 simulation/calculation/finance; 02 AK/observability/Mod API; 03 clock/save/population; 04 previous log restructuring; 05 important principles and daily ordering; 06 Engine/Mod boundary clarification; 07 aggregate population-group Engine foundation; 08 Mod INI population-group loading.
-- Updated AGENTS.md, Astra/README.txt, WORKING_MEMORY and logging conventions to require reading both principles and to enforce one shared sequence per day.
-- Tests/builds: not run (documentation-only). No Windows GUI test required.
+## Current session record
+See `Astra/WORKFLOWS/2026-11-22_01_population-group-authoritative-runtime-transitions.txt` and the population design discussion in `Astra/DISCUSSIONS/人口系统设计.txt`. The correction that groups constitute total population is a durable project rule, not a local implementation detail.

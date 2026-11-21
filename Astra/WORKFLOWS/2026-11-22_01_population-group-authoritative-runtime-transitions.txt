@@ -1,0 +1,55 @@
+【工作流记录】人口群体权威数据与运行时变更
+==============================================
+
+工作日期：2026-11-22
+当日序号：01
+工作基线：baecd0964b2fd292ec415ec4eed550b1bd16a0db
+代码结果：0aa769dc97bf9c76718c3215b3d786e2869d07a1
+
+起因与必须纠正的语义
+--------------------
+本轮工作中，用户明确纠正了人口系统的基础权威关系：不能把人口群体描述成从殖民地既有总人口中切出来的附属部分。**各群体的人数共同构成殖民地总人口；总人口是群体人数求和所得的派生汇总值。**需求、殖民地规模、阈值和触发器等只需要总量的系统，读取该派生值即可。标量 `population` 不得成为第二份独立人口账本，也不得用于反推、分摊或覆盖群体人数。
+
+实现
+----
+- `engine/population.cjs`：
+  - 新增 `getPopulationTotal`，由群体人数计算总人口。
+  - `populationGroups` 是权威运行时数据；标量 `colony.population` 只作为同步更新的兼容/读取投影。
+  - 人口增减先读取群体总数、修改群体人数，再重新求和并更新投影。
+  - 拆分：从现有来源群体转移部分人数到新的稳定 ID，殖民地总人口不变。默认复制原群体维度；可选提供新旧两边维度分布，但必须同时提供，且每个独立维度中各分类人数守恒。
+  - 合并：将来源群体合入目标群体并移除来源 ID；维度集合必须相同，各维度按人数加权合并；殖民地总人口不变。
+  - 维度更新：替换某群体的指定维度分布，不改变群体人数或殖民地总人口。
+  - 不提供直接删除仍含人口的群体操作。
+- `engine/simulation.cjs`：
+  - 新世界存在 Mod 群体定义时，使用群体人数之和初始化总人口；没有群体定义时，才用 colony 定义的 fallback `population` 创建一个 `unclassified` 群体。
+  - 每日需求公式与报告读取群体派生总数。
+  - 存档验证与日结算入口验证标量投影和群体总数一致。
+  - schema 1–7 的一次性迁移把旧标量总人口转换成单一中性群体；迁移后群体人数权威。schema 仍为 8，持久化结构未更改。
+- `engine/catalog.cjs`：移除“Mod 群体人数必须凑到 colony fallback 总人口”的校验。只要启用 Mod 定义群体，它们即构成完整的初始人口，不会补默认余数。
+- `engine/mod-runtime.cjs`：新增 `colony.population.group.split`、`colony.population.group.merge`、`colony.population.group.dimension.set` 三种 Effect；旧 `colony.population.delta` 保持兼容。人口增减返回受影响群体的前后人数；新增效果通过既有 `mod.effect-applied` Domain Event 记录 Mod、Hook、输入与实际结果。
+- `engine/queries.cjs`：`colony.summary` 返回群体快照，并从群体求和总人口；`faction.summary` 的殖民地人口也由群体汇总。
+- 更新 `MOD_API.md`、`mods/README.md`、`docs/ENGINE_ARCHITECTURE.md` 对权威数据关系、初始化 fallback 和新 Effect 的说明。
+- 更新相关测试，移除测试夹具直接写入 scalar 人口的做法，改用群体人口增减操作。
+
+验证
+----
+- 代码提交 `9e515649734269e2ef71ed40d530740b83c36017` 的第一轮 Windows CI [44926516064](https://github.com/Sakurefa/test-game/actions/runs/44926516064)：语法检查通过；测试阶段 201 项中 199 项通过、2 项失败；Renderer 构建因此跳过。
+- 两项失败均为测试预期未与最新返回契约同步：一项错误信息匹配字符串过窄；另一项仍期望旧的 `dimensionIds` 返回值，而实现已返回实际新旧维度快照。修正测试后提交 `0aa769dc97bf9c76718c3215b3d786e2869d07a1`。
+- Windows CI [44926697353](https://github.com/Sakurefa/test-game/actions/runs/44926697353) 对修正提交成功：Electron/Engine 语法检查通过；`npm test` **201/201 通过，0 失败**；Renderer build 成功；生成 Renderer 步骤成功且没有额外文件变更。
+- 本地完整测试/构建未执行；没有用户设备 Windows GUI 验收。
+- 本批路径未触发 Electron Runtime / Launcher 工作流，没有声称 runtime 或独立 EXE 重新打包。
+
+精确变更文件
+------------
+- Engine：`engine/population.cjs`、`engine/mod-runtime.cjs`、`engine/simulation.cjs`、`engine/catalog.cjs`、`engine/queries.cjs`
+- Tests：`tests/population.test.cjs`、`tests/mod-runtime.test.cjs`、`tests/engine.test.cjs`、`tests/queries.test.cjs`
+- Docs：`MOD_API.md`、`mods/README.md`、`docs/ENGINE_ARCHITECTURE.md`
+- Astra：`Astra/WORKING_MEMORY.txt`、`Astra/DISCUSSIONS/人口系统设计.txt`、`Astra/DISCUSSIONS/关于接下来的工作.txt`、`Astra/WORKFLOWS/2026-11-22_01_population-group-authoritative-runtime-transitions.txt`、`ASTRA_WORKLOG.md`
+
+当前边界与下一步
+----------------
+Core 没有新增实际人口构成、阶级比例、工资或需求篮子。每日需求继续读取派生总人口，不是逐群体结算。运行时拆分/合并/维度更新接口和 Mod Effect 已建立，但不代表人口职业分配、雇佣、人口流动或具体人口经济规则已实现。
+
+下一项待设计的通用 Engine 地基：审查现有 Query、Mod Hook 输入、事件与调度触发接口，确定如何让 Mod 以声明式条件引用派生殖民地总人口（例如规模门槛、达到/跨越阈值时触发）。Engine 提供通用数值读取、条件判断和触发时机；具体阈值与规则仍由 Mod 定义。当前没有提前实现殖民地等级或人口奖励玩法。
+
+Windows GUI 验收：待用户设备测试。

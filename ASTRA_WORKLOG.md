@@ -5,8 +5,8 @@
 ## Repository snapshot
 
 - Repository: https://github.com/Sakurefa/test-game
-- Branch: `main`; latest Engine source/test revision: `6804bc9e394abada2dad48dd398fae68636df027` (Domain Event-driven one-shot Trigger source). The Runtime workflow's generated `resources/app/package.json` sync is recorded in `0f2d9a5fc41c34dfd1c669d04319bfd08743aeb`; subsequent Astra documentation commits are separate.
-- Latest successful Windows source CI: [44957849824](https://github.com/Sakurefa/test-game/actions/runs/44957849824). Engine/Electron syntax checks passed; `npm test` passed **223/223** with 0 failures; Renderer build and generated-renderer step succeeded.
+- Branch: `main`; latest Engine source/test revision: `78bd540b5bb2e872d304b3ad0509460985629e09` (Domain Event Trigger activation from both simulation and command transactions). The Runtime workflow's generated `resources/app/package.json` sync is recorded in `0f2d9a5fc41c34dfd1c669d04319bfd08743aeb`; subsequent Astra documentation commits are separate.
+- Latest successful Windows source CI: [44958699387](https://github.com/Sakurefa/test-game/actions/runs/44958699387). Engine/Electron syntax checks passed; `npm test` passed **224/224** with 0 failures; Renderer build and generated-renderer step succeeded.
 - Latest successful Windows Runtime/Launcher workflow: [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367). Mod loader tests, Renderer build, minimal Electron app preparation, Windows Electron Runtime build, dependency sync, generated-file commit and Launcher EXE upload all succeeded.
 - Launcher artifact: `Market-Simulator-Launcher-EXE`, Artifact ID `14726491849`, about 92.7 MB, expires 2026-12-05 21:50 UTC. This confirms CI packaging/upload, not user-device launch verification.
 - No local full test suite/build was run. User-side Windows GUI acceptance remains outstanding.

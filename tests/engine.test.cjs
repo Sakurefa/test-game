@@ -21,7 +21,8 @@ test("weekly production report explains limited inputs and matches the stockpile
   colony.stockpiles[limitingId]=inputTotals.get(limitingId)*requestedBatches/2;
   const before={...colony.stockpiles};
   advanceDays(w,c,7);
-  const report=colony.lastProductionReport;
+  const settledColony=w.colonies["verdant-colony"];
+  const report=settledColony.lastProductionReport;
   assert.equal(report.day,7);
   assert.equal(report.industries.length,1);
   const entry=report.industries[0];
@@ -35,7 +36,7 @@ test("weekly production report explains limited inputs and matches the stockpile
     let expected=before[id]||0;
     if(Object.hasOwn(entry.consumed,id))expected=Math.round((Math.max(0,expected-entry.consumed[id])+Number.EPSILON)*1000)/1000;
     if(Object.hasOwn(entry.produced,id))expected=Math.round((expected+entry.produced[id]+Number.EPSILON)*1000)/1000;
-    assert.equal(colony.stockpiles[id],expected);
+    assert.equal(settledColony.stockpiles[id],expected);
   }
 });
 test("weekly production report keeps zero-output facilities and identifies the empty limiting stockpile",async()=>{
@@ -50,7 +51,8 @@ test("weekly production report keeps zero-output facilities and identifies the e
   colony.stockpiles[limitingId]=0;
   const before={...colony.stockpiles};
   advanceDays(w,c,7);
-  const entry=colony.lastProductionReport.industries[0];
+  const settledColony=w.colonies["verdant-colony"];
+  const entry=settledColony.lastProductionReport.industries[0];
   assert.equal(entry.status,"no-output");
   assert.equal(entry.actualBatches,0);
   assert.equal(entry.limitingInput,limitingId);
@@ -58,7 +60,7 @@ test("weekly production report keeps zero-output facilities and identifies the e
   assert.ok(entry.limitingRequired>0);
   assert.deepEqual(entry.consumed,Object.fromEntries([...inputTotals.keys()].map(id=>[id,0])));
   assert.deepEqual(entry.produced,Object.fromEntries((recipe.outputs||[]).map(item=>[item.commodityId,0])));
-  assert.deepEqual(colony.stockpiles,before);
+  assert.deepEqual(settledColony.stockpiles,before);
 });
 test("input-free extraction reports normal production without a false shortage",async()=>{
   const c=await catalog(),w=createWorld(c,{seed:"production-report-no-input"});

@@ -44,7 +44,8 @@ test("Settlement resolves against a detached world snapshot and applies Effects 
   assert.equal(world.value, 9);
   assert.deepEqual(settlement, {
     result: { calculated: 9 },
-    effects: [{ effectType: "test.value.set", result: { after: 9 } }]
+    effects: [{ effectType: "test.value.set", result: { after: 9 } }],
+    domainEvents: []
   });
 });
 
@@ -69,7 +70,7 @@ test("Settlement accepts a no-Effect resolution and does not call the Effect exe
     resolutions,
     applyEffect: () => { effectCalls += 1; }
   });
-  assert.deepEqual(result, { result: { status: "checked" }, effects: [] });
+  assert.deepEqual(result, { result: { status: "checked" }, effects: [], domainEvents: [] });
   assert.equal(effectCalls, 0);
   assert.deepEqual(world, {});
 });
@@ -92,3 +93,80 @@ test("Settlement rejects missing or asynchronous Effect executors", () => {
   assert.deepEqual(world, {});
 });
 
+
+test("Settlement returns separately validated Domain Event plans without writing history itself", () => {
+  const world = { domainEventSequence: 0, domainEvents: [] };
+  const resolutions = createResolutionRegistry([{
+    id: "test.emit-event",
+    resolve: () => ({
+      result: { accepted: true },
+      effects: [],
+      domainEvents: [{
+        type: "mod.test-mod.changed",
+        scope: "mod",
+        subjectId: "test-mod",
+        payload: { value: 5 }
+      }]
+    })
+  }]);
+  const result = settleSystemEvent({
+    id: "system-event:test-event",
+    type: "test.emit-event",
+    sourceId: "test-mod",
+    triggerId: "test-mod.emit-event",
+    day: 4,
+    date: "2480-03-02",
+    payload: {}
+  }, {
+    world,
+    day: 4,
+    resolutions,
+    applyEffect: () => { throw new Error("No Effects expected"); }
+  });
+  assert.deepEqual(result, {
+    result: { accepted: true },
+    effects: [],
+    domainEvents: [{
+      type: "mod.test-mod.changed",
+      scope: "mod",
+      subjectId: "test-mod",
+      payload: { value: 5 }
+    }]
+  });
+  assert.deepEqual(world, { domainEventSequence: 0, domainEvents: [] });
+});
+
+test("Resolution rejects malformed or excessive Domain Event plans", () => {
+  const malformed = createResolutionRegistry([{
+    id: "test.bad-event",
+    resolve: () => ({
+      result: {},
+      effects: [],
+      domainEvents: [{ type: "MOD.Invalid", scope: "world", payload: {} }]
+    })
+  }]);
+  assert.throws(() => malformed.resolve({
+    id: "system-event:bad-event",
+    type: "test.bad-event",
+    payload: {}
+  }), /invalid Domain Event descriptor/);
+
+  const tooMany = createResolutionRegistry([{
+    id: "test.too-many-events",
+    resolve: () => ({
+      result: {},
+      effects: [],
+      domainEvents: Array.from({ length: 17 }, (_, index) => ({
+        type: "mod.test.event-" + index,
+        scope: "mod",
+        subjectId: "test-mod",
+        payload: {}
+      }))
+    })
+  }]);
+  assert.throws(() => tooMany.resolve({
+    id: "system-event:too-many-events",
+    type: "test.too-many-events",
+    payload: {}
+  }), /cannot return more than 16 Domain Events/);
+});

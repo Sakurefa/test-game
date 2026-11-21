@@ -2,7 +2,9 @@ const { NamedRandomStreams, hashSeed } = require("./random.cjs");
 const { createCalculationService, CALCULATION_AUDIT_LIMIT } = require("./formulas.cjs");
 const { parseDate, createClock, advanceClock, advanceClockTime } = require("./clock.cjs");
 const { createSystemRegistry } = require("./system-registry.cjs");
-const { createDomainEventEmitter, validateDomainEventState } = require("./domain-events.cjs");
+const {
+  createDomainEventEmitter, normalizeDomainEventDescriptor, validateDomainEventState
+} = require("./domain-events.cjs");
 const { validateCommandReceiptState } = require("./commands.cjs");
 const { createFinancialLedger, validateWorldFinancialState } = require("./ledger.cjs");
 const { createModExtensionRuntime, applyModHookResults, validateModState, applyModEffect } = require("./mod-runtime.cjs");
@@ -27,6 +29,27 @@ function validateSystemEventSource(event, catalog) {
   if (!catalog?.modIds?.includes(event.sourceId)) {
     throw new Error("System Event source Mod is not part of the loaded catalog: " + event.sourceId);
   }
+}
+
+function normalizeModEventEmission(event, catalog) {
+  validateSystemEventSource(event, catalog);
+  const payload = event.payload;
+  if (!isRecord(payload) || Object.keys(payload).some((key) => key !== "type" && key !== "payload")
+    || typeof payload.type !== "string" || !FORMULA_EFFECT_TYPE_PATTERN.test(payload.type)
+    || (payload.payload !== undefined && payload.payload !== null && !isRecord(payload.payload))) {
+    throw new TypeError("event.emit requires a Mod event type and optional object payload");
+  }
+  const type = "mod." + event.sourceId.replace(/_/g, "-") + "." + payload.type;
+  return normalizeDomainEventDescriptor({
+    type,
+    scope: "mod",
+    subjectId: event.sourceId,
+    payload: {
+      ...(payload.payload || {}),
+      modId: event.sourceId,
+      eventType: payload.type
+    }
+  });
 }
 
 function validateFormulaEffectRequest({ event, catalog }) {
@@ -117,6 +140,20 @@ const triggerResolutions = createResolutionRegistry([{
         output: calculated.result
       },
       effects
+    };
+  }
+}, {
+  id: "event.emit",
+  validate({ event, catalog }) {
+    normalizeModEventEmission(event, catalog);
+    return true;
+  },
+  resolve({ event, catalog }) {
+    const domainEvent = normalizeModEventEmission(event, catalog);
+    return {
+      result: { domainEventType: domainEvent.type },
+      effects: [],
+      domainEvents: [domainEvent]
     };
   }
 }]);

@@ -380,6 +380,12 @@ function processDueTriggers(world, { day, date, catalog, resolutions, calculatio
     const settlement = settleSystemEvent(systemEvent, {
       world, catalog, day, trigger, resolutions, calculations, randomStreams, applyEffect
     });
+    const emittedDomainEvents = settlement.domainEvents.map((descriptor) => emitDomainEvent(descriptor));
+    const emittedDomainEventRefs = emittedDomainEvents.map((event) => ({
+      id: event.id,
+      sequence: event.sequence,
+      type: event.type
+    }));
     emitDomainEvent({
       type: "trigger.resolved",
       scope: "trigger",
@@ -391,6 +397,7 @@ function processDueTriggers(world, { day, date, catalog, resolutions, calculatio
         eventType: systemEvent.type,
         resolution: settlement.result,
         effects: settlement.effects,
+        ...(emittedDomainEventRefs.length > 0 ? { domainEvents: emittedDomainEventRefs } : {}),
         ...(systemEvent.sourceEvent ? { sourceEvent: systemEvent.sourceEvent } : {})
       }
     });
@@ -420,7 +427,8 @@ function processDueTriggers(world, { day, date, catalog, resolutions, calculatio
       ownerId: trigger.ownerId,
       eventType: trigger.event.type,
       resolution: settlement.result,
-      effects: settlement.effects
+      effects: settlement.effects,
+      domainEvents: emittedDomainEventRefs
     });
   }
   return processed;

@@ -206,6 +206,62 @@ test("Mod hook schedules a persisted System Event that applies an approved Effec
   assert.equal(validateWorldState(world, catalog), true);
 });
 
+test("A Trigger Resolution emits a Mod Domain Event that activates another Trigger on the next day", async () => {
+  const hook = [
+    "function onBeforeDay(input) {",
+    "  if (input.day !== 1) return {};",
+    "  return { triggers: [{",
+    '    id: "test-trigger.emit-fact",',
+    '    due: { kind: "elapsed", days: 1 },',
+    '    event: { type: "event.emit", payload: {',
+    '      type: "signal-raised",',
+    '      payload: { value: 7 }',
+    "    } }",
+    "  }, {",
+    '    id: "test-trigger.react-to-fact",',
+    '    due: { kind: "domain-event", type: "mod.test-trigger.signal-raised", scope: "mod", subjectId: "test-trigger" },',
+    '    event: { type: "effect.apply", payload: { effect: {',
+    '      type: "colony.stability.delta",',
+    '      payload: { colonyId: "new-dawn-colony", delta: 5 }',
+    "    } } }",
+    "  }] };",
+    "}"
+  ].join("\n");
+  const catalog = await loadCatalogWithTriggerHook("test-trigger", hook);
+  const world = createWorld(catalog, { seed: "trigger-domain-event-chain" });
+  const initialStability = world.colonies["new-dawn-colony"].stability;
+
+  advanceDay(world, catalog);
+  assert.equal(world.triggerQueue.pending.length, 2);
+  assert.equal(world.triggerQueue.pending.find((item) => item.id === "test-trigger.emit-fact").dueDay, 2);
+  assert.equal(world.triggerQueue.pending.find((item) => item.id === "test-trigger.react-to-fact").sourceEvent, null);
+  assert.equal(world.colonies["new-dawn-colony"].stability, initialStability);
+
+  advanceDay(world, catalog);
+  const emitted = world.domainEvents.find((item) => item.type === "mod.test-trigger.signal-raised");
+  assert.ok(emitted);
+  assert.equal(emitted.scope, "mod");
+  assert.equal(emitted.subjectId, "test-trigger");
+  assert.deepEqual(emitted.payload, { value: 7, modId: "test-trigger", eventType: "signal-raised" });
+  const waiting = world.triggerQueue.pending.find((item) => item.id === "test-trigger.react-to-fact");
+  assert.equal(waiting.dueDay, 3);
+  assert.deepEqual(waiting.sourceEvent, emitted);
+  assert.equal(world.colonies["new-dawn-colony"].stability, initialStability);
+  assert.ok(world.triggerQueue.receipts.some((item) => item.id === "test-trigger.emit-fact"));
+  const firstResolved = world.domainEvents.find((item) =>
+    item.type === "trigger.resolved" && item.subjectId === "test-trigger.emit-fact"
+  );
+  assert.deepEqual(firstResolved.payload.domainEvents, [{
+    id: emitted.id, sequence: emitted.sequence, type: emitted.type
+  }]);
+
+  advanceDay(world, catalog);
+  assert.equal(world.triggerQueue.pending.length, 0);
+  assert.equal(world.triggerQueue.receipts.length, 2);
+  assert.equal(world.colonies["new-dawn-colony"].stability, initialStability + 5);
+  assert.equal(validateWorldState(world, catalog), true);
+});
+
 test("A Mod Domain Event Trigger waits for a new fact, then settles on the next day", async () => {
   const hook = [
     "function onBeforeDay(input) {",

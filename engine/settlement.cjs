@@ -37,7 +37,8 @@ function settleSystemEvent(event, {
 
   return {
     result: plan.result,
-    effects: appliedEffects
+    effects: appliedEffects,
+    domainEvents: plan.domainEvents
   };
 }
 

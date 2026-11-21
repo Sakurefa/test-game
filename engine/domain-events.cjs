@@ -14,17 +14,27 @@ function clonePayload(value){
  if(encoded===undefined)throw new TypeError("Domain event payload is not serializable");
  return JSON.parse(encoded);
 }
+function normalizeDomainEventDescriptor(input){
+ if(!isRecord(input))throw new TypeError("Domain event descriptor must be an object");
+ const type=input.type;
+ const scope=input.scope===undefined?"world":input.scope;
+ const subjectId=input.subjectId===undefined?null:input.subjectId;
+ const payload=input.payload===undefined?{}:input.payload;
+ const idempotencyKey=input.idempotencyKey===undefined?null:input.idempotencyKey;
+ if(typeof type!=="string"||!EVENT_TYPE_PATTERN.test(type))throw new TypeError("Domain event requires a stable type ID");
+ if(typeof scope!=="string"||!SCOPE_PATTERN.test(scope))throw new TypeError("Domain event requires a valid scope");
+ if(subjectId!==null&&(typeof subjectId!=="string"||!IDENTIFIER_PATTERN.test(subjectId)))throw new TypeError("Domain event subjectId must be a stable identifier or null");
+ if(idempotencyKey!==null&&(typeof idempotencyKey!=="string"||!IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)))throw new TypeError("Domain event idempotencyKey must be a stable key or null");
+ return {type,scope,subjectId,payload:clonePayload(payload),idempotencyKey};
+}
 function createDomainEventEmitter(world,clock){
  if(!isRecord(world))throw new TypeError("A mutable world state is required for domain events");
- if(!isRecord(clock)||!Number.isInteger(clock.day)||clock.day<0||typeof clock.date!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(clock.date))throw new TypeError("Domain events require an authoritative campaign day and date");
+ if(!isRecord(clock)||!Number.isInteger(clock.day)||clock.day<0||typeof clock.date!=="string"||!/^([0-9]{4})-([0-9]{2})-([0-9]{2})$/.test(clock.date))throw new TypeError("Domain events require an authoritative campaign day and date");
  if(!Array.isArray(world.domainEvents))world.domainEvents=[];
  if(!Number.isInteger(world.domainEventSequence)||world.domainEventSequence<0)throw new Error("World has an invalid domain-event sequence");
- return function emitDomainEvent({type,scope="world",subjectId=null,payload={},idempotencyKey=null}){
-  if(typeof type!=="string"||!EVENT_TYPE_PATTERN.test(type))throw new TypeError("Domain event requires a stable type ID");
-  if(typeof scope!=="string"||!SCOPE_PATTERN.test(scope))throw new TypeError("Domain event requires a valid scope");
-  if(subjectId!==null&&(typeof subjectId!=="string"||!IDENTIFIER_PATTERN.test(subjectId)))throw new TypeError("Domain event subjectId must be a stable identifier or null");
-  if(idempotencyKey!==null&&(typeof idempotencyKey!=="string"||!IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)))throw new TypeError("Domain event idempotencyKey must be a stable key or null");
-  const safePayload=clonePayload(payload);
+ return function emitDomainEvent(input){
+  const normalized=normalizeDomainEventDescriptor(input);
+  const {type,scope,subjectId,payload:safePayload,idempotencyKey}=normalized;
   if(idempotencyKey!==null){
    const existing=world.domainEvents.find(event=>event.idempotencyKey===idempotencyKey);
    if(existing){
@@ -40,7 +50,6 @@ function createDomainEventEmitter(world,clock){
   if(world.domainEvents.length>DOMAIN_EVENT_HISTORY_LIMIT)world.domainEvents.splice(0,world.domainEvents.length-DOMAIN_EVENT_HISTORY_LIMIT);
   world.domainEventSequence=sequence;
   return JSON.parse(JSON.stringify(record));
- };
 }
 function validateDomainEventState(world){
  if(!isRecord(world)||!Array.isArray(world.domainEvents)||!Number.isInteger(world.domainEventSequence)||world.domainEventSequence<0)throw new Error("Save has an invalid domain-event history");
@@ -59,4 +68,4 @@ function validateDomainEventState(world){
  if(world.domainEvents.length>0&&previous!==world.domainEventSequence)throw new Error("Save domain-event sequence does not match its latest retained event");
  return true;
 }
-module.exports={DOMAIN_EVENT_HISTORY_LIMIT,IDEMPOTENCY_KEY_PATTERN,createDomainEventEmitter,validateDomainEventState};
+module.exports={DOMAIN_EVENT_HISTORY_LIMIT,IDEMPOTENCY_KEY_PATTERN,normalizeDomainEventDescriptor,createDomainEventEmitter,validateDomainEventState};

@@ -5,6 +5,7 @@ const { parseIni } = require("./ini-parser.cjs");
 
 const STORAGE_VERSION = 1;
 const MAX_GAME_STATE_BYTES = 16 * 1024 * 1024;
+const CURRENT_GAME_STATE_SCHEMA_VERSION = 9;
 const DEFAULT_SETTINGS = {
   general: { schema_version: STORAGE_VERSION, language: "zh-CN", window_mode: "windowed" },
   graphics: { schema_version: STORAGE_VERSION, ui_scale: 100 },
@@ -331,7 +332,7 @@ async function createSaveSlot(root, id, name = "New Save") {
 }
 
 async function writeGameState(root, id, state) {
-  if (!state || typeof state !== "object" || Array.isArray(state) || state.schemaVersion !== 8) {
+  if (!state || typeof state !== "object" || Array.isArray(state) || state.schemaVersion !== CURRENT_GAME_STATE_SCHEMA_VERSION) {
     throw new Error("Invalid or unsupported game state");
   }
   const directory = await getSafeSlotDirectory(root, id);
@@ -391,7 +392,7 @@ async function readGameStateWithReceipt(root, id) {
   }
   const serialized = await fs.readFile(file, "utf8");
   const state = JSON.parse(serialized);
-  if (!state || typeof state !== "object" || ![1, 2, 3, 4, 5, 6, 7, 8].includes(state.schemaVersion)) throw new Error("Unsupported game-state schema");
+  if (!state || typeof state !== "object" || ![1, 2, 3, 4, 5, 6, 7, 8, CURRENT_GAME_STATE_SCHEMA_VERSION].includes(state.schemaVersion)) throw new Error("Unsupported game-state schema");
 
   const metadataPath = path.join(directory, "metadata.ini");
   const metadataStat = await fs.lstat(metadataPath);

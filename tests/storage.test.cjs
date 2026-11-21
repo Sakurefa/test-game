@@ -127,7 +127,8 @@ test("writes and restores a versioned game world inside its save slot", async (t
   await initializeStorage(root);
   await createSaveSlot(root, "slot_world", "Frontier Test");
   const state = {
-    schemaVersion: 8,
+    schemaVersion: 9,
+    triggerQueue: { pending: [], receipts: [] },
     contentHash: "test-content",
     universeId: "test-universe",
     clock: { date: "2478-04-01", day: 0 },
@@ -163,7 +164,7 @@ test("save receipt rejects world file changes before returning a world state", a
   await initializeStorage(root);
   await createSaveSlot(root, "slot_receipt_tamper", "Receipt Test");
   const state = {
-    schemaVersion: 8,
+    schemaVersion: 9,
     contentHash: "receipt-content",
     universeId: "receipt-universe",
     clock: { date: "2478-04-04", day: 3 },
@@ -187,7 +188,7 @@ test("legacy saves without a receipt remain loadable and gain one on the next sa
   await initializeStorage(root);
   await createSaveSlot(root, "slot_legacy_receipt", "Legacy Receipt Test");
   const state = {
-    schemaVersion: 8,
+    schemaVersion: 9,
     contentHash: "legacy-content",
     universeId: "legacy-universe",
     clock: { date: "2478-04-02", day: 1 },
@@ -201,7 +202,13 @@ test("legacy saves without a receipt remain loadable and gain one on the next sa
   assert.equal(legacy.receipt.status, "legacy-unverified");
   assert.equal((await readGameState(root, "slot_legacy_receipt")).marker, "legacy-world");
 
-  await writeGameState(root, "slot_legacy_receipt", legacy.state);
+  // Engine migration upgrades schema 8 before the next authoritative save.
+  const migratedState = {
+    ...legacy.state,
+    schemaVersion: 9,
+    triggerQueue: { pending: [], receipts: [] }
+  };
+  await writeGameState(root, "slot_legacy_receipt", migratedState);
   const upgraded = await readGameStateWithReceipt(root, "slot_legacy_receipt");
   assert.equal(upgraded.receipt.status, "verified");
   assert.equal(upgraded.receipt.fingerprint.length, 64);
@@ -212,7 +219,7 @@ test("partial or malformed receipt metadata marks a save damaged", async (t) => 
   await initializeStorage(root);
   await createSaveSlot(root, "slot_bad_receipt", "Bad Receipt");
   const state = {
-    schemaVersion: 8,
+    schemaVersion: 9,
     contentHash: "receipt-content",
     clock: { date: "2478-04-01", day: 0 }
   };

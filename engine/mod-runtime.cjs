@@ -206,14 +206,14 @@ function getRequired(collection, id, label) {
 }
 
 function getModState(world, modId) {
-  if (!isRecord(world.modState)) world.modState = {};
-  if (!isRecord(world.modState[modId])) world.modState[modId] = {};
+  if (!isRecord(world.modState)) throw new Error("World is missing its schema v7 Mod state namespace");
+  if (!Object.hasOwn(world.modState, modId)) world.modState[modId] = {};
+  if (!isRecord(world.modState[modId])) throw new Error("World contains invalid Mod state for " + modId);
   return world.modState[modId];
 }
 
 function validateModState(state) {
-  if (state === undefined) return true;
-  if (!isRecord(state)) throw new Error("Save contains invalid Mod state");
+  if (!isRecord(state)) throw new Error("Save is missing or contains invalid Mod state");
   for (const [modId, values] of Object.entries(state)) {
     if (!MOD_ID_PATTERN.test(modId) || !isRecord(values)) throw new Error("Save contains invalid Mod state for " + modId);
     const keys = Object.keys(values);

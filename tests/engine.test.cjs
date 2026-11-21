@@ -361,18 +361,19 @@ test("partial sub-mill population consumption records the exact shortage without
   colony.population = 1000;
   colony.stockpiles.food = 0.0006;
 
-  advanceDay(w, c);
+  const settledWorld = advanceDay(w, c);
+  const settledColony = settledWorld.colonies["new-dawn-colony"];
 
-  const food = colony.lastNeedsReport.needs.find((need) => need.commodityId === "food");
+  const food = settledColony.lastNeedsReport.needs.find((need) => need.commodityId === "food");
   assert.equal(food.requested, 0.001);
   assert.equal(food.consumed, 0.0006);
   assert.ok(Math.abs(food.unmet - 0.0004) < 1e-12);
   assert.equal(food.satisfaction, 0.6);
   assert.equal(food.status, "shortage");
-  assert.equal(colony.stockpiles.food, 0);
-  assert.equal(colony.lastNeedsReport.shortageCount, 1);
+  assert.equal(settledColony.stockpiles.food, 0);
+  assert.equal(settledColony.lastNeedsReport.shortageCount, 1);
 
-  const event = w.domainEvents.find((item) => item.type === "colony.needs-settled");
+  const event = settledWorld.domainEvents.find((item) => item.type === "colony.needs-settled");
   assert.equal(event.payload.needs.find((need) => need.commodityId === "food").unmet, food.unmet);
 });
 

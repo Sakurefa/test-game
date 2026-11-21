@@ -767,3 +767,5 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 - Windows desktop test: not required for this catalog/schema-neutral change; no UI/runtime behavior was changed. The broader consolidated Windows desktop acceptance pass remains outstanding.
 
 - Follow-up commit for the full legacy fingerprint path, population-needs v2 precision correction and UI formatting: `PENDING_SHA`. Its CI run is pending at the time of this work-log update. No local tests/builds were run during this session. Windows desktop acceptance is still required because the colony panel formatting changed.
+
+- CI run [44911619263](https://github.com/Sakurefa/test-game/actions/runs/44911619263) exposed six regression-test issues in the first precision-fix pass: one floating-point equality assertion, a test that inspected the pre-transition world instead of `advanceDay`'s returned candidate, and four UI assertions still expecting two-decimal rounding. The new sub-mill display test itself passed. These tests are corrected in the follow-up; the failed run is retained here as evidence, not reported as a pass.

@@ -94,7 +94,8 @@ test("population needs formula calculates daily demand and caps consumption at a
   }, { day: 3 });
   assert.deepEqual(result.requested, { food: 1.45, water: 2.175 });
   assert.deepEqual(result.consumed, { food: 1.45, water: 1 });
-  assert.deepEqual(result.unmet, { food: 0, water: 1.175 });
+  assert.equal(result.unmet.food, 0);
+  assert.ok(Math.abs(result.unmet.water - 1.175) < 1e-12);
   assert.equal(result.satisfaction.food, 1);
   assert.equal(result.satisfaction.water, 0.4598);
   assert.equal(record.formulaId, "economy.population-needs");

@@ -172,3 +172,15 @@ consumption and shortage values, and subtracts only the amount actually
 available from stock. The colony needs panel now displays up to six decimal
 places for these amounts. The population-needs formula version is raised to v2
 so audit records identify the changed calculation behavior.
+
+
+Precision regression-test correction
+------------------------------------
+
+The first CI run for population-needs v2 correctly caught stale assumptions in
+the tests: a strict float equality, inspecting the input world rather than the
+committed candidate returned by advanceDay, and old two-decimal UI expectations.
+The implementation's new sub-mill renderer test passed. The failing assertions
+were corrected to compare exact accounting with a tolerance and to expect the
+intentional three-decimal display for the existing 1.175 example. The failed CI
+run remains recorded in the work log.

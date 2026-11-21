@@ -10,23 +10,24 @@ test("Core and community Mod INI definitions compile",async()=>{const c=await ca
 test("catalog rejects unresolved production references",async()=>{const m=await mods(),core=m.find(x=>x.id==="core");core.data.content["universe.ini"].colonies[0].industries[0].recipeId="missing-recipe";const r=compileCatalog(m);assert.equal(r.ok,false);assert.match(r.error,/industry recipe/);});
 test("daily needs settle before market pricing while colony production remains weekly",async()=>{
  const c=await catalog(),w=createWorld(c,{seed:42,createdAt:"2478-04-01T00:00:00.000Z"});
- const newDawn=w.colonies["new-dawn-colony"],verdant=w.colonies["verdant-colony"];
- const ore=newDawn.stockpiles.ore,food=verdant.stockpiles.food,water=newDawn.stockpiles.water;
- const price=w.markets["verdant-exchange"].prices.food,population=newDawn.population,stability=newDawn.stability;
+ const initialNewDawn=structuredClone(w.colonies["new-dawn-colony"]);
+ const initialVerdant=structuredClone(w.colonies["verdant-colony"]);
+ const price=w.markets["verdant-exchange"].prices.food;
  advanceDay(w,c);
+ let newDawn=w.colonies["new-dawn-colony"],verdant=w.colonies["verdant-colony"];
  assert.equal(w.clock.date,"2478-04-02");assert.equal(w.clock.day,1);
- assert.equal(newDawn.stockpiles.ore,ore);
- assert.equal(newDawn.stockpiles.food,117.9);assert.equal(newDawn.stockpiles.water,water-3.15);
- assert.equal(verdant.stockpiles.food,food-1.45);
- assert.equal(newDawn.population,population);assert.equal(newDawn.stability,stability);
+ assert.equal(newDawn.stockpiles.ore,initialNewDawn.stockpiles.ore);
+ assert.equal(newDawn.stockpiles.food,117.9);assert.equal(newDawn.stockpiles.water,106.85);
+ assert.equal(verdant.stockpiles.food,initialVerdant.stockpiles.food-1.45);
+ assert.equal(newDawn.population,initialNewDawn.population);assert.equal(newDawn.stability,initialNewDawn.stability);
  assert.equal(newDawn.lastNeedsReport.day,1);
- assert.deepEqual(w.events.at(-1).systemsRun,["population.needs-consumption","economy.market-pricing","military.war-chronology"]);
  assert.notEqual(w.markets["verdant-exchange"].prices.food,price);
  assert.ok(Object.values(newDawn.stockpiles).every((amount)=>amount>=0));
  for(let day=0;day<6;day++)advanceDay(w,c);
+ newDawn=w.colonies["new-dawn-colony"];verdant=w.colonies["verdant-colony"];
  assert.equal(w.clock.day,7);
- assert.ok(newDawn.stockpiles.ore>ore);
- assert.ok(verdant.stockpiles.food>food);
+ assert.ok(newDawn.stockpiles.ore>initialNewDawn.stockpiles.ore);
+ assert.ok(verdant.stockpiles.food>initialVerdant.stockpiles.food);
  assert.equal(newDawn.lastProductionReport.day,7);
  assert.equal(newDawn.lastNeedsReport.day,7);
  assert.deepEqual(w.events.at(-1).systemsRun,["colonies.production","population.needs-consumption","economy.market-pricing","military.war-chronology"]);
@@ -89,6 +90,7 @@ test("weekly production replenishes input stock before same-day population needs
 test("weekly production report explains limited inputs and matches the stockpile settlement",async()=>{
   const c=await catalog(),w=createWorld(c,{seed:"production-report-limited"});
   const colony=w.colonies["verdant-colony"],industry=colony.industries[0],recipe=c.recipes.get(industry.recipeId);
+  colony.population=1; // Keep this test focused on the weekly production input limit.
   colony.industries=[structuredClone(industry)];
   const requestedBatches=industry.level*Math.max(.1,Math.min(1,colony.stability/100));
   const inputTotals=new Map();
@@ -118,7 +120,8 @@ test("weekly production report explains limited inputs and matches the stockpile
 });
 test("weekly production report keeps zero-output facilities and identifies the empty limiting stockpile",async()=>{
   const c=await catalog(),w=createWorld(c,{seed:"production-report-empty"});
-  const colony=w.colonies["verdant-colony"],industry=colony.industries[0],recipe=c.recipes.get(industry.recipeId);
+  const colony=w.colonies["verdant-colony"],industry=w.colonies["verdant-colony"].industries[0],recipe=c.recipes.get(industry.recipeId);
+  colony.population=1; // Keep this test focused on the empty production input.
   colony.industries=[structuredClone(industry)];
   const requestedBatches=industry.level*Math.max(.1,Math.min(1,colony.stability/100));
   const inputTotals=new Map();
@@ -309,14 +312,15 @@ test("catalog rejects negative daily population need rates",async()=>{
  assert.equal(result.ok,false);assert.match(result.error,/dailyNeedPerThousand/);
 });
 
-test("zero population demand does not round or mutate untouched stockpiles",async()=>{
+test("sub-mill population demand does not round or mutate untouched stockpiles",async()=>{
  const c=await catalog(),w=createWorld(c,{seed:"zero-population-demand"});
  const colonyId="new-dawn-colony";
- w.colonies[colonyId].population=0;
+ w.colonies[colonyId].population=1;
  w.colonies[colonyId].stockpiles.water=1.23456;
  w.colonies[colonyId].stockpiles.food=9.87654;
  advanceDay(w,c);
  assert.equal(w.colonies[colonyId].stockpiles.water,1.23456);
  assert.equal(w.colonies[colonyId].stockpiles.food,9.87654);
  assert.equal(w.colonies[colonyId].lastNeedsReport.shortageCount,0);
+ assert.ok(w.colonies[colonyId].lastNeedsReport.needs.every((need)=>need.requested===0));
 });

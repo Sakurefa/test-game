@@ -298,7 +298,7 @@ function applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey
         scope: "mod",
         subjectId: outcome.modId,
         idempotencyKey: "mod:" + outcome.modId + ":" + day + ":" + hashSeed(hookId + ":" + subjectKey) + ":event:" + index,
-        payload: { modId: outcome.modId, eventType: event.type, ...(event.payload ?? {}) }
+        payload: { ...(event.payload ?? {}), modId: outcome.modId, eventType: event.type }
       });
       eventCount += 1;
     }

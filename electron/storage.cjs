@@ -243,7 +243,7 @@ async function createSaveSlot(root, id, name = "New Save") {
 }
 
 async function writeGameState(root, id, state) {
-  if (!state || typeof state !== "object" || Array.isArray(state) || state.schemaVersion !== 6) {
+  if (!state || typeof state !== "object" || Array.isArray(state) || state.schemaVersion !== 7) {
     throw new Error("Invalid or unsupported game state");
   }
   const directory = await getSafeSlotDirectory(root, id);

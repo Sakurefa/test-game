@@ -1,0 +1,74 @@
+【工作流记录】当前代码审查与 campaign clock 读档校验修复
+============================================================
+
+工作日期：2026-11-22
+当日序号：06
+仓库：Sakurefa/test-game
+分支：main
+
+基线与结果
+----------
+- 本轮开始时 main HEAD：eef78f0b53f1e77df38d5607aa3813ef3619c726。
+- 开始时最近的运行时代码基线：b6617ac99551fb329dcd5d967639f7a74a369ca0；eef78f0 为后续文档归档提交。
+- 代码修复提交：04581be8ff1fb6c2a9ebb444d0c4d139b6e6f42a。
+- 回归测试提交 / 本轮代码验证提交：9011f03d6bf5808f7d01bab3ecb71863584f24e1。
+- GitHub Windows Actions：[44934853240](https://github.com/Sakurefa/test-game/actions/runs/44934853240)，在 9011f03 上成功。
+- CI：Electron/Engine syntax check 成功；npm test **205/205 通过，0 失败**；Renderer build 成功；generated-renderer 步骤成功。
+- 新增测试“world clock validation rejects impossible calendar dates and negative day indices”在 CI 中执行并通过（测试编号 92）。
+- 本轮没有在本地运行 npm test 或 build；验证来自 GitHub Windows runner，不代表用户设备上的 GUI 验收。
+- 用户端 Windows GUI 综合验收仍未完成；本轮没有打包 Launcher / Electron Runtime。
+
+读取与审查范围
+--------------
+按 AGENTS.md 的流程读取 AGENTS、Astra/README、完整 WORKING_MEMORY、根索引、两项最高优先级原则，以及与当前系统相关的讨论和 2026-11-22 工作流记录。
+
+重点审查：
+- Engine：clock、campaign-time、system-registry、simulation、population、mod-runtime、domain-events、event-bus。
+- Electron：main、storage、autosave、logger、world-command-gateway。
+- Tests：engine、campaign-time、system-registry、population、storage 及 Mod 运行时相关覆盖。
+- 同时核对 main 分支 HEAD、最近提交差异与最新 Windows Actions。
+
+已确认并修复的问题
+------------------
+问题：存档时钟校验比 Engine 的正式日期规则宽松。
+
+原实现中，validateWorldState() 与 validateDayInputs() 只确认 campaign date 是字符串、day 是整数，没有复用 engine/clock.cjs 的 parseDate()；同时没有拒绝负数 day。
+
+因此，格式看似正确但实际不存在的日期（例如 2480-02-30），以及负数 campaign day，可能通过读档状态校验。坏日期直到下一次推进时间，才会在 advanceClock()/addDays() 中被拒绝；这会把本该在读档边界发现的数据问题延后到运行期间。负数 day 也存在同样的校验缺口。
+
+修复：
+1. engine/simulation.cjs 复用 clock.cjs 的 parseDate()。
+2. validateWorldState() 在接受存档前校验真实日历日期，并拒绝负数 day。
+3. validateDayInputs() 在推进日结算前执行相同的日期合法性检查，并拒绝负数 day。
+4. 新增回归测试：验证 2480-02-30 无法通过读档校验或日结算输入校验；验证负数 day 被拒绝；验证坏日期触发 advanceDay() 时不会改变原 world。
+
+本次只修正已有时钟输入边界，没有增加第二套日期规则，也没有改变 campaign clock 的时间推进方式。
+
+精确代码变更
+------------
+- engine/simulation.cjs
+- tests/engine.test.cjs
+
+未改动：
+- 存档 schema（仍为 8）。
+- 人口组权威存储、人口效果与迁移规则。
+- 年/月/周/日 cadence 顺序。
+- Mod API、Mod 内容、mods/core。
+- Trigger Queue（仍未实现）。
+- 经济、就业、工资、人口需求或其他游戏玩法规则。
+
+其他审查结论
+------------
+- 当前人口运行时以 population groups 为权威，总人口由组人数求和；标量 population 只是投影。
+- 当前实际消费者仍是每周生产、每日人口需求、市场报价与战争历时；人口需求仍按殖民地派生总人口聚合，不是逐人口组消费。
+- recurring simulation cadence 与单次持久化 Trigger instance 仍保持分离；Trigger Queue、批准动作调用链、条件/事件触发与通用数值 modifier 尚未实现。
+- 本轮未确认第二项需要立即修改的确定性运行时缺陷；没有借审查之名扩张功能或重构架构。
+- CI 仍显示依赖链的 punycode 弃用提示、src/world.js 的 MODULE_TYPELESS_PACKAGE_JSON 提示，以及 GitHub Actions 对 Node.js 20 action runtime 的迁移警告。这些不是本轮测试失败，本轮未为消除提示而改动工具链。
+
+后续方向与验收
+--------------
+保持既定的 Engine 地基方向：围绕第一个真实、通用的动作消费者，先明确 Trigger → 已注册 Effect/Command/Event 的最小调用契约、执行相位、稳定 ID 与重放/幂等语义，再实现最小的到期队列。不得将 recurring cadence 复制成另一套调度器；不得直接暴露任意 Mod 函数或 world patch。
+
+这项后续方向只是当前 Astra 记录中已有的工作方向，本轮没有开始实现 Trigger。
+
+用户端 Windows GUI 验收仍待完成。GitHub Windows CI 成功不能替代用户实际启动 Electron 桌面版本后的综合测试。

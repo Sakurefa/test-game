@@ -43,7 +43,7 @@ Presentation 以后可以把已提交事实转换为玩家可见通知、报告�
 
 ## 明确暂缓
 
-条件/阈值 evaluator、Command/Event Resolution、通用 source/target/operation/value modifier、临时效果状态/到期管理、随机结算池与 UI Presentation 仍属于后续工作。Domain Event 驱动的单次 Trigger 已在后续实现章节落地。每项扩展都必须有真实消费者、明确执行边界和聚焦测试；不为抽象本身堆叠框架。
+条件/阈值 evaluator、Command Resolution、通用 source/target/operation/value modifier、临时效果状态/到期管理、随机结算池与 UI Presentation 仍属于后续工作。Domain Event 驱动的单次 Trigger 与受限的 `event.emit` Resolution 已落地。每项扩展都必须有真实消费者、明确执行边界和聚焦测试；不为抽象本身堆叠框架。
 
 ## Resolution 与 Effect 的执行分离（2026-11-22）
 
@@ -111,3 +111,35 @@ Presentation 以后可以把已提交事实转换为玩家可见通知、报告�
 - 新增单元与集成测试，覆盖精确匹配、source snapshot、下一日结算和既有 Effect/Settlement 执行链。
 
 实现提交：`6804bc9e394abada2dad48dd398fae68636df027`。源码 CI [44957849824](https://github.com/Sakurefa/test-game/actions/runs/44957849824) 成功，223/223 tests、语法检查与 Renderer build 全部通过。
+
+
+## Resolution 输出 Domain Event（2026-11-22）
+
+新增受限 Resolution：`event.emit`。它补齐的是“已批准的 Engine 结算动作可以产生一个已发生事实”，不是让 Mod/Trigger 直接调用玩家命令或任意事件总线回调。
+
+请求示例：
+
+```js
+{
+  event: {
+    type: "event.emit",
+    payload: {
+      type: "settlement-finished",
+      payload: { settlementId: "my-settlement", outcome: "accepted" }
+    }
+  }
+}
+```
+
+- Trigger 所属 Mod 身份由 Engine 从 System Event 的 sourceId 注入；Mod 不能选择另一个 Mod 的来源身份。
+- Domain Event 类型自动限定为 `mod.<owner-mod-id>.<type>`，scope 固定为 `mod`，subjectId 固定为 owner Mod ID。输出 payload 自动带入 `modId` 和 `eventType`。
+- Resolution 请求只接受自定义类型后缀和 object payload；不接受完整事件 ID、来源身份、scope、subjectId、idempotency key，也不允许发出 Engine 内建事件命名空间。
+- Resolution 计划现在可选返回 `domainEvents`，上限 16 条；Effects 仍最多 16 项。Domain Event descriptor 与 Effect descriptor 分开校验。
+- Settlement 只验证计划、运行 Effect executor 并返回 Domain Event descriptors；它不写历史、不调 Event Bus。
+- Trigger Runner 在同一 candidate-world 事务内先应用 Settlement Effects，再把计划中的 Domain Events 写入事实历史，最后写入 `trigger.resolved`（包含生成事实的 ID/sequence/type 引用）并出队/记 receipt。
+- 新事实通过已接入的 candidate-world Domain Event emitter 激活匹配的 pending Trigger；dueDay 是事实日 + 1，因此下一完整日才会执行，当前 due 列表不会递归处理本轮新建的 Trigger。
+- 新增测试验证计划校验、输出上限、Settlement 不直接改写 Domain Event history，以及一条完整的 Trigger → event.emit → Domain Event → 另一 Trigger → Effect 链。
+- World schema 仍为 9；未加入命令分发器、Mod 任意 callback、Event Bus 写权限或新的持久化队列。
+
+实现提交：`3e4a3ddc77f1da021ef6ded5e8eabf249f5a0bf5`；Domain Event emitter 闭合修正：`e1806f47b463578184608b5de170882a8f70b244`；Mod Event descriptor 公开形状修正：`f942a9b93e9f5c56b1dc0bbd2fb7466522c7fab0`。最终源码 CI [44962162081](https://github.com/Sakurefa/test-game/actions/runs/44962162081) 成功，227/227 tests、Engine/Electron syntax、Renderer build 与 generated-renderer 全部通过。初始两次 CI 失败是本次新改动的实现错误（一个 emitter closure、一个内部 null 字段泄漏）；均修正后重新完整验证。
+

@@ -1,0 +1,59 @@
+【工作流记录】Resolution 输出 Mod Domain Event
+===============================================
+
+工作日期：2026-11-22
+当日序号：13
+仓库：Sakurefa/test-game
+分支：main
+
+基线与目标
+----------
+- 基线 main：`b211f5c8340504e8552d8937e69d042dafdd8e22`。
+- 目标：为已注册 Engine Resolution 增加可选 Domain Event 输出，使 Trigger 在完成一次批准结算后产生新事实，并可激活另一个等待该事实的 Trigger；不接入玩家命令网关，不开放 Event Bus 写权限或任意 Mod callback。
+
+实现内容
+--------
+1. 新增共享 `normalizeDomainEventDescriptor()`，由 Domain Event 写入器与 Resolution plan 校验共同使用，保持 type/scope/subject/payload 规则一致。
+2. Resolution plan 从 `{ result, effects }` 扩展为 `{ result, effects, domainEvents? }`。Effects 最多 16，Domain Event descriptors 最多 16；两类描述独立校验。
+3. 新增 Engine Resolution `event.emit`。它接收本地事件 type 后缀和可选 object payload；Engine 从 Trigger sourceId 注入 Mod owner，将输出 type 限定为 `mod.<owner-mod-id>.<type>`，scope 固定为 `mod`、subjectId 固定为 owner Mod ID，payload 自动带入 `modId` 与 `eventType`。
+4. Settlement 验证/执行 Resolution 计划并返回 Domain Event descriptors，但不写 history、不负责队列或 Event Bus。
+5. Trigger Runner 在 candidate world 中应用 Settlement Effects 后，写入计划中的 Domain Events，再写 `trigger.resolved`（记录生成事实 ID/sequence/type）、移除 pending 并保存 receipt。该事实通过既有 emitter 激活匹配的 pending Trigger；dueDay 为事实日 + 1，不在当前 due 列表递归运行。
+6. 没有新增 World schema 字段；旧 date/elapsed/Domain Event due Trigger 格式保持不变。
+
+精确代码变更
+------------
+- `engine/domain-events.cjs`
+- `engine/resolutions.cjs`
+- `engine/settlement.cjs`
+- `engine/simulation.cjs`
+- `engine/triggers.cjs`
+- `tests/settlement.test.cjs`
+- `tests/triggers.test.cjs`
+
+测试覆盖
+--------
+- Settlement 单元测试覆盖 Domain Event plan 返回与“Settlement 本身不写 history”的边界。
+- Resolution 计划校验覆盖非法 Domain Event descriptor 与超过 16 条的拒绝。
+- Trigger 集成测试走通三段链：第一条 Trigger 经 `event.emit` 写出 Mod fact；第二条等待该 fact 的 Trigger 在同一候选世界中被激活并保存 source snapshot；第二个完整日通过现有 `effect.apply` 改变殖民地稳定度。
+- 同一条链还验证 `trigger.resolved` 记录 emitted fact 引用，最终世界通过完整验证。
+- 初始 CI [44961931045](https://github.com/Sakurefa/test-game/actions/runs/44961931045) 因缺少 emitter factory 闭合而在 syntax 阶段失败；修正提交 `e1806f47b463578184608b5de170882a8f70b244` 后，CI [44962040209](https://github.com/Sakurefa/test-game/actions/runs/44962040209) 发现计划 descriptor 混入内部 `idempotencyKey: null`；再次修正提交 `f942a9b93e9f5c56b1dc0bbd2fb7466522c7fab0` 后最终 CI [44962162081](https://github.com/Sakurefa/test-game/actions/runs/44962162081) 成功：Engine/Electron syntax、**227/227 tests**、Renderer build、generated-renderer 全部通过。
+- 本地测试/构建：未执行；测试与构建由 Windows GitHub Actions 执行。
+- 用户设备 Windows GUI：未执行；本轮未重建 Runtime/Launcher EXE。
+
+文档与 Astra
+------------
+- `MOD_API.md`、`docs/ENGINE_ARCHITECTURE.md`、`docs/SIMULATION_DOMAIN_MAP.md`：补入 `event.emit` 与可选 Domain Event 输出计划的公开契约。
+- `Astra/DISCUSSIONS/Trigger System 与系统 Event 架构.txt`、`Astra/DISCUSSIONS/关于现状.txt`、`Astra/DISCUSSIONS/关于接下来的工作.txt`：同步当前实现、未实现边界与下一步。
+- `Astra/WORKING_MEMORY.txt`：更新 Resolution、Settlement、Domain Event 与 Event Bus 的长期边界。
+- `ASTRA_WORKLOG.md`：更新当前源码版本、CI、工作流序号和导航。
+
+提交
+----
+- 功能实现：`3e4a3ddc77f1da021ef6ded5e8eabf249f5a0bf5`。
+- Emitter factory 闭合修正：`e1806f47b463578184608b5de170882a8f70b244`。
+- Domain Event descriptor 公开形状修正：`f942a9b93e9f5c56b1dc0bbd2fb7466522c7fab0`。
+- 最终源码 CI：`44962162081`，227/227 tests，syntax、Renderer build、generated-renderer 全部成功。
+
+后续边界
+--------
+Command Resolution 仍未实现。当前玩家命令 dispatcher 只存在于 Electron 主进程授权/提交路径，不是每日模拟可直接调用的通用 Engine 命令目录。不要将该 gateway 注入 Trigger。条件/阈值 due source 也仍须等待实际权威数据消费者；本轮没有增加条件表达式、通用 modifier、临时效果或 Presentation。

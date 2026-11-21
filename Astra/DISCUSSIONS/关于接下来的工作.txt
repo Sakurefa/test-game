@@ -150,3 +150,20 @@
 - 新增测试覆盖过滤匹配、source snapshot、去重、下一日结算和现有 Effect 链。实现提交为 `6804bc9e394abada2dad48dd398fae68636df027`；源码 CI [44957849824](https://github.com/Sakurefa/test-game/actions/runs/44957849824) 成功：223/223 tests。
 
 当前仍未实现：条件/阈值 due source、由 Trigger 调用 Command 或生成 Domain Event 的 Resolution、通用数值 modifier、临时效果生命周期和 Presentation。下一步继续检查 Trigger 与 Effect 的边界，不把这些不同职责一次性塞进同一机制。
+
+
+## 2026-11-22_13 实现结果：Resolution 输出 Domain Event
+
+在现有 Trigger / Settlement / Domain Event 链上新增受限 `event.emit` Resolution：
+
+- Trigger 所属 Mod 身份由 Engine 注入；事件 type 自动加 `mod.<owner-mod-id>.` 前缀，scope 固定 mod，subjectId 固定 owner ID。
+- 请求只允许本地事件 type 后缀与 object payload；不接受任意完整事件 type、来源身份、scope、subjectId、idempotency key 或 callback。
+- Resolution 计划扩展为 `{ result, effects, domainEvents? }`。Effects 和 Domain Events 分别校验，上限各为 16。
+- Settlement 验证计划、执行 Effect executor，并把 Domain Event descriptors 交还上层，不写 Domain Event history。
+- 新事实写入 candidate world 后，Trigger Runner 记录 `trigger.resolved` 中的事件引用。匹配的等待 Trigger 在下一完整日执行，不同日结算和 Event Bus 边界均保持原样。
+- 新增 Settlement 单元测试和完整串链集成测试：第一条 Trigger emit Mod fact，第二条 Trigger 捕获它，次日应用殖民地稳定度 Effect。
+- 不新增 World schema、Trigger 队列字段、玩家命令入口或通用事件总线权限。
+
+实现链：`3e4a3ddc77f1da021ef6ded5e8eabf249f5a0bf5`；语法闭合修正 `e1806f47b463578184608b5de170882a8f70b244`；Domain Event descriptor 形状修正 `f942a9b93e9f5c56b1dc0bbd2fb7466522c7fab0`。最终 CI [44962162081](https://github.com/Sakurefa/test-game/actions/runs/44962162081) 成功：227/227 tests，syntax 和 Renderer build 通过。未执行本地测试/构建，未在用户 Windows 设备验收，也未重新构建 Runtime/Launcher。
+
+尚未实现：Command Resolution、条件/阈值 due source、通用数值 modifier、临时效果生命周期、随机事件池和 Presentation。后续需要实际消费方来决定是否继续扩展命令入口；不要把 Electron player command gateway 塞进每日模拟 Engine。

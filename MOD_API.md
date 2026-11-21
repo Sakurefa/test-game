@@ -177,7 +177,7 @@ Mod order is deterministic by stable Mod ID. Hook order follows the declared hoo
 
 ## Trigger scheduling and System Events
 
-A hook may return a bounded `triggers` array. Each descriptor has only an ID, a due condition and a System Event request. The Engine supplies the owner Mod ID; a Trigger ID must be namespaced under that Mod.
+A hook may return a bounded `triggers` array. Each descriptor has an ID, a due condition and a System Event request. The Engine supplies the owner Mod ID; a Trigger ID must be namespaced under that Mod.
 
 A direct approved Effect request uses `effect.apply`:
 
@@ -199,9 +199,9 @@ A direct approved Effect request uses `effect.apply`:
 }
 ```
 
-A Resolution receives a detached snapshot of the current candidate world, calculates a result and returns a bounded plan; it does not mutate the authoritative world or apply world changes itself. The Engine's shared Settlement runner (`engine/settlement.cjs`) then applies each planned Effect through the existing registered Mod Effect handler. This runner is independent of the Trigger Queue: it accepts a System Event, Resolution registry and Effect executor, and returns the calculation result plus applied Effect results. It does not own scheduling, Domain Event history or UI. This keeps calculation output separate from authoritative mutation.
+A Resolution receives a detached snapshot of the current candidate world and returns a bounded plan. It does not mutate authoritative state or write Domain Event history itself. Its plan may contain a JSON-safe `result`, up to 16 approved `effects`, and optionally up to 16 `domainEvents`. The shared Settlement runner (`engine/settlement.cjs`) applies planned Effects through the registered Effect executor and returns the result, applied Effect outcomes and Domain Event descriptors. It does not own the Trigger Queue or write the event history.
 
-The second built-in Resolution, `formula.effect`, evaluates an existing Engine-registered versioned formula and maps selected top-level result fields into approved Effect payloads:
+The `formula.effect` Resolution evaluates an existing Engine-registered versioned formula and maps selected top-level result fields into approved Effect payloads:
 
 ```js
 {
@@ -233,12 +233,41 @@ The second built-in Resolution, `formula.effect`, evaluates an existing Engine-r
 
 For `formula.effect`:
 - `formulaId` must already exist in the Engine formula registry. Mods cannot register formulas or execute arbitrary calculation callbacks through this request.
-- `inputs` are a JSON-safe snapshot captured when the Trigger is scheduled. They are not silently refreshed when the Trigger becomes due.
-- Each Effect template contains a registered Effect `type`, its static `payload`, and `resultFields` mapping **top-level formula result keys** to Effect payload fields. It is a field binding, not an expression language.
+- `inputs` are a JSON-safe snapshot captured when the Trigger is scheduled; they are not silently refreshed when the Trigger becomes due.
+- Each Effect template contains a registered Effect `type`, static `payload`, and `resultFields` mapping top-level formula result keys to Effect payload fields. This is field binding, not an expression language.
 - The formula uses a deterministic random stream derived from the Trigger ID. Its calculation record and random-stream state are retained by the normal candidate-world day commit.
-- Formula output and all mapped Effects are validated before the Effect plan is applied. A missing result field or rejected Effect aborts the candidate day; no partial Effect is committed.
+- Formula output and mapped Effects are validated before application. A missing result field or rejected Effect aborts the candidate day; no partial Effect is committed.
 
-Resolution plans contain a JSON-safe result object and at most 16 Effect descriptors. The Effect executor applies them in listed order. Successfully applied Effects emit the normal `mod.effect-applied` Domain Events; the Trigger then emits `trigger.resolved` containing the calculation result and applied Effect results. All records and state changes commit with the day.
+A Trigger may also emit one Mod-scoped Domain Event through the built-in `event.emit` Resolution:
+
+```js
+{
+  triggers: [{
+    id: "my-mod.publish-settlement-fact",
+    due: { kind: "elapsed", days: 2 },
+    event: {
+      type: "event.emit",
+      payload: {
+        type: "settlement-finished",
+        payload: {
+          settlementId: "my-settlement",
+          outcome: "accepted"
+        }
+      }
+    }
+  }]
+}
+```
+
+The Engine uses the Trigger owner as the source Mod and writes the resulting fact as:
+- `type`: `mod.<owner-mod-id>.<event-type>` (underscores in the Mod ID are represented as hyphens in this type);
+- `scope`: `mod`;
+- `subjectId`: the original owner Mod ID;
+- `payload`: the supplied object fields plus Engine-owned `modId` and `eventType` fields.
+
+The `event.emit` request accepts only `type` and optional object `payload`. It cannot choose another Mod's namespace, use a built-in Engine event namespace, supply an idempotency key or call a command/callback. The Resolution returns a Domain Event descriptor in its plan; Settlement does not write history. The Trigger runner appends the fact to the candidate world before it writes `trigger.resolved`, and records the emitted fact's ID, sequence and type in that resolution record. A pending Domain Event Trigger matching the new fact is activated for the next completed campaign day, not recursively executed in the current one.
+
+Resolution plans contain a JSON-safe result object, at most 16 Effect descriptors and at most 16 Domain Event descriptors. The Effect executor applies Effects in listed order. The Trigger runner appends the approved planned Domain Events and then emits `trigger.resolved`. All records and state changes commit with the candidate day. A failed Resolution, Effect or event write discards the candidate day.
 
 Trigger IDs are stable across saves and retries. Re-submitting the same ID with the same definition is ignored while its pending entry or recent receipt is retained. Reusing the ID with a different definition fails validation. The Engine retains the latest 256 Trigger receipts, so this is a bounded replay fence, not a permanent global identity ledger.
 
@@ -253,7 +282,7 @@ All due sources are processed only at whole-day boundaries; fractional day progr
 
 A System Event is a transient internal processing request, not a player-facing narrative event and not a Domain Event. Its optional `sourceEvent` carries the fact that activated a Domain Event Trigger. It is resolved inside the candidate-world day transaction. The read-only Event Bus still receives completed Domain Event facts only after the whole world commits; it is not used as the Trigger execution channel. If a resolution or Effect fails, the candidate day—including effects, event records, queue removal and receipt—is discarded.
 
-The Engine currently registers `effect.apply` and `formula.effect`. Condition/threshold Trigger sources, Command/Event Resolution types, a generic numeric modifier language, temporary-effect lifecycle management, random result pools and Presentation/UI are not yet implemented. API v3 data-only Mods remain unaffected.
+The built-in Resolutions currently are `effect.apply`, `formula.effect` and `event.emit`. Condition/threshold Trigger sources, Command Resolution, a generic numeric modifier language, temporary-effect lifecycle management, random result pools and Presentation/UI are not yet implemented. API v3 data-only Mods remain unaffected.
 
 ## Current hook points
 

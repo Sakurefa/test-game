@@ -17,8 +17,8 @@
 - 当前 due source 支持有效日历日期、经过整数个完整 campaign day，以及 Domain Event 新事实精确匹配（type 必填，scope/subjectId 可选）；不支持子日触发和历史回溯。
 - Mod API v4 hook 可以返回 `triggers`。Trigger ID 由所属 Mod 命名空间约束；同 ID、同定义重复创建会去重，同 ID、不同定义会报错。
 - 每个完整日结算开始时，Engine 先推进时钟，再处理已有到期 Trigger，随后执行 `campaign.before-day`、年度/月度/周度/日度系统，最后执行 `campaign.after-day`。本次结算期间新建的 Trigger 最早在下一个完整日边界运行，避免同一边界递归触发。
-- Trigger 到期时创建短生命周期 System Event。当前注册 `effect.apply` 与 `formula.effect` 两种 Resolution；它们都返回 `{ result, effects }` 计划。独立 `engine/settlement.cjs` 接收 System Event 并执行 Resolution/Effect 计划；Trigger Runner 只负责调度、事实记录、出队与回执。`formula.effect` 只调用已有版本化 Engine 公式，以 Trigger ID 生成独立随机流，并用顶层 `resultFields` 映射公式结果。Trigger 不能存储任意 JS 函数、Mod callback 或 world patch。
-- System Event 是待 Engine 处理的请求；Domain Event 是已经发生的事实。独立 `engine/settlement.cjs` 只负责调用 Resolution 并执行 Effect 计划，不负责调度、Domain Event history 或 UI；Trigger Runner 成功处理后在候选世界记录每个 `mod.effect-applied` 和 `trigger.resolved`，Event Bus 在世界提交后才收到它们。Presentation/玩家可见文本不属于 Trigger Queue。
+- Trigger 到期时创建短生命周期 System Event。当前注册 `effect.apply`、`formula.effect` 与 `event.emit` 三种 Resolution；Resolution 返回 `{ result, effects, domainEvents? }` 有界计划。独立 `engine/settlement.cjs` 校验计划并执行 Effect，返回 Domain Event 描述；Trigger Runner 负责将批准的事实写入候选世界、记录 `trigger.resolved`、出队与回执。`formula.effect` 只调用已有版本化 Engine 公式，以 Trigger ID 生成独立随机流，并用顶层 `resultFields` 映射公式结果。Trigger 不能存储任意 JS 函数、Mod callback 或 world patch。
+- System Event 是待 Engine 处理的请求；Domain Event 是已经发生的事实。独立 `engine/settlement.cjs` 只负责 Resolution/Effect 计划执行并返回 Domain Event 描述，不负责写 history 或 UI；Trigger Runner 在候选世界先应用 Effect、写入 Resolution 输出的 Domain Events，再记录 `trigger.resolved`，Event Bus 仍在世界提交后才收到它们。Presentation/玩家可见文本不属于 Trigger Queue。
 - Queue、Settlement 结果、Effect 变更、Domain Event 和处理回执处于同一个 candidate-world 事务。处理失败时整日回滚，待处理 Trigger 仍保留。
 - 近期回执保留 256 条；在回执窗口内可防止已处理 ID 被重复执行。该机制不是永久全局 ID 数据库。
 
@@ -37,7 +37,7 @@
 ## 尚未实现
 
 - 条件/阈值触发来源。
-- 除 `effect.apply` 与 `formula.effect` 外的 Command/Event 等 Resolution 类型。
+- Command Resolution；当前 `event.emit` 仅提供受限的 Mod Domain Event 输出。
 - 临时效果状态、生命周期与对应到期动作；通用 source/target/operation/value 数值修改器。
 - 建筑实际雇佣 workforce 数据、结算快照与条件效果稳定期。
 - 人口分组需求消费、商品市场清算、工资与完整生产经济规则。
@@ -66,3 +66,12 @@
 - 命令重放不写新事实，因此不会重复激活 Trigger 或重复发布 Event Bus 通知。
 - 新增命令集成测试：验证命令产生的事实会安排下一日 Trigger、提交后的 Event Bus 观察到已经激活的 Trigger、重复 command ID 不会重复执行，并且该 Trigger 能在下一完整日由现有 Settlement 路径处理。
 - 最终 Engine/测试提交：`78bd540b5bb2e872d304b3ad0509460985629e09`；源码 CI [44958699387](https://github.com/Sakurefa/test-game/actions/runs/44958699387) 成功，224/224 tests。
+
+
+## Resolution 输出 Domain Event（2026-11-22）
+
+- 新增 `event.emit` Resolution，使用 Trigger owner 的 Mod 身份产生 namespaced Domain Event：`mod.<mod-id>.<type>`；scope 固定为 mod，subjectId 固定为原始 Mod ID，payload 含 modId/eventType。
+- Resolution 计划可选包含最多 16 条 `domainEvents`，与最多 16 个 Effect 分开校验。Settlement 不写历史，只返回 descriptors；Trigger Runner 在 candidate world 内写入事实并将 ID/sequence/type 引用记录在 `trigger.resolved`。
+- 新事实可激活另一个等待该类型的 Trigger，但它的 dueDay 是事实日 + 1，不在本轮递归处理。
+- 这不是 Command Resolution，也没有开放任意 Event Bus publish 或任意 callback。World schema 保持 9。
+- 源码 CI [44962162081](https://github.com/Sakurefa/test-game/actions/runs/44962162081) 成功：227/227 tests、语法检查与 Renderer build 全部通过。

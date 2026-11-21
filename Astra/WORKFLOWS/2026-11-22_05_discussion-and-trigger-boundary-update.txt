@@ -1,0 +1,78 @@
+【工作流记录】讨论档案更新与 cadence / Trigger 边界澄清
+======================================================
+
+工作日期：2026-11-22
+当日序号：05
+工作基线：bf3145dd4e43222277c8e59675a9fe01b3c8e4dc
+内容与代码结果提交：b6617ac99551fb329dcd5d967639f7a74a369ca0
+结果：讨论与架构文档更新；统一日历日期解析；未实现 Trigger Queue
+
+用户方向
+--------
+用户要求“跟进并继续”。本轮承接 2026-11-22_04 对讨论档案的审计结论：更新过时的现状/经济记录，补充人员与建筑文档中的实现状态，并澄清 recurring simulation cadence 与未来 persisted Trigger instance 的职责边界，再进入 Trigger Queue 的实际实现。
+
+强制读取与核对
+--------------
+按 AGENTS.md、Astra/README.txt 的顺序重新读取：
+- AGENTS.md、Astra/README.txt、完整 Astra/WORKING_MEMORY.txt、ASTRA_WORKLOG.md；
+- AK 原则与 MOD 化原则两份最高优先级文件；
+- 关于现状、经济系统设计、人员与建筑结算设计、关于接下来的工作、人口系统设计、关于游戏设计的讨论、日志编写规范；
+- 2026-11-22_02、_03、_04 三份相关工作流。
+
+同时核对 main 分支、最新提交、系统注册器、campaign clock、simulation day settlement、架构文档及最新相关 Actions。
+
+基线和验证
+----------
+- 仓库：Sakurefa/test-game，分支 main。
+- 本轮内容/代码修改基线：bf3145dd4e43222277c8e59675a9fe01b3c8e4dc。
+- 内容/代码结果提交：b6617ac99551fb329dcd5d967639f7a74a369ca0。
+- Windows GitHub Actions [44933468019](https://github.com/Sakurefa/test-game/actions/runs/44933468019) 在 b6617ac 上成功：Electron/Engine syntax check 通过；npm test **204/204** 通过、0 失败；Renderer build 成功；generated-renderer step 成功。
+- 本轮没有本地运行 npm test 或 build。CI 运行在 GitHub Windows runner，不等于用户设备 GUI 验收。
+- 本轮未进行用户端 Windows GUI 测试；未修改存档 schema；未修改 Mod 内容或新增游戏玩法。
+
+档案修正与设计边界
+------------------
+1. Astra/DISCUSSIONS/关于现状.txt：替换旧版 scalar population 权威、无运行时群体等过时陈述，更新为 schema 8 群体权威、calendar cadence、当前真实消费者和未实现机制。
+2. Astra/DISCUSSIONS/经济系统设计.txt：将人口基础改为 group-authoritative；明确当前需求仍按殖民地派生总人口聚合结算，尚非 per-group demand；保留全部未决经济规则。
+3. Astra/DISCUSSIONS/人员与建筑结算设计.txt：保留已确认的实际雇佣 workforce 设计；区分周期性建筑/人员结算的 system cadence 与单次/到期 Trigger instance；补充人员池、就业数据和建筑快照仍未实现。
+4. Astra/DISCUSSIONS/关于接下来的工作.txt：补充 cadence 与 Trigger instance 的明确边界、原子结算要求、whole-day 限制和待定调用细节。
+5. Astra/WORKING_MEMORY.txt：记录 recurring cadence 与个体 Trigger instance 的职责、candidate-world 原子提交及批准动作边界。
+6. docs/ENGINE_ARCHITECTURE.md：修正旧 cadence 列表、旧 schema migration 描述和“不是 cohort model”的不准确人口存储描述；记录 cadence/Trigger 的边界。
+7. engine/system-registry.cjs：从 engine/clock.cjs 导入 parseDate；系统注册器的 campaign date 合法性检查统一复用同一日期解析函数，不再复制一套日期格式/有效性判断。既有 registry 测试已覆盖非法日期与月度/年度日期边界，本次未新增测试用例。
+
+已澄清的架构边界
+----------------
+- **Simulation system cadence 管重复工作。** Annual、monthly、weekly、daily 是重复结算系统的节奏；manual 仍由显式调用执行。它们不应被复制成每个 Mod 的重复 Trigger。
+- **Persisted Trigger instance 管单次动作。** 用于一次性日期动作、经过时间到期、条件/领域事件响应，以及临时效果的独立到期。永久效果不需要 timer。
+- **日历规则共用。** 日期触发基于 world.clock.date，并复用 engine/clock.cjs 的日期解析/运算规则；不允许另建年/月长度规则或以 30 天近似日历月。
+- **当前触发粒度为完整 campaign day。** dayFraction 目前只记录日内进度；simulation settlement 只在完整日边界执行。初版 elapsed Trigger 应与完整日结算对齐，子日触发需另有明确模拟阶段。
+- **原子边界沿用 settleDay。** 现有 settleDay 在副本 candidate world 上推进时钟、执行 Hook 和 systems，成功后才替换正式 world；失败时丢弃 candidate。Trigger 的执行、出队、效果变更及相关事件必须位于相同 candidate 内，Event Bus 只能在 world commit 后收到新事件。
+- **调用能力受限。** Trigger 只能引用经过登记和 payload 校验的 Effect/Command/Event 入口；不得存任意 JS 函数、开放任意 Mod 回调或 world patch。
+
+尚未最终钉死、不得误写为已实现
+--------------------------------
+- Trigger 动作相对 annual/monthly/weekly/daily systems 的准确执行相位。
+- 稳定 Trigger ID、重复创建与触发后的重放/幂等语义。
+- 领域事件触发的游标推进和同一结算内递归触发限制。
+- 当前没有 Trigger record、持久化 due queue、批准调用实现、条件/事件 evaluator、临时效果状态或通用 source/target/operation/value modifier。
+- 没有任何新增人口阈值、建筑 workforce、经济或其他 Core 游戏内容。
+
+精确文件变更
+------------
+- Astra/WORKING_MEMORY.txt
+- Astra/DISCUSSIONS/关于现状.txt
+- Astra/DISCUSSIONS/经济系统设计.txt
+- Astra/DISCUSSIONS/人员与建筑结算设计.txt
+- Astra/DISCUSSIONS/关于接下来的工作.txt
+- docs/ENGINE_ARCHITECTURE.md
+- engine/system-registry.cjs
+
+本工作流记录与根索引随后归档更新，不改变上述代码验证结果。
+
+下一项
+------
+继续已确认的通用 Engine 方向：在引入实际 Trigger Queue 前，围绕第一个真实且通用的动作消费者，定义 Trigger → registered Effect/Command/Event 的最小调用契约；同时明确它与 recurring cadence 的执行相位及稳定 ID/幂等边界。随后实现最小 date/elapsed due queue，聚焦测试到期选择、去重、动作失败与 candidate-world 原子回滚。暂不实现条件/事件消费者、人口阈值、人员或建筑玩法。
+
+用户设备验收
+------------
+本轮未进行用户端 Windows GUI 验收。当前累积版本仍需用户实际运行 Electron 桌面版本进行综合验收。

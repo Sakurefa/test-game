@@ -35,7 +35,8 @@ Help Astra maintain continuity across sessions and execute the user's confirmed 
 ----------------------------------------
 - The repository contains complete editable source, Mods, assets and Electron runtime dependencies. The standalone launcher EXE is distributed separately.
 - Mod manifests, registry, content definitions and localization remain INI. API v3 INI-only Mods remain supported; API v4 may use explicitly declared JS hooks.
-- Core is required. Mod scripts receive detached read-only snapshots and return approved effects/events only. Node vm is not a hardened hostile-code security boundary; JS Mods remain trusted/opt-in.
+- All runtime game content is supplied by Mods under `mods/`. `mods/core` is the required baseline game-content Mod, not part of the Engine, and cannot be disabled; optional Mods extend or alter game content within Engine contracts.
+- Mod scripts receive detached read-only snapshots and return approved effects/events only. Node vm is not a hardened hostile-code security boundary; JS Mods remain trusted/opt-in.
 - Keep the engine independent from Electron, DOM and Renderer concerns. Preserve the main-process IPC boundary and atomic day settlement.
 - Runtime world state is authoritative; diagnostics are not a transaction-replay database.
 
@@ -48,9 +49,13 @@ Help Astra maintain continuity across sessions and execute the user's confirmed 
 - Update topic records when decisions or implementation facts change. Do not create diary filler for routine exchanges.
 - Older work queues may be stale; re-check current branch, code and CI.
 
-6. CURRENT GAMEPLAY PRIORITY
-----------------------------
-The next major gameplay priority is a Victoria 3-inspired population supply/demand and goods production/consumption economy. This is a high-level direction, not a finalized rulebook. Need baskets, substitutions, affordability, labor, wages, market clearing, stock allocation and detailed cadence remain open until confirmed.
+6. LONG-TERM GAMEPLAY DIRECTION (NOT THE CURRENT ENGINE TASK LIST)
+---------------------------------------------------------------------
+The long-term game direction includes a Victoria 3-inspired population supply/demand and goods production/consumption economy, alongside the other systems recorded in the design discussions. This is a direction for future game content, not a mandate to implement gameplay content inside the Engine or an approval to invent a finalized rulebook.
+
+The current development stage is building the generic Engine. The Engine provides reusable mechanisms, data loading, validation, scheduling, settlement, persistence and extension contracts. The complete playable game content—including the baseline content—is supplied through Mods under `mods/`. Core is itself the required Mod at `mods/core`; it is not the Engine. Optional Mods can extend or replace content within the Engine's declared contracts.
+
+Need baskets, substitutions, affordability, labor, wages, market clearing, stock allocation and detailed cadence remain open until confirmed. Generic Engine interfaces may support such systems, but concrete definitions, rules and balance values belong to Mod INI.
 
 7. CONFIRMED POPULATION SIMULATION MODEL
 ----------------------------------------
@@ -65,9 +70,13 @@ The next major gameplay priority is a Victoria 3-inspired population supply/dema
 - Effects use explicit source, target, operation and value where applicable. Temporary effects use separate triggers; process due triggers rather than rescanning all historical effects.
 - Do not add personal debt, personal wage ledgers, personal purchases or per-person need settlement to ordinary population runtime.
 
-8. CURRENT SESSION GUARDRAIL
-----------------------------
-Continue the aggregate population foundation while prohibiting premature gameplay content and invented balance rules. First define a minimal aggregate group representation and independent statistical dimensions, preserving scalar colony population and legacy colony.population.delta behavior. Then define group-level needs and effect/trigger contracts. Keep steps small and consistent with AK and Mod principles.
+8. CURRENT ENGINE FOUNDATION GUARDRAIL
+---------------------------------------
+Continue building Engine capabilities, not a concrete population/economy gameplay feature. The next recorded foundation slice is to inspect the current main branch, CI and relevant implementation, then design the smallest generic persisted aggregate population-group representation with independent statistical dimensions.
+
+Preserve scalar colony population and the agreed legacy `colony.population.delta` compatibility: positive deltas enter an unclassified group; negative deltas reduce existing groups proportionally. The Engine may provide generic group storage, aggregation, validation, persistence/migration and effect/trigger contracts. It must not hard-code actual professions, wealth tiers, demographic distributions, need baskets, wages or market rules.
+
+Population classifications, need-basket entries, category IDs, concrete effects and balance values are Mod content defined through INI in `mods/core` or optional Mods. The Engine may define a reusable INI schema/settlement mechanism where required, but must not own those game definitions. Keep steps small and consistent with AK and Mod principles.
 
 9. PERSONNEL ENTITIES AND SETTLEMENT-DEPENDENT BUILDING EFFECTS
 --------------------------------------------------------------

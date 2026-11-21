@@ -63,3 +63,18 @@
 - Mod API、Engine 架构与 Domain Map 文档提交：`f7a6895e0c4b7605b783e919af40ff7c20c281d6`。
 - Astra 现状/后续讨论、Working Memory、Workflow 与根索引提交：`2cc3f6542ee986c7409133f642c9f7766a8192d0`。
 - 文档同步后源码 CI [44958311948](https://github.com/Sakurefa/test-game/actions/runs/44958311948) 再次成功：语法检查、223/223 tests、Renderer build 与 generated-renderer 全部通过。
+
+
+命令事务入口补齐与最终验证
+--------------------------
+
+复查所有 Engine Domain Event 写入入口时发现，除每日模拟结算外，命令执行器 `engine/command-runtime.cjs` 也会创建 Domain Event。为保证订阅不因事实来源不同而失效，本轮继续补齐该入口：
+
+- 命令事件先写入 detached command world；只有 sequence 实际增加的新事实才激活 pending Domain Event Trigger。
+- 激活发生在 `commitWorld(nextWorld)` 之前，属于同一次候选世界提交；失败不会更改 live world。
+- Event Bus 仍然只在 `commitWorld` 成功之后发布新事实。命令 ID 重放不会产生新事实，也不会重复激活或通知。
+- 增加 `tests/commands.test.cjs` 集成测试，检查命令事件匹配、source snapshot、下一日 dueDay、Event Bus post-commit 观察顺序、命令重放幂等，以及下一日通过既有 Trigger/Settlement 路径完成结算。
+- 完整代码提交链：Domain Event Trigger 实现 `6804bc9e394abada2dad48dd398fae68636df027`；诊断文本修正 `fd22f936121691fdb3513d79af8b6e0c60baefa6`；命令入口与测试 `cc128fc26d5923c2b199ada1b3ccb34807437691`；命令事件新增事实追踪/通知修正 `78bd540b5bb2e872d304b3ad0509460985629e09`。
+- 最终源码 CI [44958699387](https://github.com/Sakurefa/test-game/actions/runs/44958699387) 成功：Engine/Electron syntax、测试 **224/224**、Renderer build 与 generated-renderer 全部通过。测试新增的命令事务集成路径与既有模拟日结算路径均通过。
+- 诊断文本修正提交 `fd22f936` 的单独 CI [44958494924](https://github.com/Sakurefa/test-game/actions/runs/44958494924) 也成功（223/223）；较早未包含最后修正的并行 CI 曾被更新提交取消，不作为最终验证依据。
+- 本地测试/构建未执行；用户设备 Windows GUI 验收未执行。本轮未重跑 Runtime/Launcher EXE 构建。

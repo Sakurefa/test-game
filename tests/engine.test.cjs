@@ -6,9 +6,31 @@ async function mods(){return readModPackages(path.join(__dirname,"..","mods"));}
 async function catalog(){const r=compileCatalog(await mods());if(!r.ok)throw new Error(r.error);return r.catalog;}
 test("game clock handles month boundaries and leap years",()=>{assert.equal(addDays("2478-04-30",1),"2478-05-01");assert.equal(addDays("2480-02-28",1),"2480-02-29");assert.equal(addDays("2480-02-28",2),"2480-03-01");assert.throws(()=>addDays("2480-02-30",1),/Invalid game date/);});
 test("seeded random generator can be resumed",()=>{const a=new SeededRandom("frontier-test"),v=[a.next(),a.next(),a.next()],s=a.snapshot(),b=new SeededRandom(s.seed,s.state);assert.deepEqual([b.next(),b.next()],[a.next(),a.next()]);assert.notDeepEqual(v,[0,0,0]);});
-test("Core and community Mod INI definitions compile",async()=>{const c=await catalog();assert.equal(c.universe.name,undefined);assert.equal(c.localizations["zh-CN"][c.universe.nameKey],"赫利俄斯边境");assert.equal(c.systems.size,4);assert.equal(c.colonies.size,3);assert.equal(c.fleets.size,2);assert.equal(c.wars.size,1);assert.ok(c.events.has("supply-rumor"));assert.ok(c.events.has("example-positive-news"));});
+test("Core and community Mod INI definitions compile",async()=>{const c=await catalog();assert.equal(c.universe.name,undefined);assert.equal(c.localizations["zh-CN"][c.universe.nameKey],"赫利俄斯边境");assert.equal(c.systems.size,4);assert.equal(c.colonies.size,3);assert.equal(c.fleets.size,2);assert.equal(c.wars.size,1);assert.ok(c.events.has("supply-rumor"));assert.ok(c.events.has("example-positive-news"));assert.equal(c.commodities.get("food").dailyNeedPerThousand,.001);assert.equal(c.commodities.get("water").dailyNeedPerThousand,.0015);});
 test("catalog rejects unresolved production references",async()=>{const m=await mods(),core=m.find(x=>x.id==="core");core.data.content["universe.ini"].colonies[0].industries[0].recipeId="missing-recipe";const r=compileCatalog(m);assert.equal(r.ok,false);assert.match(r.error,/industry recipe/);});
-test("daily market and war systems run daily while colony production runs weekly",async()=>{const c=await catalog(),w=createWorld(c,{seed:42,createdAt:"2478-04-01T00:00:00.000Z"}),ore=w.colonies["new-dawn-colony"].stockpiles.ore,food=w.colonies["verdant-colony"].stockpiles.food,price=w.markets["verdant-exchange"].prices.food;advanceDay(w,c);assert.equal(w.clock.date,"2478-04-02");assert.equal(w.clock.day,1);assert.equal(w.colonies["new-dawn-colony"].stockpiles.ore,ore);assert.equal(w.colonies["verdant-colony"].stockpiles.food,food);assert.notEqual(w.markets["verdant-exchange"].prices.food,price);assert.equal(w.wars["cinder-conflict"].daysActive,16);assert.deepEqual(w.events.at(-1).systemsRun,["economy.market-pricing","military.war-chronology"]);for(let day=0;day<6;day++)advanceDay(w,c);assert.equal(w.clock.day,7);assert.ok(w.colonies["new-dawn-colony"].stockpiles.ore>ore);assert.ok(w.colonies["verdant-colony"].stockpiles.food>food);assert.deepEqual(w.events.at(-1).systemsRun,["colonies.production","economy.market-pricing","military.war-chronology"]);});
+test("daily needs settle before market pricing while colony production remains weekly",async()=>{
+ const c=await catalog(),w=createWorld(c,{seed:42,createdAt:"2478-04-01T00:00:00.000Z"});
+ const newDawn=w.colonies["new-dawn-colony"],verdant=w.colonies["verdant-colony"];
+ const ore=newDawn.stockpiles.ore,food=verdant.stockpiles.food,water=newDawn.stockpiles.water;
+ const price=w.markets["verdant-exchange"].prices.food,population=newDawn.population,stability=newDawn.stability;
+ advanceDay(w,c);
+ assert.equal(w.clock.date,"2478-04-02");assert.equal(w.clock.day,1);
+ assert.equal(newDawn.stockpiles.ore,ore);
+ assert.equal(newDawn.stockpiles.food,117.9);assert.equal(newDawn.stockpiles.water,water-3.15);
+ assert.equal(verdant.stockpiles.food,food-1.45);
+ assert.equal(newDawn.population,population);assert.equal(newDawn.stability,stability);
+ assert.equal(newDawn.lastNeedsReport.day,1);
+ assert.deepEqual(w.events.at(-1).systemsRun,["population.needs-consumption","economy.market-pricing","military.war-chronology"]);
+ assert.notEqual(w.markets["verdant-exchange"].prices.food,price);
+ assert.ok(Object.values(newDawn.stockpiles).every((amount)=>amount>=0));
+ for(let day=0;day<6;day++)advanceDay(w,c);
+ assert.equal(w.clock.day,7);
+ assert.ok(newDawn.stockpiles.ore>ore);
+ assert.ok(verdant.stockpiles.food>food);
+ assert.equal(newDawn.lastProductionReport.day,7);
+ assert.equal(newDawn.lastNeedsReport.day,7);
+ assert.deepEqual(w.events.at(-1).systemsRun,["colonies.production","population.needs-consumption","economy.market-pricing","military.war-chronology"]);
+});
 test("weekly production report explains limited inputs and matches the stockpile settlement",async()=>{
   const c=await catalog(),w=createWorld(c,{seed:"production-report-limited"});
   const colony=w.colonies["verdant-colony"],industry=colony.industries[0],recipe=c.recipes.get(industry.recipeId);
@@ -223,4 +245,11 @@ test("campaign clock forwards elapsed game days into the simulation advance", as
 
   assert.equal(world.clock.day, 1);
   assert.equal(world.clock.dayFraction, 0);
+});
+
+test("catalog rejects negative daily population need rates",async()=>{
+ const packages=await mods(),core=packages.find((item)=>item.id==="core");
+ core.data.content["economy.ini"].commodities.find((item)=>item.id==="food").dailyNeedPerThousand=-.1;
+ const result=compileCatalog(packages);
+ assert.equal(result.ok,false);assert.match(result.error,/dailyNeedPerThousand/);
 });

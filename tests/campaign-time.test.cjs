@@ -65,3 +65,31 @@ test("campaign controller rejects invalid speeds and non-monotonic time", () => 
   now = 5;
   assert.throws(() => controller.tick(), /monotonic/);
 });
+
+test("campaign settlement failures are distinguishable from control-input errors and can be stopped without ticking again", () => {
+  let now = 0;
+  const failure = new Error("settlement failed");
+  const controller = new CampaignTimeController({
+    baseDayDurationMs: 1000,
+    now: () => now,
+    onAdvance: () => { throw failure; }
+  });
+
+  controller.setSpeed(1);
+  now = 1000;
+  assert.throws(() => controller.tick(), (error) =>
+    error.code === "CAMPAIGN_TIME_ADVANCE_FAILURE"
+      && error.cause === failure
+      && /settlement failed/.test(error.message)
+  );
+
+  now = 1100;
+  assert.throws(() => controller.pause(), (error) =>
+    error.code === "CAMPAIGN_TIME_ADVANCE_FAILURE" && error.cause === failure
+  );
+
+  controller.reset();
+  assert.equal(controller.getState().speed, 0);
+  assert.equal(controller.getState().paused, true);
+  assert.equal(controller.lastTimestamp, 1100);
+});

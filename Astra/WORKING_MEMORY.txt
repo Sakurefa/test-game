@@ -204,4 +204,62 @@ and Mod principles. This does not authorize adding actual social classes,
 species, needs, wages, laws, events or economic tuning as Core gameplay
 content.
 
+
+
+9. PERSONNEL ENTITIES AND SETTLEMENT-DEPENDENT BUILDING EFFECTS
+--------------------------------------------------------------
+
+The user clarified two further architecture rules:
+
+- Named personnel are created through events, not by continuously simulating
+  every resident. Ordinary hiring may abstract selectable candidates from
+  aggregate population groups. Special events may create predefined or
+  generated people. A persistent personnel pool stores people already
+  generated/acquired and serving the player, such as friends, partners or
+  recruited specialists.
+- Personnel are stored independently from population groups and may carry
+  their own profession, capabilities, identity, relationships and optional
+  affiliations. An individual may be affiliated with a class, species,
+  organization or other group, or may serve independently without a normal
+  population affiliation. This supports exceptional entities such as royal
+  family members or agitators who operate through their own lists and
+  location/activity rules.
+- A personnel record is not automatically an additional resident. If a
+  person is abstracted from a population group, the hiring/creation rule must
+  explicitly define whether and how the aggregate group count changes.
+  Never double-count a named person in the population total.
+- Personnel attributes are only as detailed as their narrative or unique
+  strategic role requires. They do not create individual household accounts,
+  personal population needs, personal debt ledgers or per-person economic
+  simulation.
+
+For conditional building effects and similar rules:
+
+- Prefer direct operational facts (such as the building's actual employed
+  workforce groups and headcounts) over repeatedly deriving conditions from
+  volatile colony-wide averages or independent marginal population ratios.
+- A scheduled settlement may inspect only the workforce attributes relevant
+  to configured conditions. If no employed group has a relevant tag or
+  capability, skip that condition's detailed calculation.
+- Evaluate workforce-composition conditions at the configured settlement
+  boundary (the user's example is weekly). Calculate proportions from actual
+  employed headcounts at that instant. Apply or remove the corresponding
+  persistent building effect based on the result.
+- Once applied, the effect remains stable during the interval even if staff
+  change. Re-evaluate at the next scheduled settlement; do not continuously
+  recalculate it after every hire/departure.
+- When multiple settlement periods coincide, preserve the explicit priority:
+  annual settlement, then monthly, then weekly, then daily. In the current
+  project, weekly and daily are the ordinary simulation cadences; monthly and
+  annual settlement are future fixed-date settlement operations invoked by
+  triggers, not additional always-running scans.
+- These are generic engine contracts. Thresholds, tags, workforce categories,
+  effects and settlement definitions must be Mod-defined INI content, not
+  hard-coded game rules.
+
+The governing optimization rule is: avoid repeated dependencies between
+volatile derived values; use direct source data, calculate only relevant
+conditions, settle in a deterministic priority order, and keep the resulting
+effect stable until its next scheduled evaluation.
+
 END

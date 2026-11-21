@@ -40,7 +40,7 @@ function normalizeModEventEmission(event, catalog) {
     throw new TypeError("event.emit requires a Mod event type and optional object payload");
   }
   const type = "mod." + event.sourceId.replace(/_/g, "-") + "." + payload.type;
-  return normalizeDomainEventDescriptor({
+  const normalized = normalizeDomainEventDescriptor({
     type,
     scope: "mod",
     subjectId: event.sourceId,
@@ -50,6 +50,12 @@ function normalizeModEventEmission(event, catalog) {
       eventType: payload.type
     }
   });
+  return {
+    type: normalized.type,
+    scope: normalized.scope,
+    subjectId: normalized.subjectId,
+    payload: normalized.payload
+  };
 }
 
 function validateFormulaEffectRequest({ event, catalog }) {

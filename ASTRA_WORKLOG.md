@@ -105,8 +105,7 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 - Check that Logs/runtime.log is line-oriented JSONL and preserve the entire Logs folder if anything fails.
 
 ### Priority 2 — make observability player-readable
-- The calculation and event inspectors are useful diagnostics but still expose technical fields that are not always understandable as gameplay explanations.
-- Add localized plain-language summaries for colony production, requested/actual output and limiting inputs; show an explicit no-shortage state.
+- Per-industry weekly production reports are implemented in PR #4: requested/actual batches and output, actual input consumption, limiting material/inventory, and explicit normal/limited/no-output status. PR CI passed 141/141 tests; the UI still needs user-side Windows verification.
 - Keep raw calculation/event details as an advanced disclosure instead of making users interpret raw JSON.
 - Add a compact save/load state fingerprint/receipt so persistence can be compared without inspecting every field.
 
@@ -513,3 +512,21 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 - Automated verification: regression test added; full Windows CI is pending on the pull request. No local full test suite or local build was run. No assistant-run Windows desktop GUI test was performed.
 - User Windows test is required after the fix is merged and the latest source ZIP is downloaded. The separate launcher EXE does not need to be replaced for this source-only callback correction because it loads the adjacent repository's current `electron/main.cjs`.
 - Next: complete Windows CI, record its exact result here, then merge the fix and ask the user to repeat the 10-second / 4x start test before continuing the broader playtest checklist.
+
+
+### 2026-11-21 — campaign clock fix merge and colony production observability
+
+- Re-read the complete root `AGENTS.md` and `ASTRA_WORKLOG.md), then inspected the live main head `6b663ec766c70b55bf9c352665d2d8d913a339bc`, production formula/settlement, colony renderer, styles, tests and current CI workflow.
+- Verified main-branch Actions run [44893290960](https://github.com/Sakurefa/test-game/actions/runs/44893290960) completed successfully on `6b663ec766c70b55bf9c352665d2d8d913a339bc`: dependency installation, Electron/engine syntax, simulation/Mod tests, renderer build and generated-renderer step all passed.
+- PR #3, [Fix campaign clock crash when starting 4x time](https://github.com/Sakurefa/test-game/pull/3), was squash-merged as `6b663ec766c70b55bf9c352665d2d8d913a339bc`. The user-side 10-second / 4x GUI retest is still outstanding. The separately distributed launcher architecture remains unchanged.
+- Created PR #4, [Add readable colony production reports](https://github.com/Sakurefa/test-game/pull/4), from main. It adds a small `lastProductionReport` value to existing colony state without changing schema version 7 or making the report a second source of truth.
+- Each weekly production settlement now records, per facility: stable industry index/recipe ID, level, requested and actual batches, efficiency, normal/limited/no-output status, limiting input and its available/required quantities, planned output, actual output and actual consumed inputs. A zero-output facility is recorded rather than skipped. Input-free recipes remain normal and do not produce a false shortage warning.
+- The report is built from the exact result already returned by `economy.colony-production`; it does not rerun formulas, consume RNG, change the production formula, alter stockpile arithmetic or add runtime self-checks. The renderer looks up names/units from the existing catalog and shows the last settlement day, planned/actual output, batches and shortage reason. Older saves without a report continue to display a waiting state.
+- The report captures core facility production before the existing `colony.after-production` Mod hook. Mod hook stockpile effects remain separate from facility output, as intended.
+- Exact source/test files changed: `engine/simulation.cjs`, `src/world.js`, `src/styles.css`, `tests/engine.test.cjs`. This work-log entry also updates the current observability queue.
+- Added three focused tests: limited production and stockpile settlement consistency; zero-output facility/empty limiting stock; input-free extraction marked normal without a false shortage. The tests also read the colony back from the committed world after day settlement, preserving the existing atomic candidate-world commit boundary.
+- Final Windows GitHub Actions PR run [44896256660](https://github.com/Sakurefa/test-game/actions/runs/44896256660) passed on code head `025ecf218f23c8612839a4c95b14a1c88b29f747`: syntax checks passed, `npm test` passed 141/141 with 0 failures, and `npm run build:web` passed. This is Windows CI, not a user Windows desktop GUI test. Earlier CI attempts exposed test-fixture assumptions (an input-free recipe was selected for a shortage test, then a stale pre-commit object reference); both were corrected before the successful run.
+- No local test suite or local build was run. No user-side Windows GUI test was performed for this production UI or the merged campaign-clock fix.
+- Current PR #4 head before this work-log-only update: `025ecf218f23c8612839a4c95b14a1c88b29f747`. The work-log update itself changes the PR head and requires a fresh CI confirmation before merge.
+- Next: verify CI on the updated PR head, squash-merge when green, then accumulate a consolidated Windows desktop acceptance pass for the 10-second / 4x clock path, weekly production reports, autosave rotations, fatal reporting and Mod API v4 persistence. Do not ask for micro-tests after each small change.
+- Windows desktop test: required for the production UI and the campaign-clock correction; not yet performed.

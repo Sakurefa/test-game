@@ -37,5 +37,6 @@ jobs:
           git add -f dist
           if (-not (git diff --cached --quiet)) {
             git commit -m "chore(build): update renderer output"
+            git pull --rebase origin main
             git push
           }

@@ -97,6 +97,8 @@ Long-term direction:
 ### Priority 1 — one consolidated Windows desktop acceptance pass
 The previous clock interpolation, incremental daily region refresh, scroll retention and seven-segment weekly progress were confirmed by the user on an earlier revision. The current main branch adds autosaves, fail-fast world handling, Mod API v4, per-Mod persistent state/schema 7 and query projections. These newer runtime paths still need one combined desktop pass:
 
+- Verify the merged campaign-clock fix with a 10-second base day, a new journey and 4x speed.
+- Reach day 7 and inspect per-industry production reports: planned/actual batches and output, normal status for input-free extraction, and any naturally limited input. Confirm the report changes only on weekly settlement.
 - Daily autosaves at elapsed days 1 and 2; weekly autosaves at days 7 and 14; verify both two-slot rotations.
 - Load an automatic save and make a manual save; confirm the manual save uses its own slot.
 - Verify the fatal report from a deliberately failing hook in a disposable copy, not by editing a real save.
@@ -530,3 +532,14 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 - Current PR #4 head before this work-log-only update: `025ecf218f23c8612839a4c95b14a1c88b29f747`. The work-log update itself changes the PR head and requires a fresh CI confirmation before merge.
 - Next: verify CI on the updated PR head, squash-merge when green, then accumulate a consolidated Windows desktop acceptance pass for the 10-second / 4x clock path, weekly production reports, autosave rotations, fatal reporting and Mod API v4 persistence. Do not ask for micro-tests after each small change.
 - Windows desktop test: required for the production UI and the campaign-clock correction; not yet performed.
+
+
+### Post-merge verification — colony production reports (2026-11-21)
+
+- PR #4 [Add readable colony production reports](https://github.com/Sakurefa/test-game/pull/4) was squash-merged as `285debf9734ef68e627bae048198eda64601d674`.
+- Post-merge main Actions run [44896447965](https://github.com/Sakurefa/test-game/actions/runs/44896447965) completed successfully against the merge commit: Electron/engine syntax checks passed, `npm test` passed 141/141 with 0 failures, Vite renderer build passed, and generated renderer output was committed successfully.
+- CI-generated renderer commit: `5315ef733afd08bfeb5920643b875eccc402ff60`. Current main head at this entry: `5315ef733afd08bfeb5920643b875eccc402ff60`.
+- PR #3 campaign-clock correction and PR #4 production observability are now both merged. No launcher EXE, Electron runtime bootstrap or separate distribution arrangement was changed in these batches.
+- No user-side Windows desktop GUI test has been performed for the 10-second / 4x campaign clock fix or the colony production report UI. Both are explicitly included in the next consolidated Windows acceptance pass above.
+- Next: continue the observability work only where it gives concrete debugging value, keeping the AK principle: record facts already produced by real operations; do not add repeated audits, duplicate calculations or generic diagnostic frameworks.
+- Windows desktop test: required; not yet performed.

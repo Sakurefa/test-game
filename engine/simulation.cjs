@@ -6,6 +6,7 @@ const { createDomainEventEmitter, validateDomainEventState } = require("./domain
 const { validateCommandReceiptState } = require("./commands.cjs");
 const { createFinancialLedger, validateWorldFinancialState } = require("./ledger.cjs");
 const { createModExtensionRuntime, applyModHookResults, validateModState } = require("./mod-runtime.cjs");
+const { createPopulationGroups, validatePopulationGroups } = require("./population.cjs");
 
 const modRuntimeCache = new WeakMap();
 
@@ -24,7 +25,7 @@ function runModHook(modRuntime, hookId, input, { world, catalog, day, subjectKey
   return applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey, emitDomainEvent });
 }
 
-const GAME_STATE_SCHEMA_VERSION = 7;
+const GAME_STATE_SCHEMA_VERSION = 8;
 const MAX_ADVANCE_DAYS = 30;
 const MAX_CAMPAIGN_CATCH_UP_DAYS = 3650;
 const LOG_LIMIT = 100;
@@ -51,6 +52,7 @@ function createWorld(catalog, options = {}) {
     colonies[definition.id] = {
       id: definition.id,
       population: definition.population,
+      populationGroups: createPopulationGroups(definition.population),
       stability: definition.stability,
       stockpiles: { ...definition.stockpiles },
       industries: definition.industries.map((industry) => ({ ...industry })),
@@ -426,6 +428,7 @@ function validateWorldState(world, catalog) {
     if (!Number.isFinite(colony.population) || colony.population < 0 || !Number.isFinite(colony.stability) || colony.stability < 0 || colony.stability > 100) {
       throw new Error(`Save has invalid colony population or stability: ${id}`);
     }
+    validatePopulationGroups(colony.populationGroups, colony.population, `colony ${id}`);
     for (const [commodityId, quantity] of Object.entries(colony.stockpiles)) {
       if (!catalog.commodities.has(commodityId) || !Number.isFinite(quantity) || quantity < 0) throw new Error(`Save has invalid stockpile quantity: ${id}.${commodityId}`);
     }
@@ -594,7 +597,7 @@ function advanceCampaignTime(world, catalog, elapsedGameDays, options = {}) {
 
 function migrateWorldState(world) {
   if (!world || typeof world !== "object" || Array.isArray(world)) throw new TypeError("Invalid saved world");
-  if (![1, 2, 3, 4, 5, 6, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
+  if (![1, 2, 3, 4, 5, 6, 7, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
     throw new Error("Unsupported or invalid game-state schema: " + world.schemaVersion);
   }
   if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)) {
@@ -632,6 +635,21 @@ function migrateWorldState(world) {
     validateModState(world.modState);
     world.contentHashUpgradePending = true;
     world.schemaVersion = 7;
+  }
+  if (world.schemaVersion < 8) {
+    if (!world.colonies || typeof world.colonies !== "object" || Array.isArray(world.colonies)) {
+      throw new Error("Saved world has invalid colony state for population-group migration");
+    }
+    for (const [id, colony] of Object.entries(world.colonies)) {
+      if (!colony || !Number.isFinite(colony.population) || colony.population < 0) {
+        throw new Error("Saved colony has invalid population during migration: " + id);
+      }
+      if (!Object.hasOwn(colony, "populationGroups")) {
+        colony.populationGroups = createPopulationGroups(colony.population);
+      }
+      validatePopulationGroups(colony.populationGroups, colony.population, "colony " + id);
+    }
+    world.schemaVersion = 8;
   }
   return world;
 }

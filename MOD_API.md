@@ -182,7 +182,7 @@ Effects are requests, not arbitrary object mutations. The engine validates the t
 
 | Effect type | Payload keys | Behavior |
 | --- | --- | --- |
-| colony.population.delta | colonyId, delta | Adds population; the result cannot be negative |
+| colony.population.delta | colonyId, delta | Adds population to the unclassified group; reductions are distributed proportionally across existing groups; total population cannot become negative |
 | colony.stability.delta | colonyId, delta | Adjusts stability, bounded to 0–100 |
 | colony.stockpile.delta | colonyId, commodityId, delta | Adds/removes stock; result cannot be negative |
 | market.price.multiplier | marketId, instrumentId, multiplier | Adjusts a listed quote, bounded to 0.1×–10× its base price |
@@ -245,6 +245,6 @@ Never add native modules, executable binaries, arbitrary host callbacks or direc
 
 ### Legacy save content fingerprints
 
-When a schema 1–6 save is migrated to schema 7, the loader may recognize the previous INI-only content fingerprint if the current INI content is byte-for-byte equivalent. It then upgrades the stored fingerprint to include the currently enabled API v4 script sources and hook declarations. The population classification addition also retains the exact immediately previous INI-only fingerprint for this migration path.
+Schema 1–6 saves retain their existing one-time INI-only fingerprint upgrade when the current INI content is byte-for-byte equivalent; the upgraded fingerprint includes the enabled API v4 script sources and hook declarations. Schema 7 saves migrate to schema 8 by adding neutral persisted population groups from their existing scalar colony totals. This schema migration does not relax content-fingerprint checks for changed Mod data or scripts.
 
 One narrow additive-content exception also exists for the population classification catalog addition: a Schema-7 save from the immediately previous catalog can be upgraded when all prior content and the exact enabled JavaScript extension set match. Only the two new classification collections are excluded when computing that one compatibility fingerprint. This does not authorize arbitrary Schema-7 content changes; changes to existing definitions, enabled scripts or hook declarations still cause a fingerprint mismatch.

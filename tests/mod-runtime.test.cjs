@@ -10,6 +10,7 @@ const {
 const { createDomainEventEmitter } = require("../engine/domain-events.cjs");
 const { readModPackages } = require("../electron/mod-loader.cjs");
 const { compileCatalog } = require("../engine/catalog.cjs");
+const { createPopulationGroups } = require("../engine/population.cjs");
 const { createWorld, advanceDay } = require("../engine/simulation.cjs");
 
 function mod(source, hook = "campaign.after-day", handler = "onHook", id = "test-mod") {
@@ -140,7 +141,7 @@ test("applies only registered colony, market, fleet and war effects and records 
     domainEventSequence: 0,
     domainEvents: [],
     colonies: {
-      colonyOne: { id: "colonyOne", population: 100, stability: 50, stockpiles: { ore: 10 } }
+      colonyOne: { id: "colonyOne", population: 100, populationGroups: createPopulationGroups(100), stability: 50, stockpiles: { ore: 10 } }
     },
     markets: { marketOne: { id: "marketOne", prices: { ore: 5 }, lastChanges: { ore: 0 } } },
     fleets: { fleetOne: { id: "fleetOne", readiness: 70, morale: 80 } },
@@ -176,6 +177,7 @@ test("applies only registered colony, market, fleet and war effects and records 
 
   assert.deepEqual(emitted, { effectCount: 7, eventCount: 1 });
   assert.equal(world.colonies.colonyOne.population, 105);
+  assert.equal(world.colonies.colonyOne.populationGroups.unclassified.population, 105);
   assert.equal(world.colonies.colonyOne.stability, 52);
   assert.equal(world.colonies.colonyOne.stockpiles.ore, 13);
   assert.equal(world.markets.marketOne.prices.ore, 10);
@@ -186,6 +188,42 @@ test("applies only registered colony, market, fleet and war effects and records 
   assert.equal(world.domainEvents.length, 8);
   assert.equal(world.domainEvents.at(-1).type, "mod.test-mod.monthly-note");
   assert.ok(world.domainEvents.every((event) => event.idempotencyKey));
+});
+
+test("population delta effects remove people proportionally from existing groups", () => {
+  const world = {
+    clock: { day: 2, date: "2478-04-03" },
+    domainEventSequence: 0,
+    domainEvents: [],
+    colonies: {
+      colonyOne: {
+        id: "colonyOne",
+        population: 100,
+        populationGroups: {
+          "group-a": { id: "group-a", population: 60, dimensions: { profession: { miner: 1 } } },
+          "group-b": { id: "group-b", population: 40, dimensions: { profession: { engineer: 1 } } }
+        }
+      }
+    }
+  };
+  const outcomes = [{
+    modId: "test-mod",
+    effects: [{ type: "colony.population.delta", payload: { colonyId: "colonyOne", delta: -25 } }],
+    events: []
+  }];
+  applyModHookResults(outcomes, {
+    world,
+    catalog: { commodities: new Map(), securities: new Map() },
+    day: 2,
+    hookId: "campaign.after-day",
+    emitDomainEvent: createDomainEventEmitter(world, world.clock)
+  });
+
+  assert.equal(world.colonies.colonyOne.population, 75);
+  assert.equal(world.colonies.colonyOne.populationGroups["group-a"].population, 45);
+  assert.equal(world.colonies.colonyOne.populationGroups["group-b"].population, 30);
+  assert.deepEqual(world.colonies.colonyOne.populationGroups["group-a"].dimensions, { profession: { miner: 1 } });
+  assert.deepEqual(world.colonies.colonyOne.populationGroups["group-b"].dimensions, { profession: { engineer: 1 } });
 });
 
 test("refuses invalid targets, negative stockpiles and unlisted market instruments", () => {
@@ -222,7 +260,7 @@ test("runs the example Mod hook through real world day settlement", async () => 
     { day: 60, marketCount: 3, quoteCount: 15, previousMonths: 1, modId: "example-market", eventType: "monthly-market-observation" }
   ]);
   assert.deepEqual(world.modState["example-market"], { "months-observed": 2 });
-  assert.equal(world.schemaVersion, 7);
+  assert.equal(world.schemaVersion, 8);
 });
 
 

@@ -1,6 +1,7 @@
 "use strict";
 
 const vm = require("node:vm");
+const { applyPopulationDelta } = require("./population.cjs");
 
 const MOD_HOOK_PATTERN = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
 const MOD_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,63}$/;
@@ -210,7 +211,7 @@ function getRequired(collection, id, label) {
 }
 
 function getModState(world, modId) {
-  if (!isRecord(world.modState)) throw new Error("World is missing its schema v7 Mod state namespace");
+  if (!isRecord(world.modState)) throw new Error("World is missing its schema v8 Mod state namespace");
   if (!Object.hasOwn(world.modState, modId)) world.modState[modId] = {};
   if (!isRecord(world.modState[modId])) throw new Error("World contains invalid Mod state for " + modId);
   return world.modState[modId];
@@ -289,10 +290,8 @@ function applyModEffect(effect, world, catalog, modId) {
       requireKeys(payload, ["colonyId", "delta"], effect.type);
       const colony = world.colonies?.[payload.colonyId];
       if (!colony) throw new Error("Missing colony " + String(payload.colonyId));
-      const next = colony.population + requireFinite(payload.delta, effect.type + ".delta");
-      if (next < 0) throw new RangeError("Mod effect cannot reduce population below zero: " + colony.id);
-      colony.population = next;
-      return { colonyId: colony.id, population: next };
+      applyPopulationDelta(colony, requireFinite(payload.delta, effect.type + ".delta"));
+      return { colonyId: colony.id, population: colony.population };
     }
     case "colony.stability.delta": {
       requireKeys(payload, ["colonyId", "delta"], effect.type);

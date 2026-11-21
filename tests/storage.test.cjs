@@ -104,7 +104,7 @@ test("writes and restores a versioned game world inside its save slot", async (t
   await initializeStorage(root);
   await createSaveSlot(root, "slot_world", "Frontier Test");
   const state = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     contentHash: "test-content",
     universeId: "test-universe",
     clock: { date: "2478-04-01", day: 0 },
@@ -140,7 +140,7 @@ test("save receipt rejects world file changes before returning a world state", a
   await initializeStorage(root);
   await createSaveSlot(root, "slot_receipt_tamper", "Receipt Test");
   const state = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     contentHash: "receipt-content",
     universeId: "receipt-universe",
     clock: { date: "2478-04-04", day: 3 },
@@ -164,7 +164,7 @@ test("legacy saves without a receipt remain loadable and gain one on the next sa
   await initializeStorage(root);
   await createSaveSlot(root, "slot_legacy_receipt", "Legacy Receipt Test");
   const state = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     contentHash: "legacy-content",
     universeId: "legacy-universe",
     clock: { date: "2478-04-02", day: 1 },
@@ -189,7 +189,7 @@ test("partial or malformed receipt metadata marks a save damaged", async (t) => 
   await initializeStorage(root);
   await createSaveSlot(root, "slot_bad_receipt", "Bad Receipt");
   const state = {
-    schemaVersion: 7,
+    schemaVersion: 8,
     contentHash: "receipt-content",
     clock: { date: "2478-04-01", day: 0 }
   };

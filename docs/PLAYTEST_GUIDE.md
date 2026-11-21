@@ -1,8 +1,8 @@
-# Windows 桌面验收指南（main / Schema 7）
+# Windows 桌面验收指南（main / Schema 8）
 
-适用版本：GitHub `main`，当前功能基线为 world save schema 7。
+适用版本：GitHub `main`，当前功能基线为 world save schema 8。
 
-本指南用于一次性验收当前累积的时间、经济、自动存档、故障处理和 Mod v4 功能。GitHub Actions 的 Windows Runner 已通过 137/137 自动化测试和 Renderer 构建；这不等于真实桌面 GUI 已通过。
+本指南用于一次性验收当前累积的时间、经济、自动存档、故障处理、Mod v4 和人口群体存档兼容功能。请以本指南对应提交的 GitHub Actions 结果为自动化验证依据；CI 通过不等于真实桌面 GUI 已通过。
 
 ## 1. 准备当前版本
 

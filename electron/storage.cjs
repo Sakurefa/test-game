@@ -326,7 +326,7 @@ async function createSaveSlot(root, id, name = "New Save") {
 }
 
 async function writeGameState(root, id, state) {
-  if (!state || typeof state !== "object" || Array.isArray(state) || state.schemaVersion !== 7) {
+  if (!state || typeof state !== "object" || Array.isArray(state) || state.schemaVersion !== 8) {
     throw new Error("Invalid or unsupported game state");
   }
   const directory = await getSafeSlotDirectory(root, id);
@@ -386,7 +386,7 @@ async function readGameStateWithReceipt(root, id) {
   }
   const serialized = await fs.readFile(file, "utf8");
   const state = JSON.parse(serialized);
-  if (!state || typeof state !== "object" || ![1, 2, 3, 4, 5, 6, 7].includes(state.schemaVersion)) throw new Error("Unsupported game-state schema");
+  if (!state || typeof state !== "object" || ![1, 2, 3, 4, 5, 6, 7, 8].includes(state.schemaVersion)) throw new Error("Unsupported game-state schema");
 
   const metadataPath = path.join(directory, "metadata.ini");
   const metadataStat = await fs.lstat(metadataPath);

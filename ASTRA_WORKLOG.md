@@ -5,7 +5,7 @@
 ## Repository snapshot
 
 - Repository: https://github.com/Sakurefa/test-game
-- Branch: `main`; current documented HEAD: `6c429f719efee005058032eda7bf58c0c893a01b` (Astra audit record); latest code/test revision: `9011f03d6bf5808f7d01bab3ecb71863584f24e1` (campaign-clock validation and regression test).
+- Branch: `main`; latest code/test revision: `9011f03d6bf5808f7d01bab3ecb71863584f24e1` (campaign-clock validation and regression test). The current audit record is indexed below.
 - Latest completed Windows CI for the code/test revision: [44934853240](https://github.com/Sakurefa/test-game/actions/runs/44934853240), successful. Electron/Engine syntax check passed; `npm test` passed **205/205** with 0 failures; Renderer build and generated-renderer step succeeded.
 - No local full test suite/build was run. GitHub Windows CI is not user-side Windows GUI acceptance.
 - No user-side Windows GUI acceptance has been completed for the accumulated version. Launcher/Runtime packaging was not part of this session.

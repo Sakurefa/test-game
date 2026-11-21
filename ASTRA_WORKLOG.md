@@ -4,8 +4,8 @@
 
 ## Repository snapshot
 - Repository: https://github.com/Sakurefa/test-game
-- Branch: `main`; current code HEAD: `ac9cab507819af4852fdbe51ba16b6386b96d978` (calendar cadence fix), based on `f232d8038dd9fab8292ae5c2e9f2530fe68d13f0`.
-- Latest completed Windows CI: [44930171027](https://github.com/Sakurefa/test-game/actions/runs/44930171027), successful on `ac9cab507819af4852fdbe51ba16b6386b96d978`: Electron/Engine syntax checks passed; `npm test` passed **204/204**; Renderer build and generated-renderer step succeeded. The preceding feature commit's first CI [44929912985](https://github.com/Sakurefa/test-game/actions/runs/44929912985) failed on an over-escaped calendar-date regex; this was corrected in the current HEAD. No local full suite/build was run.
+- Branch: `main`; latest repository HEAD: `7c135078a3fb80c3edc12887562f09736a71b558` (documentation archive); latest runtime-code HEAD: `ac9cab507819af4852fdbe51ba16b6386b96d978` (calendar cadence fix), based on `f232d8038dd9fab8292ae5c2e9f2530fe68d13f0`.
+- Latest completed Windows CI: [44930542013](https://github.com/Sakurefa/test-game/actions/runs/44930542013), successful on `7c135078a3fb80c3edc12887562f09736a71b558`: Electron/Engine syntax checks passed; `npm test` passed **204/204**; Renderer build and generated-renderer step succeeded. The runtime implementation was also verified by [44930171027](https://github.com/Sakurefa/test-game/actions/runs/44930171027) on code HEAD `ac9cab507819af4852fdbe51ba16b6386b96d978`. The earlier feature commit's first CI [44929912985](https://github.com/Sakurefa/test-game/actions/runs/44929912985) failed on an over-escaped calendar-date regex; this was corrected before the successful runs. No local full suite/build was run.
 - Population implementation source commit: `9e515649734269e2ef71ed40d530740b83c36017`; test expectation correction: `0aa769dc97bf9c76718c3215b3d786e2869d07a1`.
 - No user-side Windows GUI acceptance was performed for the current accumulated revision. The recent population/trigger audit did not trigger Electron Runtime/Launcher packaging.
 
@@ -24,7 +24,19 @@ See Astra/DISCUSSIONS/: 关于游戏设计的讨论.txt, 经济系统设计.txt,
 Files use YYYY-MM-DD_NN_topic.txt. NN is one shared chronological sequence for the whole date. Historical grouped archives were numbered in their preserved source-log order:
 - 2026-11-20: 01
 - 2026-11-21: 01–08
-- 2026-11-22: 01–03
+- 2026-11-22: 01–04
+
+## Discussion record consistency review (2026-11-22_04)
+
+The current design decisions remain aligned across WORKING_MEMORY, 人口系统设计, 人员与建筑结算设计 and 关于接下来的工作: group-authoritative aggregate population; effects separate from triggers; due-only processing; approved effect/action calls; source/target/operation/value numeric influence; actual employed headcounts for workforce conditions; and annual → monthly → weekly → daily settlement priority.
+
+Two discussion summaries have stale implementation statements and should be refreshed in a later documentation-maintenance pass:
+- Astra/DISCUSSIONS/关于现状.txt still describes scalar population as authoritative and says runtime population groups do not exist.
+- Astra/DISCUSSIONS/经济系统设计.txt still says the colony's current population storage is scalar-authoritative. Its unresolved economy topics (need baskets, affordability, wages, market clearing, logistics and population feedback) remain unresolved.
+
+Astra/DISCUSSIONS/关于接下来的工作.txt reflects the 2026-11-22_03 calendar-cadence implementation. Astra/DISCUSSIONS/人员与建筑结算设计.txt remains a valid design record, but its fixed-date wording should distinguish the now-implemented recurring annual/monthly system cadence from the still-unimplemented general persisted trigger queue. Historical WORKFLOWS entries preserve their state at the time and must not be rewritten as current status.
+
+One boundary remains to be clarified before the next trigger implementation: recurring system cadence (annual/monthly/weekly/daily) versus individual persisted trigger instances (date/elapsed/condition/event). They must have a clear relationship and must not maintain duplicate competing calendar logic. See Astra/WORKFLOWS/2026-11-22_04_discussion-record-consistency-audit.txt. This review did not edit any topic-based discussion file.
 
 ## Current project state
 The project remains in generic Engine development. All playable game content is supplied through Mods under `mods/`; `mods/core` is the required baseline content Mod, not Engine code. The Engine remains independent of specific game definitions and balance.

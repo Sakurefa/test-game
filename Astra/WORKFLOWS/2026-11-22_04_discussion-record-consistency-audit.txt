@@ -1,0 +1,95 @@
+【工作流记录】相关讨论档案一致性检查
+======================================
+
+工作日期：2026-11-22
+当日序号：04
+检查基线：7c135078a3fb80c3edc12887562f09736a71b558
+结果：只读讨论检查；未修改主题讨论文件或游戏源码
+
+检查目的
+--------
+用户要求检查当前通用触发、结算、调用与数值影响方向相关的讨论记录，确认此前讨论是否仍然有效、现状描述是否已跟进最新实现，以及下一阶段有没有设计边界遗漏。
+
+读取范围
+--------
+先按 AGENTS.md 和 Astra/README.txt 的顺序读取：
+- AGENTS.md；
+- Astra/README.txt；
+- 完整 Astra/WORKING_MEMORY.txt；
+- ASTRA_WORKLOG.md；
+- Astra/IMPORTANT_PRINCIPLES/【最高优先级重要原则】AK 原则.txt；
+- Astra/IMPORTANT_PRINCIPLES/【最高优先级重要原则】MOD 化原则.txt。
+
+主题讨论：
+- Astra/DISCUSSIONS/关于接下来的工作.txt；
+- Astra/DISCUSSIONS/人员与建筑结算设计.txt；
+- Astra/DISCUSSIONS/人口系统设计.txt；
+- Astra/DISCUSSIONS/经济系统设计.txt；
+- Astra/DISCUSSIONS/关于游戏设计的讨论.txt；
+- Astra/DISCUSSIONS/关于现状.txt；
+- Astra/DISCUSSIONS/日志编写规范.txt。
+
+相关工作流：
+- Astra/WORKFLOWS/2026-11-21_03_clock-observability-save-integrity-and-population-foundation.txt；
+- Astra/WORKFLOWS/2026-11-21_06_engine-vs-mod-boundary-and-next-step.txt；
+- Astra/WORKFLOWS/2026-11-22_01_population-group-authoritative-runtime-transitions.txt；
+- Astra/WORKFLOWS/2026-11-22_02_trigger-settlement-call-numeric-architecture-audit.txt；
+- Astra/WORKFLOWS/2026-11-22_03_calendar-settlement-cadence-foundation.txt。
+
+并对照当前仓库 main、engine/system-registry.cjs、engine/simulation.cjs 与 docs/ENGINE_ARCHITECTURE.md；确认当前 main HEAD 和最近 Actions。
+
+仍然有效的设计决定
+------------------
+- 人口群体人数是权威人口；殖民地总人口等于群体人数之和；标量 population 只是派生兼容投影。
+- 人口是聚合群体模拟；群体属性为独立维度统计，不由独立边际比例推断联合分布；个体主要是叙事实体。
+- 效果与触发器分离。永久效果不需要计时器；临时效果通过独立到期触发器结束或改变。
+- 时间推进只处理已到期触发器，不扫描全部历史效果。
+- 触发结果只能调用明确批准的 Effect、Command 或 Event，不开放任意 Mod 函数或任意世界对象修改。
+- 数值影响方向为 source、target、operation、value；addition、subtraction、multiplication 依业务语义使用；公式计算与效果应用分离。
+- 建筑条件以实际雇佣群体和人数为来源；只在配置结算点检查实际需要的属性；结算后效果稳定到下一结算点。
+- 重合结算顺序为 annual → monthly → weekly → daily；人口阈值只是通用机制的一个潜在消费者，不能代替整套架构。
+- 游戏内容、阈值、类别与平衡由 Mod INI 定义；Engine 只提供通用机制。
+
+讨论档案现状检查
+----------------
+1. Astra/DISCUSSIONS/人口系统设计.txt：人口群体权威关系、Mod INI 初始化、群体运行时 split/merge/dimension 更新及当前需求仍按殖民地总量结算的区别，均与当前实现和工作记录一致。
+2. Astra/DISCUSSIONS/关于接下来的工作.txt：已更新到 2026-11-22_03；准确记录 annual/monthly cadence 已加入、当前没有真实 annual/monthly 游戏系统消费者、通用触发器 queue 和批准调用契约仍未实现。该文件目前是合适的当前导航记录。
+3. Astra/DISCUSSIONS/人员与建筑结算设计.txt：设计本身仍有效。它记录实际 workforce、人员池不重复计入人口、周期快照及稳定效果等规则。其“年/月未来由固定日期触发器调用”描述需要在下次讨论文件维护时补充实现状态：Engine 已支持 recurring annual/monthly cadence，但尚无通用 trigger instance queue。
+4. Astra/DISCUSSIONS/关于现状.txt：明显过时。仍称殖民地 scalar population 是当前权威数据、没有运行时人口群体、population delta 直接更改 scalar；这些表述与 schema 8 当前实现相反。它还记录旧 HEAD 与旧 CI，不应作为当前工程状态来源。
+5. Astra/DISCUSSIONS/经济系统设计.txt：部分过时。目标与未决清单仍有效，但“目前实现基础：殖民地保存 scalar population”现状描述已不准确；目前群体人数权威、标量总人口是派生投影。群体需求、需求篮子、购买力、工资、市场清算等仍未落地，不能误读为已经完成。
+6. Astra/DISCUSSIONS/关于游戏设计的讨论.txt：长期游戏方向与 Engine/Mod 边界仍有效，没有发现冲突。
+7. Astra/DISCUSSIONS/日志编写规范.txt：与 AGENTS.md 一致，日期序号和档案职责规则清晰。
+
+历史记录与当前状态的区分
+----------------------
+- 2026-11-21_03 是长期归档工作流，内部保存多个当时的阶段快照；其中的旧“下一项”是历史事实，不应为匹配当前状态而重写。
+- 2026-11-22_02 是 2026-11-22_03 之前的只读审计。它记录当时尚无 annual/monthly cadence 是准确的历史结论，由后续 03 工作流补齐。
+- 2026-11-22_03 记录了 calendar cadence 实现，但没有通用 Trigger System；与当前代码边界相符。
+
+需要在下阶段明确的设计边界
+--------------------------
+当前 registry 的 annual/monthly/weekly/daily 是重复运行的模拟系统 cadence；待实现的 general trigger queue 则是持久化的触发器实例，并计划涵盖 date、elapsed-time、condition、domain-event 等触发源。两者都涉及时间，但不能直接视为同一机制。
+
+在继续 trigger queue 之前，需明确 recurring cadence 与 individual trigger instance 的职责关系：
+- 哪些固定周期只由 system cadence 管理；
+- 哪些单次或有期限的到期动作使用 trigger instance；
+- 若 trigger 也支持固定日期，如何复用同一日历判定，避免出现两套月/年边界逻辑；
+- 触发器执行及其状态移除如何留在现有 candidate-world 原子日结算边界内。
+
+以上是本次检查发现的待明确边界，不是新增的用户决定；本轮没有据此改变架构。
+
+交叉核对结果
+------------
+- 当前 main HEAD：7c135078a3fb80c3edc12887562f09736a71b558；runtime code HEAD：ac9cab507819af4852fdbe51ba16b6386b96d978。
+- 最新已完成 Windows CI [44930542013](https://github.com/Sakurefa/test-game/actions/runs/44930542013) 成功，运行在文档归档 HEAD 7c135078；语法检查、npm test 204/204、Renderer build 和 generated-renderer step 全通过。
+- 本次未运行本地测试或 build；没有 Windows GUI 验收；没有修改游戏源码、Mod 内容、测试或存档 schema。
+
+精确文件变更
+------------
+- ASTRA_WORKLOG.md：刷新当前 repository HEAD / latest CI 以及讨论档案一致性摘要。
+- Astra/WORKFLOWS/2026-11-22_04_discussion-record-consistency-audit.txt：新增本次检查记录。
+- 本轮仅阅读主题讨论文件，没有修改 Astra/DISCUSSIONS/ 下任何主题文件。
+
+下一项
+------
+继续通用触发器机制前，先把 recurring system cadence 与 persisted trigger instance 的关系写成最小调用契约，再实现 date/elapsed due queue 和批准的 Effect/Command/Event invocation。不要缩成仅人口阈值；不要引入不必要的第二套日历扫描或历史全表扫描。

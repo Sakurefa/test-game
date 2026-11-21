@@ -2,6 +2,7 @@
 
 const { parseDate } = require("./clock.cjs");
 const { createSystemEvent } = require("./system-events.cjs");
+const { settleSystemEvent } = require("./settlement.cjs");
 
 const ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,63}$/;
 const MOD_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,63}$/;
@@ -265,18 +266,9 @@ function processDueTriggers(world, { day, date, catalog, resolutions, calculatio
 
   for (const trigger of due) {
     const systemEvent = createSystemEvent(trigger, { day, date });
-    const plan = resolutions.resolve(systemEvent, {
-      world: structuredClone(world), catalog, day, trigger, calculations, randomStreams
+    const settlement = settleSystemEvent(systemEvent, {
+      world, catalog, day, trigger, resolutions, calculations, randomStreams, applyEffect
     });
-    const appliedEffects = [];
-    for (const [index, effect] of plan.effects.entries()) {
-      const result = applyEffect({ event: systemEvent, effect, index, world, catalog, day, trigger });
-      if (result && typeof result.then === "function") {
-        if (typeof result.catch === "function") result.catch(() => {});
-        throw new TypeError("Trigger Effect execution must be synchronous");
-      }
-      appliedEffects.push({ effectType: effect.type, result });
-    }
     emitDomainEvent({
       type: "trigger.resolved",
       scope: "trigger",
@@ -286,8 +278,8 @@ function processDueTriggers(world, { day, date, catalog, resolutions, calculatio
         ownerId: trigger.ownerId,
         systemEventId: systemEvent.id,
         eventType: systemEvent.type,
-        resolution: plan.result,
-        effects: appliedEffects
+        resolution: settlement.result,
+        effects: settlement.effects
       }
     });
 
@@ -313,8 +305,8 @@ function processDueTriggers(world, { day, date, catalog, resolutions, calculatio
       triggerId: trigger.id,
       ownerId: trigger.ownerId,
       eventType: trigger.event.type,
-      resolution: plan.result,
-      effects: appliedEffects
+      resolution: settlement.result,
+      effects: settlement.effects
     });
   }
   return processed;

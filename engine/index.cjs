@@ -4,6 +4,7 @@ module.exports = {
   ...require("./domain-events.cjs"),
   ...require("./system-events.cjs"),
   ...require("./resolutions.cjs"),
+  ...require("./settlement.cjs"),
   ...require("./triggers.cjs"),
   ...require("./event-bus.cjs"),
   ...require("./mod-runtime.cjs"),

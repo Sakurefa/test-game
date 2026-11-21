@@ -1,0 +1,58 @@
+【工作流记录】Settlement 执行管线从 Trigger Queue 抽离
+=================================================
+
+工作日期：2026-11-22
+当日序号：11
+仓库：Sakurefa/test-game
+分支：main
+
+基线与目标
+----------
+- 基线代码/测试提交：`b8cdd7cda5f5b3ace825c198e34efdc0a2b0293a`。
+- 基线 Windows 源码 CI：[44953041332](https://github.com/Sakurefa/test-game/actions/runs/44953041332) 成功：219/219 tests、语法检查、Renderer build 和 generated-renderer 步骤全部通过。
+- 本轮目标：把 System Event 的 Resolution + Effect 执行管线从 Trigger Queue 调度逻辑中抽离，形成可复用 Engine 入口。
+- 不新增存档字段、schema 版本、触发源、Effect 类型或具体玩法。
+
+实现内容
+--------
+1. 新增 `engine/settlement.cjs`，导出 `settleSystemEvent()`。
+2. Settlement 接收一个 System Event、candidate world、Resolution registry、计算/随机上下文和 Engine Effect executor。
+3. Resolution 只接收 detached snapshot，并返回经过 registry JSON-safe 验证的 `{ result, effects }` 计划；Settlement 按序调用 Effect executor，返回结果与每项已应用 Effect 的实际结果。
+4. Settlement 不管理 Trigger Queue、不写 Domain Event history、不承担 Presentation/UI；它只处理单个 System Event 的执行阶段。
+5. `engine/triggers.cjs` 现在负责 due 检测、System Event 创建、调用 Settlement、写 `trigger.resolved`、pending 出队与 receipt。
+6. Effect executor 仍由 Simulation 层注入，并复用原有 `applyModEffect` 白名单及 `mod.effect-applied` 事实记录。
+
+测试覆盖
+--------
+- 新增 `tests/settlement.test.cjs`：验证 detached snapshot 不会改动权威 candidate world；只有 Effect executor 可以应用变更。
+- 验证零 Effect plan 不会调用 Effect executor。
+- 验证缺少 Effect executor 和异步 Effect executor 均被拒绝。
+- 原 Trigger 集成测试继续覆盖 Resolution 结果、Effect 计划、Domain Event、receipt 和 candidate-world 原子回滚。
+
+精确变更文件
+------------
+- `engine/settlement.cjs`（新增）
+- `engine/triggers.cjs`
+- `engine/index.cjs`
+- `package.json`（将 Settlement 加入语法检查）
+- `tests/settlement.test.cjs`（新增）
+- `tests/triggers.test.cjs`
+- `MOD_API.md`
+- `docs/ENGINE_ARCHITECTURE.md`
+- `docs/SIMULATION_DOMAIN_MAP.md`
+- `Astra/DISCUSSIONS/Trigger System 与系统 Event 架构.txt`
+- `Astra/DISCUSSIONS/关于现状.txt`
+- `Astra/DISCUSSIONS/关于接下来的工作.txt`
+- `Astra/WORKING_MEMORY.txt`
+- `Astra/WORKFLOWS/2026-11-22_11_settlement-runner-separated-from-trigger-queue.txt`
+
+验证状态
+--------
+- 本地测试/构建：未执行；未在本地克隆运行 npm。
+- GitHub Windows CI：本轮代码提交后待触发，结果后续补记。
+- 用户 Windows GUI：未执行。
+- Electron Runtime/Launcher 独立打包：本轮未执行。
+
+后续方向
+--------
+Settlement 现已从 Trigger Queue 抽离。下一步可以选择一个有权威事实来源的非日期/经过时间 Trigger source，并先明确检测频率、重复/游标语义与 candidate-world 原子提交边界；不向 Settlement 加入历史扫描或通用表达式功能。

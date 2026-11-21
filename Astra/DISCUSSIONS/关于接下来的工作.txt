@@ -120,3 +120,17 @@
 实现提交为 `920c6528b5a664c6cee3f62f59a7313c7e140471`，测试夹具修正提交为 `b8cdd7cda5f5b3ace825c198e34efdc0a2b0293a`。Windows CI [44953041332](https://github.com/Sakurefa/test-game/actions/runs/44953041332) 已成功：语法检查、219/219 测试、Renderer build 和 generated-renderer 步骤全部通过。未执行本地测试/构建和用户 Windows GUI 验收。
 
 下一步建议：先从现有权威数据中选择一个真正需要条件/阈值或 Domain Event 驱动的 Trigger 消费者，再确定检测频率、游标/去重语义和 candidate-world 原子提交边界；不建立通用表达式引擎，也不扫描全量 Domain Event 历史。
+
+## 2026-11-22_11 Settlement 执行管线从 Trigger Queue 抽离
+
+本次继续把调度与执行职责分开：
+1. 新增 `engine/settlement.cjs`，提供通用 `settleSystemEvent()` 入口。
+2. Settlement 接收一个 System Event、detached candidate-world snapshot、Resolution registry 和 Effect executor；它返回结算结果与实际应用的 Effect 结果。
+3. Settlement 不操作 Trigger Queue、不写 Domain Event history、不接触 Presentation/UI。
+4. Trigger Runner 只负责检测 due item、创建 System Event、调用 Settlement、写 `trigger.resolved`、出队和 receipt。
+5. Effect executor 仍是 Engine 注入的既有 `applyModEffect`；Settlement 不暴露任意 Mod callback。
+6. 测试独立覆盖 detached snapshot、Effect 单独改变 candidate world、零 Effect resolution 与异步 Effect executor 拒绝；现有 Trigger 集成测试继续验证整日原子事务。
+
+本次只是将已有一条实际执行路径抽成可复用 Engine 模块，没有新增存档字段、触发源、Effect 类型或具体玩法。CI 结果以工作流记录 2026-11-22_11 为准。
+
+下一步：在 Settlement 可复用入口稳定后，再选择一个有权威数据消费者的非日期/经过时间 Trigger source；先明确其检测频率、重复/游标语义和事务边界，避免把事件历史扫描或通用表达式引擎塞进该模块。

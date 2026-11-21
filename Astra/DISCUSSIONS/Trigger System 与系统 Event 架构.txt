@@ -64,3 +64,15 @@ Presentation 以后可以把已提交事实转换为玩家可见通知、报告�
 - 若公式输出缺少绑定字段、公式输入非法或 Effect 被拒绝，整日 candidate world 回滚，不会出现半完成效果。
 
 本阶段并未增加公式定义、随机事件池、条件表达式、数值 modifier、Command/Event Resolution 或 UI Presentation；只是让现有公式服务成为通用 Resolution 的真实消费者。
+
+## Settlement 执行器与 Trigger Queue 分离（2026-11-22）
+
+新增 `engine/settlement.cjs`，提供共享的 `settleSystemEvent()` 执行管线：
+
+- 输入：一个 System Event、当前 candidate world、注册的 Resolution registry、计算/随机上下文和 Engine Effect executor。
+- Resolution 接收 detached world snapshot，返回经过结构校验的 `{ result, effects }` 计划。
+- Settlement 依序调用 Effect executor，返回 `{ result, effects: [{ effectType, result }] }`；不修改队列、不写 Domain Event history、不做 UI。
+- Trigger Queue 继续负责到期检测、System Event 创建、调用 Settlement、记录 `trigger.resolved`、出队与 receipt。
+- Effect executor 仍由 Engine 注入，复用 `applyModEffect` 和现有白名单；Settlement 不接受任意 Mod callback。
+
+这样 Trigger 是一个调度来源，而 Settlement 是可复用的执行管线；其他经批准的 System Event 来源以后可直接复用 Settlement，不必进入 Trigger Queue 内部。

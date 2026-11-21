@@ -199,7 +199,7 @@ A direct approved Effect request uses `effect.apply`:
 }
 ```
 
-A Resolution receives a detached snapshot of the current candidate world, calculates a result and returns a bounded plan; it does not mutate the authoritative world or apply world changes itself. The Engine then applies each planned Effect through the existing registered Mod Effect handler. This keeps calculation output separate from authoritative mutation.
+A Resolution receives a detached snapshot of the current candidate world, calculates a result and returns a bounded plan; it does not mutate the authoritative world or apply world changes itself. The Engine's shared Settlement runner (`engine/settlement.cjs`) then applies each planned Effect through the existing registered Mod Effect handler. This runner is independent of the Trigger Queue: it accepts a System Event, Resolution registry and Effect executor, and returns the calculation result plus applied Effect results. It does not own scheduling, Domain Event history or UI. This keeps calculation output separate from authoritative mutation.
 
 The second built-in Resolution, `formula.effect`, evaluates an existing Engine-registered versioned formula and maps selected top-level result fields into approved Effect payloads:
 

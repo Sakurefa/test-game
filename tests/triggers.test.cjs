@@ -66,50 +66,6 @@ test("date and elapsed Triggers share the campaign calendar and process in due o
   }, { resolutions, catalog }).duplicate, true);
 });
 
-test("Resolution returns an Effect plan and the Engine applies it in a separate step", () => {
-  const world = triggerWorld();
-  world.value = 0;
-  const catalog = { modIds: ["test-mod"] };
-  const resolutions = createResolutionRegistry([{
-    id: "test.plan",
-    resolve: ({ event, world: currentWorld }) => {
-      assert.equal(currentWorld.value, 0);
-      currentWorld.value = 100;
-      return {
-        result: { calculated: event.payload.value + 1 },
-        effects: [{ type: "test.value.set", payload: { value: event.payload.value + 1 } }]
-      };
-    }
-  }]);
-  scheduleTrigger(world, {
-    id: "test-mod.plan",
-    ownerId: "test-mod",
-    due: { kind: "elapsed", days: 1 },
-    event: { type: "test.plan", payload: { value: 8 } }
-  }, { resolutions, catalog });
-  world.clock = { day: 11, date: "2480-02-29" };
-
-  const emitted = [];
-  const processed = processDueTriggers(world, {
-    day: 11,
-    date: world.clock.date,
-    catalog,
-    resolutions,
-    applyEffect: ({ effect, world: candidate }) => {
-      assert.equal(candidate.value, 0);
-      candidate.value = effect.payload.value;
-      return { after: candidate.value };
-    },
-    emitDomainEvent: (event) => { emitted.push(event); return event; }
-  });
-
-  assert.equal(world.value, 9);
-  assert.deepEqual(processed[0].resolution, { calculated: 9 });
-  assert.deepEqual(processed[0].effects, [{ effectType: "test.value.set", result: { after: 9 } }]);
-  assert.deepEqual(emitted[0].payload.resolution, { calculated: 9 });
-  assert.deepEqual(emitted[0].payload.effects, [{ effectType: "test.value.set", result: { after: 9 } }]);
-});
-
 test("Resolution rejects malformed plans and caps the number of planned Effects", () => {
   const event = { type: "test.plan", payload: {} };
   const missingEffects = createResolutionRegistry([{

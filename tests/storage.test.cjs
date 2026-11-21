@@ -6,7 +6,7 @@ const path = require("node:path");
 const { createLogger } = require("../electron/logger.cjs");
 const {
   initializeStorage, readSettings, writeSettings, listSaveSlots,
-  createSaveSlot, readGameState, writeGameState, removeSaveSlot
+  createSaveSlot, readGameState, readGameStateWithReceipt, writeGameState, removeSaveSlot
 } = require("../electron/storage.cjs");
 
 async function fixture(t) {
@@ -117,12 +117,92 @@ test("writes and restores a versioned game world inside its save slot", async (t
     player: { factionId: "test-faction", accountId: "player-main" },
     finance: { currencies: { CR: { id: "CR", minorUnitDigits: 2 } }, accounts: {}, sequence: 0, transactions: [] }
   };
-  await writeGameState(root, "slot_world", state);
-  assert.deepEqual(await readGameState(root, "slot_world"), state);
+  const writtenReceipt = await writeGameState(root, "slot_world", state);
+  const restored = await readGameStateWithReceipt(root, "slot_world");
+  assert.deepEqual(restored.state, state);
+  assert.equal(writtenReceipt.status, "written");
+  const repeatedReceipt = await writeGameState(root, "slot_world", state);
+  assert.equal(repeatedReceipt.fingerprint, writtenReceipt.fingerprint);
+  assert.equal(repeatedReceipt.bytes, writtenReceipt.bytes);
+  assert.equal(restored.receipt.status, "verified");
+  assert.equal(restored.receipt.fingerprint, writtenReceipt.fingerprint);
+  assert.equal(restored.receipt.bytes, writtenReceipt.bytes);
   const [slot] = await listSaveSlots(root);
   assert.equal(slot.metadata.name, "Frontier Test");
   assert.equal(slot.hasWorld, true);
+  assert.equal(slot.receipt.status, "stored");
+  assert.equal(slot.receipt.fingerprint, writtenReceipt.fingerprint);
   assert.ok(slot.metadata.updated_at);
+});
+
+test("save receipt rejects world file changes before returning a world state", async (t) => {
+  const root = await fixture(t);
+  await initializeStorage(root);
+  await createSaveSlot(root, "slot_receipt_tamper", "Receipt Test");
+  const state = {
+    schemaVersion: 7,
+    contentHash: "receipt-content",
+    universeId: "receipt-universe",
+    clock: { date: "2478-04-04", day: 3 },
+    metadata: { marker: "receipt-test-marker" }
+  };
+  const receipt = await writeGameState(root, "slot_receipt_tamper", state);
+  assert.equal(receipt.fingerprint.length, 64);
+
+  const worldPath = path.join(root, "save", "slot_receipt_tamper", "data", "world.json");
+  const serialized = await fs.readFile(worldPath, "utf8");
+  await fs.writeFile(worldPath, serialized.replace("receipt-test-marker", "receipt-test-tamper"));
+
+  await assert.rejects(
+    () => readGameStateWithReceipt(root, "slot_receipt_tamper"),
+    /Save receipt mismatch: world file SHA-256 fingerprint changed/
+  );
+});
+
+test("legacy saves without a receipt remain loadable and gain one on the next save", async (t) => {
+  const root = await fixture(t);
+  await initializeStorage(root);
+  await createSaveSlot(root, "slot_legacy_receipt", "Legacy Receipt Test");
+  const state = {
+    schemaVersion: 7,
+    contentHash: "legacy-content",
+    universeId: "legacy-universe",
+    clock: { date: "2478-04-02", day: 1 },
+    marker: "legacy-world"
+  };
+  const worldPath = path.join(root, "save", "slot_legacy_receipt", "data", "world.json");
+  await fs.writeFile(worldPath, JSON.stringify(state, null, 2));
+
+  const legacy = await readGameStateWithReceipt(root, "slot_legacy_receipt");
+  assert.deepEqual(legacy.state, state);
+  assert.equal(legacy.receipt.status, "legacy-unverified");
+  assert.equal((await readGameState(root, "slot_legacy_receipt")).marker, "legacy-world");
+
+  await writeGameState(root, "slot_legacy_receipt", legacy.state);
+  const upgraded = await readGameStateWithReceipt(root, "slot_legacy_receipt");
+  assert.equal(upgraded.receipt.status, "verified");
+  assert.equal(upgraded.receipt.fingerprint.length, 64);
+});
+
+test("partial or malformed receipt metadata marks a save damaged", async (t) => {
+  const root = await fixture(t);
+  await initializeStorage(root);
+  await createSaveSlot(root, "slot_bad_receipt", "Bad Receipt");
+  const state = {
+    schemaVersion: 7,
+    contentHash: "receipt-content",
+    clock: { date: "2478-04-01", day: 0 }
+  };
+  await writeGameState(root, "slot_bad_receipt", state);
+  const metadataPath = path.join(root, "save", "slot_bad_receipt", "metadata.ini");
+  let metadata = await fs.readFile(metadataPath, "utf8");
+  metadata = metadata.split(/\r?\n/).filter((line) => !line.startsWith("world_receipt_fingerprint = ")).join("\n");
+  await fs.writeFile(metadataPath, metadata);
+
+  const [slot] = await listSaveSlots(root);
+  assert.equal(slot.status, "damaged");
+  assert.match(slot.error, /Save receipt metadata is incomplete/);
+  await assert.rejects(() => readGameState(root, "slot_bad_receipt"), /Save receipt metadata is incomplete/);
 });
 
 test("game-state storage rejects unsafe slot IDs and unsupported schemas", async (t) => {

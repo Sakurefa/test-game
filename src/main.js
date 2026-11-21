@@ -210,6 +210,7 @@ function syncCampaignClock(status) {
   state.world.timeControl = { ...status.timeControl };
   if (status.saveId !== undefined) state.world.saveId = status.saveId;
   if (status.dirty !== undefined) state.world.dirty = status.dirty;
+  if (status.saveReceipt !== undefined) state.world.saveReceipt = status.saveReceipt;
   updateCampaignClockMetadata();
   updateCampaignClockProgress();
   if (worldClockView.timeControl.speed > 0) startCampaignClockAnimation();
@@ -221,7 +222,8 @@ function syncCampaignClockFromSnapshot(snapshot) {
     clock: snapshot.world.clock,
     timeControl: snapshot.timeControl,
     saveId: snapshot.saveId,
-    dirty: snapshot.dirty
+    dirty: snapshot.dirty,
+    saveReceipt: snapshot.saveReceipt
   });
 }
 
@@ -365,7 +367,10 @@ async function loadWorld(saveId) {
     state.domainEventsOpen = false;
     syncCampaignClockFromSnapshot(state.world);
     state.worldTab = "overview";
-    state.worldNotice = "存档载入成功，世界时间默认暂停。日期、随机数与结算调度状态已从存档恢复。";
+    const receipt = state.world.saveReceipt;
+    state.worldNotice = receipt?.status === "verified"
+      ? `存档载入成功，SHA-256 摘要核对通过：${receipt.fingerprint.slice(0, 12)}。世界时间默认暂停。`
+      : "旧存档未记录完整性摘要，已按兼容方式载入；下次保存会自动生成摘要。";
     renderActiveWorld();
   } catch (error) {
     subPage("无法载入存档", "该存档可能不是世界存档，或者所需 Mod 内容已经发生变化。", `<p class="error-state">${escapeHtml(error.message)}</p>`);
@@ -377,11 +382,19 @@ async function showSaves() {
   if (!hostAvailable()) return subPage("读取存档", "存档列表需要桌面运行环境。", '<p class="empty-state">请通过游戏启动器打开。</p>');
   try {
     state.slots = await window.gameHost.save.listSlots();
-    const cards = state.slots.map(slot => `
+    const cards = state.slots.map(slot => {
+      const receipt = slot.receipt;
+      const receiptLine = receipt?.status === "stored"
+        ? `<small title="${escapeHtml(receipt.fingerprint)}">SHA-256 ${escapeHtml(receipt.fingerprint.slice(0, 12))} · ${escapeHtml(String(receipt.bytes))} 字节 · 第 ${escapeHtml(String(receipt.day ?? "—"))} 天（载入时核对）</small>`
+        : slot.hasWorld
+          ? '<small>无完整性摘要 · 旧存档仍可兼容载入</small>'
+          : "";
+      return `
       <article class="data-card">
-        <div class="card-main"><span class="card-kicker">${escapeHtml(slot.id)}</span><h3>${escapeHtml(slot.metadata?.name || "无法读取的存档")}</h3><p>${slot.status === "ok" ? (slot.hasWorld ? "世界存档正常 · 载入时会校验 Mod 内容版本" : "旧版本空数据槽 · 尚无可载入的世界") : slot.status === "incompatible" ? "存档版本不兼容" : "存档数据或元数据有问题：" + escapeHtml(slot.error)}</p><small>${escapeHtml(slot.metadata?.updated_at || slot.metadata?.created_at || "无时间信息")}</small></div>
+        <div class="card-main"><span class="card-kicker">${escapeHtml(slot.id)}</span><h3>${escapeHtml(slot.metadata?.name || "无法读取的存档")}</h3><p>${slot.status === "ok" ? (slot.hasWorld ? "世界存档正常 · 载入时会校验 Mod 内容版本" : "旧版本空数据槽 · 尚无可载入的世界") : slot.status === "incompatible" ? "存档版本不兼容" : "存档数据或元数据有问题：" + escapeHtml(slot.error)}</p><small>${escapeHtml(slot.metadata?.updated_at || slot.metadata?.created_at || "无时间信息")}</small>${receiptLine}</div>
         <div class="card-actions"><span class="status-pill ${slot.status}">${slot.status === "ok" ? "正常" : slot.status === "incompatible" ? "不兼容" : "损坏"}</span>${slot.status === "ok" && slot.hasWorld ? `<button class="small-button" data-action="load-save" data-id="${escapeHtml(slot.id)}">载入</button>` : ""}<button class="small-button danger" data-action="delete-save" data-id="${escapeHtml(slot.id)}">删除</button></div>
-      </article>`).join("");
+      </article>`;
+    }).join("");
     subPage("读取存档", "世界状态保存在游戏根目录 save/ 对应槽位的 data/world.json 中。", cards || '<p class="empty-state">还没有存档。开始一段新航程即可创建第一个世界。</p>');
   } catch (error) {
     subPage("读取存档", "读取存档列表时发生错误。", `<p class="error-state">${escapeHtml(error.message)}</p>`);
@@ -479,7 +492,10 @@ app.addEventListener("click", async (event) => {
         state.world.dirty = false;
         const clockStatus = await window.gameHost.world.getClockStatus();
         syncCampaignClock(clockStatus);
-        state.worldNotice = `世界已保存：${result.saveId}`;
+        state.world.saveReceipt = result.receipt;
+        state.worldNotice = result.receipt?.fingerprint
+          ? `世界已保存：${result.saveId} · SHA-256 ${result.receipt.fingerprint.slice(0, 12)}`
+          : `世界已保存：${result.saveId}`;
       } else if (action === "leave") {
         if (state.world.dirty && !window.confirm("当前世界有尚未保存的更改。返回主菜单将丢失这些更改，确定继续吗？")) return;
         await window.gameHost.world.leave();

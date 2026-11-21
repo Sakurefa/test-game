@@ -1,5 +1,6 @@
 const fs = require("node:fs/promises");
 const path = require("node:path");
+const crypto = require("node:crypto");
 const { parseIni } = require("./ini-parser.cjs");
 
 const STORAGE_VERSION = 1;
@@ -162,6 +163,86 @@ async function writeSettings(root, patch) {
   return { settings: current, changed };
 }
 
+const SAVE_RECEIPT_VERSION = 1;
+const SAVE_RECEIPT_FIELDS = [
+  "world_receipt_version",
+  "world_receipt_algorithm",
+  "world_receipt_fingerprint",
+  "world_receipt_bytes",
+  "world_receipt_schema_version",
+  "world_receipt_day",
+  "world_receipt_date",
+  "world_receipt_content_hash"
+];
+
+function createSaveReceipt(serialized, state) {
+  return {
+    version: SAVE_RECEIPT_VERSION,
+    algorithm: "sha256",
+    fingerprint: crypto.createHash("sha256").update(serialized, "utf8").digest("hex"),
+    bytes: Buffer.byteLength(serialized, "utf8"),
+    schemaVersion: state.schemaVersion,
+    day: Number.isInteger(state.clock?.day) ? state.clock.day : null,
+    date: typeof state.clock?.date === "string" ? state.clock.date : null,
+    contentHash: typeof state.contentHash === "string" ? state.contentHash : null
+  };
+}
+
+function storeSaveReceipt(metadata, receipt) {
+  metadata.world_receipt_version = receipt.version;
+  metadata.world_receipt_algorithm = receipt.algorithm;
+  metadata.world_receipt_fingerprint = receipt.fingerprint;
+  metadata.world_receipt_bytes = receipt.bytes;
+  metadata.world_receipt_schema_version = receipt.schemaVersion;
+  metadata.world_receipt_day = receipt.day;
+  metadata.world_receipt_date = receipt.date;
+  metadata.world_receipt_content_hash = receipt.contentHash;
+}
+
+function readStoredSaveReceipt(metadata) {
+  const present = SAVE_RECEIPT_FIELDS.filter((key) => Object.hasOwn(metadata, key));
+  if (present.length === 0) return null;
+  if (present.length !== SAVE_RECEIPT_FIELDS.length) {
+    throw new Error("Save receipt metadata is incomplete");
+  }
+
+  const receipt = {
+    version: metadata.world_receipt_version,
+    algorithm: metadata.world_receipt_algorithm,
+    fingerprint: metadata.world_receipt_fingerprint,
+    bytes: metadata.world_receipt_bytes,
+    schemaVersion: metadata.world_receipt_schema_version,
+    day: metadata.world_receipt_day,
+    date: metadata.world_receipt_date,
+    contentHash: metadata.world_receipt_content_hash
+  };
+  if (receipt.version !== SAVE_RECEIPT_VERSION) throw new Error("Unsupported save receipt version");
+  if (receipt.algorithm !== "sha256" || typeof receipt.fingerprint !== "string" || !/^[a-f0-9]{64}$/.test(receipt.fingerprint)) {
+    throw new Error("Save receipt fingerprint is invalid");
+  }
+  if (!Number.isSafeInteger(receipt.bytes) || receipt.bytes < 1) throw new Error("Save receipt byte length is invalid");
+  if (!Number.isInteger(receipt.schemaVersion) || receipt.schemaVersion < 1) throw new Error("Save receipt schema version is invalid");
+  if (receipt.day !== null && (!Number.isInteger(receipt.day) || receipt.day < 0)) throw new Error("Save receipt campaign day is invalid");
+  if (receipt.date !== null && typeof receipt.date !== "string") throw new Error("Save receipt campaign date is invalid");
+  if (receipt.contentHash !== null && typeof receipt.contentHash !== "string") throw new Error("Save receipt content fingerprint is invalid");
+  return receipt;
+}
+
+function verifySaveReceipt(serialized, state, receipt) {
+  const actualBytes = Buffer.byteLength(serialized, "utf8");
+  const actualFingerprint = crypto.createHash("sha256").update(serialized, "utf8").digest("hex");
+  if (receipt.bytes !== actualBytes) throw new Error("Save receipt mismatch: world file byte length changed");
+  if (receipt.fingerprint !== actualFingerprint) throw new Error("Save receipt mismatch: world file SHA-256 fingerprint changed");
+  if (receipt.schemaVersion !== state.schemaVersion) throw new Error("Save receipt mismatch: world schema version changed");
+  const day = Number.isInteger(state.clock?.day) ? state.clock.day : null;
+  const date = typeof state.clock?.date === "string" ? state.clock.date : null;
+  const contentHash = typeof state.contentHash === "string" ? state.contentHash : null;
+  if (receipt.day !== day || receipt.date !== date || receipt.contentHash !== contentHash) {
+    throw new Error("Save receipt mismatch: world metadata does not match the saved world");
+  }
+  return { ...receipt, status: "verified" };
+}
+
 function isSafeSlotId(id) {
   return typeof id === "string" && /^slot_[a-zA-Z0-9_-]{1,48}$/.test(id);
 }
@@ -196,6 +277,7 @@ async function listSaveSlots(root) {
       const raw = await fs.readFile(metadataPath, "utf8");
       const metadata = parseIni(raw).save;
       if (!metadata || typeof metadata !== "object") throw new Error("Missing [save] metadata section");
+      const storedReceipt = readStoredSaveReceipt(metadata);
       let hasWorld = false;
       try {
         const dataDirectory = path.join(slotPath, "data");
@@ -213,7 +295,8 @@ async function listSaveSlots(root) {
       slots.push({
         id: entry.name, metadata,
         status: metadata.schema_version === STORAGE_VERSION ? "ok" : "incompatible",
-        hasWorld
+        hasWorld,
+        receipt: storedReceipt ? { ...storedReceipt, status: "stored" } : { status: "legacy-unverified" }
       });
     } catch (error) {
       slots.push({ id: entry.name, metadata: null, status: "damaged", error: error.message });
@@ -253,8 +336,8 @@ async function writeGameState(root, id, state) {
   if (!dataStat.isDirectory() || dataStat.isSymbolicLink()) throw new Error("Save data directory is linked or invalid");
   const serialized = JSON.stringify(state, null, 2);
   if (Buffer.byteLength(serialized, "utf8") > MAX_GAME_STATE_BYTES) throw new Error("Game state exceeds the 16 MiB save limit");
-  await atomicWrite(path.join(dataDirectory, "world.json"), serialized);
-
+  const receipt = createSaveReceipt(serialized, state);
+  const worldPath = path.join(dataDirectory, "world.json");
   const metadataPath = path.join(directory, "metadata.ini");
   const metadataStat = await fs.lstat(metadataPath);
   if (!metadataStat.isFile() || metadataStat.isSymbolicLink() || metadataStat.size > 64 * 1024) {
@@ -262,12 +345,36 @@ async function writeGameState(root, id, state) {
   }
   const parsed = parseIni(await fs.readFile(metadataPath, "utf8"));
   if (!parsed.save) throw new Error("Save metadata is missing its [save] section");
-  parsed.save.updated_at = new Date().toISOString();
-  await atomicWrite(metadataPath, serializeIni(parsed));
-  return true;
+
+  let previousWorld = null;
+  try {
+    const previousStat = await fs.lstat(worldPath);
+    if (!previousStat.isFile() || previousStat.isSymbolicLink() || previousStat.size > MAX_GAME_STATE_BYTES) {
+      throw new Error("Existing world save is linked, invalid or too large");
+    }
+    previousWorld = await fs.readFile(worldPath);
+  } catch (error) {
+    if (error.code !== "ENOENT") throw error;
+  }
+
+  await atomicWrite(worldPath, serialized);
+  try {
+    parsed.save.updated_at = new Date().toISOString();
+    storeSaveReceipt(parsed.save, receipt);
+    await atomicWrite(metadataPath, serializeIni(parsed));
+  } catch (error) {
+    try {
+      if (previousWorld) await atomicWrite(worldPath, previousWorld);
+      else await fs.rm(worldPath, { force: true });
+    } catch (restoreError) {
+      throw new AggregateError([error, restoreError], "Save metadata update failed and the previous world file could not be restored");
+    }
+    throw error;
+  }
+  return { ...receipt, status: "written" };
 }
 
-async function readGameState(root, id) {
+async function readGameStateWithReceipt(root, id) {
   const directory = await getSafeSlotDirectory(root, id);
   const dataDirectory = path.join(directory, "data");
   const dataStat = await fs.lstat(dataDirectory);
@@ -277,9 +384,37 @@ async function readGameState(root, id) {
   if (!stat.isFile() || stat.isSymbolicLink() || stat.size > MAX_GAME_STATE_BYTES) {
     throw new Error("Game-state file is missing, linked or too large");
   }
-  const state = JSON.parse(await fs.readFile(file, "utf8"));
+  const serialized = await fs.readFile(file, "utf8");
+  const state = JSON.parse(serialized);
   if (!state || typeof state !== "object" || ![1, 2, 3, 4, 5, 6, 7].includes(state.schemaVersion)) throw new Error("Unsupported game-state schema");
-  return state;
+
+  const metadataPath = path.join(directory, "metadata.ini");
+  const metadataStat = await fs.lstat(metadataPath);
+  if (!metadataStat.isFile() || metadataStat.isSymbolicLink() || metadataStat.size > 64 * 1024) {
+    throw new Error("Save metadata is linked or invalid");
+  }
+  const metadata = parseIni(await fs.readFile(metadataPath, "utf8")).save;
+  if (!metadata || typeof metadata !== "object") throw new Error("Save metadata is missing its [save] section");
+  const storedReceipt = readStoredSaveReceipt(metadata);
+  const receipt = storedReceipt
+    ? verifySaveReceipt(serialized, state, storedReceipt)
+    : {
+      status: "legacy-unverified",
+      version: null,
+      algorithm: "sha256",
+      fingerprint: null,
+      bytes: Buffer.byteLength(serialized, "utf8"),
+      schemaVersion: state.schemaVersion,
+      day: Number.isInteger(state.clock?.day) ? state.clock.day : null,
+      date: typeof state.clock?.date === "string" ? state.clock.date : null,
+      contentHash: typeof state.contentHash === "string" ? state.contentHash : null
+    };
+  return { state, receipt };
+}
+
+async function readGameState(root, id) {
+  const result = await readGameStateWithReceipt(root, id);
+  return result.state;
 }
 
 async function removeSaveSlot(root, id) {
@@ -301,5 +436,5 @@ async function removeSaveSlot(root, id) {
 module.exports = {
   STORAGE_VERSION, MAX_GAME_STATE_BYTES, DEFAULT_SETTINGS, serializeIni, atomicWrite,
   initializeStorage, readSettings, writeSettings, listSaveSlots, createSaveSlot,
-  readGameState, writeGameState, removeSaveSlot, isSafeSlotId
+  readGameState, readGameStateWithReceipt, writeGameState, removeSaveSlot, isSafeSlotId
 };

@@ -4,7 +4,7 @@ const fs = require("node:fs/promises");
 const { readModPackages, loadCoreContent } = require("./mod-loader.cjs");
 const {
   initializeStorage, readSettings, writeSettings, listSaveSlots,
-  createSaveSlot, readGameState, writeGameState, removeSaveSlot, isSafeSlotId
+  createSaveSlot, readGameState, readGameStateWithReceipt, writeGameState, removeSaveSlot, isSafeSlotId
 } = require("./storage.cjs");
 const { createAutomaticSaveManager } = require("./autosave.cjs");
 const { compileCatalog } = require("../engine/catalog.cjs");
@@ -25,6 +25,7 @@ let mainWindow = null;
 let pendingFatalReport = null;
 let fatalHandling = false;
 let activeSaveId = null;
+let activeSaveReceipt = null;
 let activeWorldDirty = false;
 let activeCommandGateway = null;
 let worldSaveInProgress = false;
@@ -73,6 +74,7 @@ async function failActiveWorld(error, source) {
   activeWorld = null;
   activeCatalog = null;
   activeSaveId = null;
+  activeSaveReceipt = null;
   activeWorldDirty = false;
   await new Promise((resolve) => setTimeout(resolve, 150));
   let logContext = errorStack || errorMessage;
@@ -216,7 +218,13 @@ function getActiveWorldSnapshot() {
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
   try {
     campaignTime.tick();
-    return { ...createSnapshot(activeWorld, activeCatalog), saveId: activeSaveId, dirty: activeWorldDirty, timeControl: campaignTime.getState() };
+    return {
+      ...createSnapshot(activeWorld, activeCatalog),
+      saveId: activeSaveId,
+      dirty: activeWorldDirty,
+      saveReceipt: activeSaveReceipt ? { ...activeSaveReceipt } : null,
+      timeControl: campaignTime.getState()
+    };
   } catch (error) {
     void failActiveWorld(error, "world.snapshot");
     throw error;
@@ -231,6 +239,7 @@ function getActiveWorldClockStatus() {
       clock: { ...activeWorld.clock },
       saveId: activeSaveId,
       dirty: activeWorldDirty,
+      saveReceipt: activeSaveReceipt ? { ...activeSaveReceipt } : null,
       timeControl: campaignTime.getState()
     };
   } catch (error) {
@@ -247,8 +256,9 @@ handleIpc("world:start-new", async () => {
     const nextWorld = createWorld(nextCatalog, { seed: Date.now() });
     const nextSaveId = `slot_demo_${Date.now().toString(36)}`;
     await createSaveSlot(GAME_ROOT, nextSaveId, nextWorld.metadata.name);
+    let nextSaveReceipt;
     try {
-      await writeGameState(GAME_ROOT, nextSaveId, nextWorld);
+      nextSaveReceipt = await writeGameState(GAME_ROOT, nextSaveId, nextWorld);
     } catch (error) {
       await removeSaveSlot(GAME_ROOT, nextSaveId).catch(() => {});
       throw error;
@@ -262,6 +272,7 @@ handleIpc("world:start-new", async () => {
     pendingFatalReport = null;
     campaignTime.reset();
     activeSaveId = nextSaveId;
+    activeSaveReceipt = nextSaveReceipt;
     activeWorldDirty = false;
     installWorldCommandGateway();
     logger.info("world", `Started world ${activeWorld.universeId} in ${activeSaveId}`);
@@ -277,7 +288,8 @@ handleIpc("world:load-save", async (_event, saveId) => {
   worldTransitionInProgress = true;
   try {
     const nextCatalog = await loadWorldCatalog();
-    const nextWorld = migrateWorldState(await readGameState(GAME_ROOT, saveId));
+    const loadedSave = await readGameStateWithReceipt(GAME_ROOT, saveId);
+    const nextWorld = migrateWorldState(loadedSave.state);
     validateWorldState(nextWorld, nextCatalog);
     campaignTime.tick();
     campaignTime.pause();
@@ -288,8 +300,10 @@ handleIpc("world:load-save", async (_event, saveId) => {
     pendingFatalReport = null;
     campaignTime.reset();
     activeSaveId = saveId;
+    activeSaveReceipt = loadedSave.receipt;
     activeWorldDirty = false;
     installWorldCommandGateway();
+    logger.info("world.save-receipt", { saveId, ...activeSaveReceipt });
     logger.info("world", `Loaded world from ${saveId}`);
     return getActiveWorldSnapshot();
   } finally {
@@ -370,10 +384,14 @@ handleIpc("world:save", async () => {
     previousSpeed = campaignTime.getState().speed;
     campaignTime.pause();
     const consistentSnapshot = structuredClone(worldBeingSaved);
-    await writeGameState(GAME_ROOT, saveId, consistentSnapshot);
-    if (activeWorld === worldBeingSaved && activeSaveId === saveId) activeWorldDirty = false;
+    const receipt = await writeGameState(GAME_ROOT, saveId, consistentSnapshot);
+    if (activeWorld === worldBeingSaved && activeSaveId === saveId) {
+      activeWorldDirty = false;
+      activeSaveReceipt = receipt;
+    }
+    logger.info("world.save-receipt", { saveId, ...receipt });
     logger.info("world", `Saved world to ${saveId}`);
-    return { saveId, savedAt: new Date().toISOString() };
+    return { saveId, savedAt: new Date().toISOString(), receipt };
   } finally {
     worldSaveInProgress = false;
     if (worldBeingSaved && activeWorld === worldBeingSaved && activeSaveId === saveId && previousSpeed > 0) {
@@ -390,6 +408,7 @@ handleIpc("world:leave", async () => {
   activeWorld = null;
   activeCatalog = null;
   activeSaveId = null;
+  activeSaveReceipt = null;
   activeWorldDirty = false;
   return true;
 });

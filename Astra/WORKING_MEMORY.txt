@@ -88,7 +88,11 @@ The existing `colony.population.delta` effect remains compatible: positive delta
 - If a person is abstracted from a group, hiring/creation rules must explicitly define whether and when the source group count changes. Never double-count.
 - Building conditions use actual employed workforce groups and headcounts, not volatile colony averages or unsupported marginal intersections.
 - At configured settlement boundaries, inspect only workforce attributes relevant to active conditions; calculate shares from actual employed headcounts; apply/remove persistent effects; keep effects stable until the next scheduled evaluation.
-- Coincident settlement priority is annual → monthly → weekly → daily. Monthly/annual operations are future fixed-date trigger calls, not always-running scans.
+- Coincident recurring simulation-system settlement priority is annual → monthly → weekly → daily. Recurring work belongs to the simulation-system cadence registry; annual/monthly cadence is now supported there, while individual one-shot actions belong to trigger instances.
+- Persisted trigger instances are distinct from recurring system cadence. They represent individual date/elapsed-time/condition/domain-event actions, including temporary-effect expiry; they must not create a second recurring scheduler or duplicate calendar rules.
+- Initial due-trigger processing is aligned to completed campaign-day settlement boundaries. `clock.dayFraction` tracks partial-day progress, but does not currently execute a sub-day simulation settlement; sub-day triggers require an explicit future simulation-phase contract.
+- Trigger actions and removal of due entries must occur on the detached candidate world during day settlement. The action and queue change commit together only if the day succeeds; a failure discards the candidate. Domain events are published externally only after the world commit.
+- Triggers may invoke only explicitly registered and validated Effect/Command/Event actions, never arbitrary Mod functions or unrestricted world patches. Exact ordering relative to cadence systems and post-fire retry/idempotency semantics must be fixed with the first real trigger consumer.
 - Thresholds, tags, workforce categories, effects and settlement definitions remain Mod-defined INI content.
 
 10. DISCUSSION AND WORKFLOW ARCHIVE RULE

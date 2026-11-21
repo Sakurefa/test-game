@@ -1,10 +1,35 @@
 关于现状
 ========
 
-仓库 Sakurefa/test-game，分支 main。本次整理开始时 HEAD 为 d8ab44d36b72fa2bfbfa557cdd40ea759a8737b1。该提交 combined status 查询无状态条目，不能据此声称 CI 通过。
+当前阶段：通用 Engine 地基建设。目标是让模拟内核提供稳定、可复用、可维护的机制；所有实际游戏内容与规则由 `mods/` 下的 Mod 提供，`mods/core` 是必需的基础内容 Mod，不属于 Engine。
 
-当前阶段：多领域模拟引擎地基。已有连续时间、每日/每周模拟系统、命名随机流与公式、领域事件、命令分发、财务余额、结构化日志、自动存档、原子日结算、Mod API v4 与只读查询投影。
+## 已有底层
 
-人口现状：殖民地仍以 scalar population 保存总量；每日需求按总人口聚合；没有运行时人口 cohorts；profession 与 wealth_tier 是独立 INI catalog 类型，Core 只有中性占位；colony.population.delta 仍直接改变 scalar population；每周生产已存在，但 recipe workforce 仍是 metadata。关键人员池与建筑 workforce 快照尚未实现。
+- World save schema 8；战役时钟保存日历日期、经过日数与日内进度。
+- Simulation system registry 支持 annual、monthly、weekly、daily、manual cadence。年度在 1 月 1 日到期，月度在每月 1 日到期，周度仍按每七个经过日，日度按每个完整游戏日；重合时按 annual → monthly → weekly → daily 排序。
+- 当前实际注册的结算系统仍是周度殖民地生产，以及日度人口需求、市场报价与战争时间线。尚无实际 annual/monthly 游戏系统消费者。
+- 每日结算在 detached candidate world 上运行；所有系统和 Hook 成功后才替换正式 world。失败时丢弃 candidate。领域事件先写入候选世界，提交后才通过 Event Bus 对外发布。
+- 命名随机流、版本化计算服务、typed Domain Event 历史、只读 Event Bus、命令分发器、主进程命令网关、财务账本、Mod API v4 与只读查询投影已经存在。
+- Mod manifest、registry、内容定义和 localization 使用 INI。API v4 JS 仅通过声明的 hooks 返回已注册效果/事件；Core 是必需内容 Mod。
 
-验证：较早提交 e4025edca93e816f50d62c43427a9212a146016b 的 CI run 44912016537 曾通过，npm test 178/178，语法与 Vite build 通过；这不代表后续 HEAD 通过。Windows 综合验收仍未完成。
+## 人口与经济现状
+
+- 人口采用聚合群体模型。每个群体的人数是权威人口记录，殖民地总人口等于群体人数之和；标量 `population` 只是派生兼容/读取投影。
+- Mod 可通过 INI 的 `population_group` 定义完整初始群体。没有群体定义时才从 colony fallback population 创建单一 `unclassified` 群体；schema 1–7 存档迁移时将旧总量一次性转换为中性群体。
+- 群体支持 split、merge 和维度分布更新；这些群体重组不改变人口总量。旧 `colony.population.delta` 仍负责总人口增减。
+- 当前每日需求仍按派生的殖民地总人口聚合计算，没有按人口群体分别结算需求。Core 尚未写入实际人口构成。
+- 每周生产已存在，但配方 workforce 仍只是 metadata；真实雇佣群体、工资、人员池与建筑 workforce 结算尚未实现。库存仍为殖民地共享库存，市场仍主要进行商品/证券报价更新。
+
+## 效果、触发器与结算边界
+
+- 效果与触发器分离；永久效果不需要计时器，临时效果由独立到期触发器结束或改变。
+- 通用数值影响的目标接口为 source、target、operation、value；公式计算与效果应用分离。
+- 周期性模拟系统使用 system cadence；未来持久化 Trigger instance 用于单次日期/经过时间/条件/领域事件动作，不替代 recurring cadence。
+- 通用 Trigger Queue、批准的 Effect/Command/Event 调用层、条件/事件触发求值、临时效果生命周期与通用数值修改器仍未实现。当前 Event Bus 只观察已提交事实，不是 gameplay trigger system。
+- 触发器只能调用明确登记和校验的动作，不开放任意 Mod 函数或 world patch。到期动作与出队需要处于 candidate-world 日结算原子边界内。
+
+## 验证与未完成事项
+
+最近一次已核验的 Windows CI（2026-11-22 基线）：语法检查、204 项测试、Renderer build 与 generated-renderer 步骤均成功。该结果不是用户设备 GUI 验收。当前累积版本仍未完成用户端 Windows 综合 GUI 验收；未运行本地完整测试/构建的工作流不会被描述为本地通过。
+
+下一阶段仍是通用 Engine 机制，不提前加入具体人口比例、需求篮子、工资、市场清算、职业规则或建筑平衡。

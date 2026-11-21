@@ -19,7 +19,8 @@
 - 时间推进时处理已经到期的触发器，不扫描全部历史效果。
 - 通用数值影响需要来源、目标、运算类型和值；按业务语义支持加、减、乘等操作。
 - 建筑条件读取实际雇佣群体与人数，而非从人口平均值或独立边际比例推算交叉数据。只在约定结算点计算需要的属性与人数比例，并让结果在下一结算点前保持稳定。
-- 多个结算周期重合时，优先级为 **年度 → 月度 → 周度 → 日度**。年度/月度应由固定日历日期触发；周度/日度为现有普通结算周期。
+- 多个周期性 simulation systems 在同一边界到期时，固定顺序为 **年度 → 月度 → 周度 → 日度**。年度/月度由 registry cadence 按真实日历日期判定；周度按每七个经过日，日度按每个完整游戏日。
+- 周期性 system cadence 与单个持久化 Trigger instance 是两种不同职责：前者负责重复运行的系统结算；后者负责单次日期/经过时间/条件/领域事件动作，以及临时效果到期。Trigger Queue 不应复制 annual/monthly recurring scheduler，也不应维护另一套日历算法。
 
 ## 当前实现状态（截至 2026-11-22_03）
 
@@ -72,3 +73,18 @@
 2026-11-22_03 日历结算 cadence 实现提交：6acd23b63d7776173a56186861dda24491736a3f；其首次 CI [44929912985](https://github.com/Sakurefa/test-game/actions/runs/44929912985) 因日期正则多转义一层而失败。修正提交：ac9cab507819af4852fdbe51ba16b6386b96d978；Windows CI [44930171027](https://github.com/Sakurefa/test-game/actions/runs/44930171027) 成功，语法检查通过，测试 204/204，Renderer build 与生成文件步骤通过。本阶段未运行本地测试/构建，也未进行用户设备 Windows GUI 验收。具体过程见 Astra/WORKFLOWS/2026-11-22_03_calendar-settlement-cadence-foundation.txt。
 
 每一步保持小而可测试，并同时遵守 AK 原则与 MOD 化原则。
+
+
+## Cadence 与 Trigger instance 的边界（2026-11-22）
+
+这一边界用于约束下一阶段实现，不代表通用 Trigger System 已经完成：
+
+1. **Recurring cadence 归 simulation system registry 管理。** Annual、monthly、weekly、daily 是重复结算系统的调度规则；manual 仍只接受显式调用。它们不应该被复制成每个 Mod/每个 Trigger instance 的重复任务。
+2. **Persisted Trigger instance 表示单个待执行动作。** 它面向一次性日期动作、经过时间到期、条件/领域事件响应，以及临时效果的独立到期动作。永久效果不需要对应的 timer。
+3. **共享同一战役时钟。** 日期触发读取 `world.clock.date`，日历校验与日期运算复用 `engine/clock.cjs` 的规则；不另造月份长度或 30 天近似。现阶段经过时间只在完整 campaign-day 边界结算，因为 `dayFraction` 目前只是日内时钟进度，没有子日模拟结算。
+4. **与每日原子结算绑定。** 到期动作、触发器出队和由动作产生的领域事件都先写入 candidate world；只有整日成功后才一起提交。失败时丢弃 candidate，不允许出现动作已应用但触发器仍被移除，或触发器已出队但动作未应用的半完成状态。Event Bus 只在 world commit 后接收新事件。
+5. **只调用批准动作。** Trigger record 只引用明确登记并校验的 Effect/Command/Event 入口；不能存放任意 JS 函数、任意 Mod 回调或任意 world patch。
+
+开始实现完整队列前仍需和第一个真实消费者一起钉死：触发器动作相对 annual/monthly/weekly/daily systems 的准确执行相位；触发创建的稳定 ID 与重放/重复创建语义；事件触发的游标与防止同一结算中递归触发的规则。初期不支持子日触发；若未来确有需求，再为子日模拟定义独立、明确的结算边界。
+
+当前建议的下一步仍是先实现最小 date/elapsed due queue 与批准调用契约，并用 Engine 内的真实通用动作消费者及聚焦测试验证；不要先做人口阈值、建筑 workforce 或具体经济玩法。

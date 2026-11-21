@@ -9,7 +9,7 @@ The project is a multi-system frontier simulation. A commodity exchange is one s
 - **Production:** data-defined recipes, inputs, outputs, workforce and operating efficiency.
 - **Economy:** commodities, companies, markets, securities and later player orders/accounts.
 - **Military:** ship classes, fleets, readiness, orders, wars, fronts and later real-time battles.
-- **Simulation kernel:** continuous campaign clock, seeded random state, ordered daily/weekly systems, event history and save validation.
+- **Simulation kernel:** continuous campaign clock, seeded random state, annual/monthly/weekly/daily/manual simulation-system cadence, typed event history and save validation.
 - **Presentation:** renderer only displays snapshots and sends player commands. It does not own authoritative simulation state.
 
 ## Runtime contract
@@ -33,7 +33,7 @@ The current campaign schedule is:
 
 The initial base rate is one game day per 60 real seconds at 1x. The 1x–4x multiplier is independent of this rate and can be tuned through `setting/simulation.ini` (`base_day_seconds`). New games and loaded games start paused. The engine clock itself does not depend on wall-clock timestamps.
 
-A saved game records its world schema version, content fingerprint, calendar date/day/fraction, scheduler markers, random state, dynamic entities, typed domain-event history and recent command receipts. Legacy world schemas 1–5 migrate to schema 6 while preserving campaign time, existing entities, and the player's prior cash/holdings. The migration initializes the finance ledger and command receipt fields that did not exist in older formats. Loading against a different content fingerprint is still rejected explicitly rather than silently binding saved entities to changed Mod definitions.
+A saved game records its world schema version, content fingerprint, calendar date/day/fraction, scheduler markers, random state, dynamic entities, population groups, typed domain-event history and recent command receipts. Legacy world schemas 1–7 migrate to schema 8 while preserving campaign time and existing entities. The migration initializes missing finance, command receipt, Mod-state, domain-event and population-group fields as required by each source schema; legacy scalar colony population is converted once into a neutral group. Schemas 1–6 retain the documented one-time legacy content-fingerprint upgrade, while schema 7 keeps strict Mod/script fingerprint checks subject to the exact recorded compatibility alias. Loading against unrelated content remains rejected explicitly.
  
 ## Mixed INI and JavaScript Mod contract
 
@@ -102,7 +102,7 @@ A colony owns its population, stability, stockpiles and industry instances. An i
 
 The current prototype models industry throughput from level and stability and consumes available input stock. A first population-demand layer also runs daily: Core/Mod commodity definitions may specify `daily_need_per_thousand`, measured in commodity units per 1,000 residents per game day. The versioned `economy.population-needs` formula calculates requested, consumed and unmet quantities plus per-commodity satisfaction. The scheduled `population.needs-consumption` system applies only the quantity actually available, after weekly production and before daily market pricing. Results are retained on each colony as `lastNeedsReport` and emitted as `colony.needs-settled` facts.
 
-This is deliberately an aggregate-population first step, not a cohort model. Needs shortfalls are observable but do not yet change population, health or stability. Cohort identity, demographic transitions, substitution, workforce allocation, wages, facility upkeep, pollution, service demand, construction queues and local logistics remain future systems.
+This is still an aggregate colony-total needs calculation, not per-group demand settlement. The underlying population storage is already group-authoritative: group counts define the colony total, and the scalar population field is only a derived compatibility projection. Needs shortfalls are observable but do not yet change population, health or stability. Group-specific demand, demographic transitions, substitution, workforce allocation, wages, facility upkeep, pollution, service demand, construction queues and local logistics remain future systems.
 
 ### Commerce and finance layer
 
@@ -122,7 +122,9 @@ This separation is essential for pause, speed controls, AI battles, save/load an
 
 New simulation systems should be registered with stable IDs, explicit cadence, deterministic priority and declared dependencies. A system may optionally provide initialization, update, save, restore and disposal hooks. Systems must not depend on renderer timing, Electron APIs, audio playback or direct DOM state. Cross-system state changes remain inside authoritative system updates, while completed production, market settlement and active-war chronology emit typed domain events. Validated player/AI command dispatch is now available as an engine service. Future gameplay systems still need to register concrete commands and route player/AI intent through the world-command runtime; UI controls must not gain direct access to world objects.
 
-The current registry supports daily, weekly and manual cadences. Weekly scheduling is anchored to the campaign start: it runs after every seven elapsed days (day 7, 14, 21…). The scheduler records the last day each system ran, and its dependency order is weekly production → daily population needs → daily market pricing on a shared weekly boundary. Active-war chronology also runs daily.
+The registry supports annual, monthly, weekly, daily and manual cadences. Annual systems are due on January 1; monthly systems are due on the first calendar day of each month; weekly systems remain anchored to every seven elapsed days (day 7, 14, 21…); daily systems run at each completed campaign-day boundary. Coincident recurring systems run in annual → monthly → weekly → daily phase order, then respect dependencies and configured order. The scheduler records each system's last run day. Current consumers remain weekly colony production and daily population needs, market pricing and active-war chronology; no annual or monthly gameplay system is registered yet.
+
+Recurring cadence is distinct from the future persisted Trigger Queue. Cadence owns repeated system work; an individual Trigger instance owns one scheduled action, such as a one-off date/elapsed-time action or temporary-effect expiry. Trigger instances must reuse the campaign clock's date rules rather than implement a second calendar. The current settlement model processes simulation work only at completed whole-day boundaries; fractional day progress does not run sub-day systems. Trigger actions and their queue removal must occur inside the detached candidate-world day settlement, so they commit together or are discarded together on failure. Domain events are published only after commit. Triggers may invoke only registered, validated Effect/Command/Event actions. Exact trigger phase ordering relative to cadence systems, post-fire retry/idempotency semantics and event-trigger cursor/re-entrancy rules remain to be fixed with the first real consumer; the general Trigger Queue is not implemented yet.
  
 ## Development roadmap
 

@@ -32,7 +32,13 @@ class CampaignTimeController {
     this.lastTimestamp = timestamp;
     if (this.speed === 0 || elapsedMs === 0) return 0;
     const elapsedGameDays = elapsedMs * this.speed / this.baseDayDurationMs;
-    this.onAdvance(elapsedGameDays);
+    try {
+      this.onAdvance(elapsedGameDays);
+    } catch (cause) {
+      const error = new Error(`Campaign time advance failed: ${cause?.message || String(cause)}`, { cause });
+      error.code = "CAMPAIGN_TIME_ADVANCE_FAILURE";
+      throw error;
+    }
     return elapsedGameDays;
   }
 

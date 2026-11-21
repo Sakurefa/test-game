@@ -36,6 +36,23 @@ test("executes declared hooks with deterministic input and a small pure helper A
   assert.equal(first[0].events[0].payload.globalRandomType, "undefined");
 });
 
+test("separates deterministic random sequences by entity scope and freezes hook input", () => {
+  const scoped = createModExtensionRuntime([mod(
+    "function onHook(input, api) { return { events: [{ type: 'roll', payload: { roll: api.random(), globalRandomType: typeof globalThis.Math.random } }] }; }"
+  )]);
+  const firstA = scoped.run("campaign.after-day", { day: 5 }, { randomScope: "colony-a" });
+  const secondA = scoped.run("campaign.after-day", { day: 5 }, { randomScope: "colony-a" });
+  const firstB = scoped.run("campaign.after-day", { day: 5 }, { randomScope: "colony-b" });
+  assert.deepEqual(firstA, secondA);
+  assert.notEqual(firstA[0].events[0].payload.roll, firstB[0].events[0].payload.roll);
+  assert.equal(firstA[0].events[0].payload.globalRandomType, "undefined");
+
+  const mutation = createModExtensionRuntime([mod(
+    "function onHook(input) { input.day = 99; return {}; }"
+  )]);
+  assert.throws(() => mutation.run("campaign.after-day", { day: 5 }), { code: "MOD_HOOK_FAILURE" });
+});
+
 test("runs multiple Mods in stable ID order rather than folder enumeration order", () => {
   const make = (id) => mod(
     "function onHook() { return { events: [{ type: 'ran', payload: { mod: '" + id + "' } }] }; }",

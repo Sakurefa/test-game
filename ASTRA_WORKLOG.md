@@ -110,7 +110,7 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 - Per-industry weekly production reports are implemented in PR #4: requested/actual batches and output, actual input consumption, limiting material/inventory, and explicit normal/limited/no-output status. PR CI passed 141/141 tests; the UI still needs user-side Windows verification.
 - Calculation audits now have localized player-facing summaries for commodity quotes, security quotes and colony production. Raw inputs, formula steps, modifiers, random draws and results are kept under a separate advanced disclosure.
 - Domain events now explain the normal cadence of daily market settlement, daily active-war chronology and weekly colony production. Command/Mod events are labeled event-driven; no duplicate-scan or new runtime audit was added.
-- Save/load integrity receipts are implemented in the current branch: a SHA-256 digest, serialized byte count, schema, campaign day/date and content fingerprint are recorded in existing slot metadata and verified before loading. Legacy saves without a receipt remain compatible; partial receipts and mismatched data fail closed.
+- Save/load integrity receipts are implemented in PR #6: SHA-256, serialized byte count, schema/day/date and content fingerprint are stored in existing slot metadata, verified at load boundaries, and compatible with legacy saves that have no receipt.
 
 ### Priority 3 — complete the common observation boundary
 - engine/queries.cjs currently provides detached projections for world overview, faction, colony, market, fleet and war.
@@ -599,3 +599,20 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 - Current source head before this work-log update: `30c9a653af5fa246d33d74b9fba7d792c81dbf72`. Base main: `6487063ddd32d23600a8260b20e0e183c7f9a909`. Branch: `astra/save-load-receipt-2026-11-21`.
 - Next: run the full Windows CI, correct any test failures without changing the underlying save/receipt contract, then merge when green. Include receipt creation and verification in the consolidated Windows desktop acceptance pass.
 - Windows desktop test: required for the save-list display, save confirmation and successful/legacy/corrupt load messages; not yet performed.
+
+
+### Post-merge verification — deterministic save/load integrity receipts (2026-11-21)
+
+- PR #6 [Add deterministic save/load integrity receipts](https://github.com/Sakurefa/test-game/pull/6) was squash-merged as `3f80e828702445745258b0b9789358cedb8f4eee`.
+- Final Windows PR CI [44900134836](https://github.com/Sakurefa/test-game/actions/runs/44900134836) passed on PR head `4cbd5ef6a19386070427a86e7177b9dde225c380`: syntax checks passed, `npm test` passed 157/157 with 0 failures, and the Vite renderer build passed.
+- Post-merge main CI [44900235853](https://github.com/Sakurefa/test-game/actions/runs/44900235853) passed on merge commit `3f80e828702445745258b0b9789358cedb8f4eee`: syntax checks passed, `npm test` passed 157/157 with 0 failures, Renderer build passed, and the generated-renderer commit step succeeded.
+- CI-generated renderer commit: `feee263374a71b87c4963e0fd25ab0e0944e7036`. Current main head before this work-log update: `feee263374a71b87c4963e0fd25ab0e0944e7036`.
+- The first PR test attempt passed 156/157. The tamper fixture changed the byte length, so the implementation correctly rejected it at the earlier byte-count check before reaching SHA-256. The test was changed to an equal-length modification to exercise the digest mismatch specifically; the final PR and main CI both passed 157/157.
+- Exact files changed in PR #6: `electron/storage.cjs`, `electron/main.cjs`, `electron/autosave.cjs`, `src/main.js`, `tests/storage.test.cjs`, `tests/autosave.test.cjs`, `docs/ENGINE_ARCHITECTURE.md`, `docs/PLAYTEST_GUIDE.md` and `ASTRA_WORKLOG.md`.
+- Legacy save compatibility is retained; missing receipts do not block loading. New receipts are stored in slot metadata and checked against the saved JSON bytes and world identity fields before normal world migration/validation. No game-state schema version or authoritative world-state field was added.
+- The save operation preserves the previous world file if the subsequent receipt/metadata atomic replacement fails. The receipt detects accidental/partial changes; it is not a cryptographic signature or authenticity guarantee.
+- No local test suite or local build was run. CI ran on the Windows GitHub Actions runner. No user-side Windows desktop GUI test was performed for the save-list fingerprint, save toast, or verified/legacy/corrupt load messages.
+- The separately distributed launcher EXE and source/runtime distribution arrangement were not changed.
+- Next: inspect the existing read-only query registry and renderer snapshot boundary, then decide whether one small query integration materially reduces ad hoc cross-system reads. Keep this optional until concrete usage justifies it; do not introduce a generic data-access framework or migrate panels merely for uniformity.
+- Consolidated Windows desktop test remains outstanding for: 10-second base day at 4x speed; week-boundary production reports; readable calculation/event panels; save receipt display and matching verified load prefix; legacy no-receipt compatibility; autosave receipt rotation; load-auto-then-manual-save separation; fatal diagnostic report; and Mod API v4 state persistence/reload.
+- Windows desktop test: required; not yet performed.

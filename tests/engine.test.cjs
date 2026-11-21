@@ -91,3 +91,25 @@ test("day boundary reports a missing required market price before settlement", a
   assert.throws(() => advanceDay(world, c), new RegExp("DAY_INPUT required market price.*" + marketId));
   assert.deepEqual(world, corrupted);
 });
+
+test("schema-six saves gain an empty per-Mod state namespace during migration", async () => {
+  const c = await catalog();
+  const legacy = createWorld(c, { seed: "schema-six" });
+  legacy.schemaVersion = 6;
+  delete legacy.modState;
+  const migrated = migrateWorldState(legacy);
+  assert.equal(migrated.schemaVersion, 7);
+  assert.deepEqual(migrated.modState, {});
+  assert.equal(validateWorldState(migrated, c), true);
+});
+
+test("invalid or oversized saved Mod state is rejected at the load boundary", async () => {
+  const c = await catalog();
+  const world = createWorld(c, { seed: "bad-mod-state" });
+  world.modState = { "example-market": { "Bad Key": 1 } };
+  assert.throws(() => validateWorldState(world, c), /invalid Mod state keys/);
+
+  const tooLarge = createWorld(c, { seed: "oversized-mod-state" });
+  tooLarge.modState = { "example-market": { payload: "x".repeat(70 * 1024) } };
+  assert.throws(() => validateWorldState(tooLarge, c), /exceeds the per-Mod limit/);
+});

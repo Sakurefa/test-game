@@ -1,6 +1,8 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { getRecentCalculationRecords, summarizeCalculationRecord } from "../src/calculation-audit.mjs";
+import formulas from "../engine/formulas.cjs";
+const { createCalculationService } = formulas;
 
 test("calculation inspector selects newest records first without mutating saved audit history", () => {
   const world = { audit: { calculations: [

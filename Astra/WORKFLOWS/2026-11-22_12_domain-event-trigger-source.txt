@@ -57,3 +57,9 @@
 后续边界
 --------
 条件/阈值 due source 仍未实现。Command/Event Resolution、通用数值 modifier、临时效果生命周期、随机结果池与 Presentation 仍分别保持独立边界。本次没有把它们混入 Domain Event Trigger。
+
+后续文档提交与复验
+------------------
+- Mod API、Engine 架构与 Domain Map 文档提交：`f7a6895e0c4b7605b783e919af40ff7c20c281d6`。
+- Astra 现状/后续讨论、Working Memory、Workflow 与根索引提交：`2cc3f6542ee986c7409133f642c9f7766a8192d0`。
+- 文档同步后源码 CI [44958311948](https://github.com/Sakurefa/test-game/actions/runs/44958311948) 再次成功：语法检查、223/223 tests、Renderer build 与 generated-renderer 全部通过。

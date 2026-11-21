@@ -321,8 +321,24 @@ function compileCatalog(modPackages) {
     for (const [name, collection] of Object.entries(catalog)) {
       serializable[name] = [...collection.values()].map(({ _type, _source, ...entity }) => entity);
     }
-    const contentHash = crypto.createHash("sha256").update(JSON.stringify(serializable)).digest("hex");
-    return { ok: true, catalog: { ...catalog, universe, contentHash, serializable, localizations, defaultLocale } };
+    const extensions = enabled
+      .filter((mod) => Object.keys(mod.hooks || {}).length > 0)
+      .map((mod) => ({
+        id: mod.id,
+        version: mod.version,
+        scripts: mod.scripts || {},
+        hooks: mod.hooks || {}
+      }))
+      .sort((a, b) => a.id.localeCompare(b.id));
+    const legacyContentHash = crypto.createHash("sha256").update(JSON.stringify(serializable)).digest("hex");
+    const contentFingerprint = extensions.length > 0
+      ? JSON.stringify({ content: serializable, extensions })
+      : JSON.stringify(serializable);
+    const contentHash = crypto.createHash("sha256").update(contentFingerprint).digest("hex");
+    return {
+      ok: true,
+      catalog: { ...catalog, universe, contentHash, legacyContentHash, serializable, localizations, defaultLocale, extensions }
+    };
   } catch (error) {
     return { ok: false, error: error.message };
   }

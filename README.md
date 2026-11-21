@@ -31,16 +31,16 @@ The world simulation is the center of the project. Markets and securities are on
 
 The authoritative simulation is plain Node.js under `engine/`, separate from Electron and the renderer. The Electron main process owns the continuous campaign clock and trusted world-command gateway; the renderer only displays snapshots and sends bounded command envelopes or time-control commands. The engine validates command permissions, records idempotent receipts and publishes domain events after committing world state. Player funds use an append-only balanced ledger in integer CR minor units. The initial base rate is one game day per 60 real seconds at 1x, adjustable through `setting/simulation.ini`. Market/security quotes and war chronology update daily; colony production runs every seven elapsed game days. New and loaded worlds start paused.
 
-See [docs/ENGINE_ARCHITECTURE.md](docs/ENGINE_ARCHITECTURE.md) for subsystem boundaries and the current prototype limits. The hands-on [playtest guide](docs/PLAYTEST_GUIDE.md) lists the exact checks to perform after downloading the updated source.
+See [docs/ENGINE_ARCHITECTURE.md](docs/ENGINE_ARCHITECTURE.md) for subsystem boundaries, and [docs/SIMULATION_DOMAIN_MAP.md](docs/SIMULATION_DOMAIN_MAP.md) for the long-range interface map across society, industry, logistics, diplomacy, strategic warfare, exploration and presentation. The hands-on [playtest guide](docs/PLAYTEST_GUIDE.md) lists the exact checks to perform after downloading the updated source.
 
 ## Modding
 
-Mod packages are **INI-only**: manifests, registry declarations, content definitions and localization all use INI. The required `mods/core/` package declares the base universe and core definitions. Community packages use the same structure. JSON Mod files and inline JSON values are rejected; Mods cannot execute scripts or alter engine code.
+Mod packages use **INI + optional JavaScript hooks**. Manifests, registry declarations, content definitions and localization remain INI. API v3 INI-only packages remain supported; API v4 packages may declare limited JavaScript hook files under `scripts/`. Hooks receive detached read-only snapshots and return only approved, validated effects/events. They cannot access general Node/Electron APIs or directly patch the world. The current Node `vm` wrapper is not a hardened sandbox for hostile code, so enable only trusted JS Mods.
 
-See [MOD_API.md](MOD_API.md) for the API v3 format and safety limits.
+See [MOD_API.md](MOD_API.md) for package layout, hook points, effect types, resource limits and trust boundary.
 
 ## Current prototype status
 
-Implemented foundations include multi-system universe data, cross-reference validation, a pause/1x–4x continuous campaign clock, dependency-ordered daily/weekly simulation systems, versioned world-save migration through schema 6, deterministic named random state, formula audit, typed domain events, a validated command/event pipeline, a trusted main-process command gateway, a balanced player finance ledger, colony production and market repricing.
+Implemented foundations include multi-system universe data, cross-reference validation, a pause/1x–4x continuous campaign clock, dependency-ordered daily/weekly simulation systems, versioned world-save migration through schema 7, deterministic named random state, formula audit, typed domain events, a validated command/event pipeline, a trusted main-process command gateway, a balanced player finance ledger, colony production and market repricing.
 
 This is an early simulation slice, not a finished strategy game. Real-time tactical battles, fleet movement, inter-colony logistics, diplomacy, taxation, debt, market buy/sell orders and long-term colony development remain future systems. The finance.transfer command is currently an engine/gateway capability without a dedicated in-game transfer interface.

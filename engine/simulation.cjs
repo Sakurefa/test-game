@@ -5,8 +5,26 @@ const { createSystemRegistry } = require("./system-registry.cjs");
 const { createDomainEventEmitter, validateDomainEventState } = require("./domain-events.cjs");
 const { validateCommandReceiptState } = require("./commands.cjs");
 const { createFinancialLedger, validateWorldFinancialState } = require("./ledger.cjs");
+const { createModExtensionRuntime, applyModHookResults, validateModState } = require("./mod-runtime.cjs");
 
-const GAME_STATE_SCHEMA_VERSION = 6;
+const modRuntimeCache = new WeakMap();
+
+function getModRuntime(catalog) {
+  if (!modRuntimeCache.has(catalog)) {
+    modRuntimeCache.set(catalog, createModExtensionRuntime(catalog.extensions || []));
+  }
+  return modRuntimeCache.get(catalog);
+}
+
+function runModHook(modRuntime, hookId, input, { world, catalog, day, subjectKey = "world", emitDomainEvent }) {
+  const outcomes = modRuntime.run(hookId, input, {
+    randomScope: subjectKey,
+    modStateById: world.modState || {}
+  });
+  return applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey, emitDomainEvent });
+}
+
+const GAME_STATE_SCHEMA_VERSION = 7;
 const MAX_ADVANCE_DAYS = 30;
 const MAX_CAMPAIGN_CATCH_UP_DAYS = 3650;
 const LOG_LIMIT = 100;
@@ -97,6 +115,7 @@ function createWorld(catalog, options = {}) {
     domainEventSequence: 0,
     domainEvents: [],
     commandReceipts: [],
+    modState: {},
     player: { factionId: playerFactionId, accountId: "player-main" },
     finance,
     colonies,
@@ -113,7 +132,10 @@ function createWorld(catalog, options = {}) {
   };
 }
 
-function produceForColony(catalog, colonyState, calculations, day, emitDomainEvent) {
+function produceForColony(catalog, colonyState, calculations, day, emitDomainEvent, world, modRuntime) {
+  runModHook(modRuntime, "colony.before-production", {
+    day, colonyId: colonyState.id, colony: colonyState
+  }, { world, catalog, day, subjectKey: colonyState.id, emitDomainEvent });
   const output = {};
   let activeIndustryCount = 0;
   for (const industry of colonyState.industries) {
@@ -139,14 +161,20 @@ function produceForColony(catalog, colonyState, calculations, day, emitDomainEve
     }
   }
   colonyState.lastProduction = output;
+  runModHook(modRuntime, "colony.after-production", {
+    day, colonyId: colonyState.id, colony: colonyState, production: output
+  }, { world, catalog, day, subjectKey: colonyState.id, emitDomainEvent });
   emitDomainEvent({ type: "colony.production-settled", scope: "colony", subjectId: colonyState.id,
     idempotencyKey: `campaign-day:${day}:colony.production-settled:${colonyState.id}`,
     payload: { industryCount: colonyState.industries.length, activeIndustryCount, production: output } });
   return output;
 }
 
-function updateMarket(catalog, marketState, colonyState, allColonyStates, randomStreams, calculations, day, emitDomainEvent) {
+function updateMarket(catalog, marketState, colonyState, allColonyStates, randomStreams, calculations, day, emitDomainEvent, world, modRuntime) {
   const market = catalog.markets.get(marketState.id);
+  runModHook(modRuntime, "market.before-pricing", {
+    day, marketId: marketState.id, market: marketState, colony: colonyState
+  }, { world, catalog, day, subjectKey: marketState.id, emitDomainEvent });
   const changes = {};
   for (const commodityId of market.commodityIds || []) {
     const commodity = catalog.commodities.get(commodityId);
@@ -185,6 +213,9 @@ function updateMarket(catalog, marketState, colonyState, allColonyStates, random
     changes[securityId] = result.change;
   }
   marketState.lastChanges = changes;
+  runModHook(modRuntime, "market.after-pricing", {
+    day, marketId: marketState.id, market: marketState, colony: colonyState, changes
+  }, { world, catalog, day, subjectKey: marketState.id, emitDomainEvent });
   emitDomainEvent({ type: "market.prices-settled", scope: "market", subjectId: marketState.id,
     idempotencyKey: `campaign-day:${day}:market.prices-settled:${marketState.id}`,
     payload: { instrumentCount: Object.keys(changes).length, changes } });
@@ -197,9 +228,9 @@ const simulationSystems = createSystemRegistry([
     id: "colonies.production",
     cadence: "weekly",
     order: 10,
-    update: ({ world, catalog, summary, calculations, day, emitDomainEvent }) => {
+    update: ({ world, catalog, summary, calculations, day, emitDomainEvent, modRuntime }) => {
       for (const [colonyId, colonyState] of Object.entries(world.colonies)) {
-        summary.production[colonyId] = produceForColony(catalog, colonyState, calculations, day, emitDomainEvent);
+        summary.production[colonyId] = produceForColony(catalog, colonyState, calculations, day, emitDomainEvent, world, modRuntime);
       }
     }
   },
@@ -208,11 +239,11 @@ const simulationSystems = createSystemRegistry([
     cadence: "daily",
     order: 20,
     dependsOn: ["colonies.production"],
-    update: ({ world, catalog, randomStreams, calculations, summary, day, emitDomainEvent }) => {
+    update: ({ world, catalog, randomStreams, calculations, summary, day, emitDomainEvent, modRuntime }) => {
       for (const marketState of Object.values(world.markets)) {
         const definition = catalog.markets.get(marketState.id);
         summary.market[marketState.id] = updateMarket(
-          catalog, marketState, world.colonies[definition.colonyId], world.colonies, randomStreams, calculations, day, emitDomainEvent
+          catalog, marketState, world.colonies[definition.colonyId], world.colonies, randomStreams, calculations, day, emitDomainEvent, world, modRuntime
         );
       }
     }
@@ -221,13 +252,16 @@ const simulationSystems = createSystemRegistry([
     id: "military.war-chronology",
     cadence: "daily",
     order: 30,
-    update: ({ world, emitDomainEvent }) => {
+    update: ({ world, emitDomainEvent, modRuntime, catalog, day }) => {
       for (const war of Object.values(world.wars)) {
         if (war.status !== "active") continue;
         war.daysActive += 1;
         emitDomainEvent({ type: "war.chronology-advanced", scope: "war", subjectId: war.id,
           idempotencyKey: `campaign-day:${world.clock.day}:war.chronology-advanced:${war.id}`,
           payload: { daysActive: war.daysActive } });
+        runModHook(modRuntime, "war.after-chronology", {
+          day, war
+        }, { world, catalog, day, subjectKey: war.id, emitDomainEvent });
       }
     }
   }
@@ -243,8 +277,15 @@ function validateWorldState(world, catalog) {
     throw new Error("Unsupported or invalid game-state schema");
   }
   if (world.contentHash !== catalog.contentHash) {
-    throw new Error("This save was created with different Mod content. Restore the matching Mods before loading.");
+    const canUpgradeLegacyFingerprint = world.contentHashUpgradePending === true
+      && typeof catalog.legacyContentHash === "string"
+      && world.contentHash === catalog.legacyContentHash;
+    if (!canUpgradeLegacyFingerprint) {
+      throw new Error("This save was created with different Mod content. Restore the matching Mods before loading.");
+    }
+    world.contentHash = catalog.contentHash;
   }
+  if (world.contentHashUpgradePending !== undefined) delete world.contentHashUpgradePending;
   if (world.universeId !== catalog.universe.id) throw new Error("Save universe does not match the loaded content");
   if (!Number.isInteger(world.rng?.seed) || !world.rng?.streams || typeof world.rng.streams !== "object" || Array.isArray(world.rng.streams)) {
     throw new Error("Save has an invalid named random state");
@@ -285,19 +326,28 @@ function validateWorldState(world, catalog) {
     for (const factionId of definition.participants) if (!Number.isFinite(war.warWeariness[factionId]) || war.warWeariness[factionId] < 0) throw new Error(`Save has invalid war weariness: ${id}.${factionId}`);
   }
   validateWorldFinancialState(world);
+  validateModState(world.modState);
   return true;
 }
 
 function settleDay(world, catalog) {
   const randomStreams = new NamedRandomStreams(world.rng.seed, world.rng.streams);
   const calculations = createCalculationService();
+  const modRuntime = getModRuntime(catalog);
   world.clock = advanceClock(world.clock, 1);
   const summary = { production: {}, market: {} };
   const emitDomainEvent = createDomainEventEmitter(world, world.clock);
+  runModHook(modRuntime, "campaign.before-day", {
+    day: world.clock.day, date: world.clock.date, world
+  }, { world, catalog, day: world.clock.day, emitDomainEvent });
   const systemsRun = simulationSystems.runDue({
     world, day: world.clock.day,
-    context: { catalog, randomStreams, calculations, summary, emitDomainEvent }
+    context: { catalog, randomStreams, calculations, summary, emitDomainEvent, modRuntime }
   });
+
+  runModHook(modRuntime, "campaign.after-day", {
+    day: world.clock.day, date: world.clock.date, world, summary, systemsRun
+  }, { world, catalog, day: world.clock.day, emitDomainEvent });
 
   world.rng = randomStreams.snapshot();
   if (!world.audit || typeof world.audit !== "object") world.audit = { calculations: [] };
@@ -334,6 +384,9 @@ function validateDayInputs(world, catalog) {
   }
   if (!world.rng || !Number.isInteger(world.rng.seed) || !world.rng.streams || typeof world.rng.streams !== "object") {
     throw new Error("DAY_INPUT world.rng seed/streams is missing or invalid");
+  }
+  if (!world.modState || typeof world.modState !== "object" || Array.isArray(world.modState)) {
+    throw new Error("DAY_INPUT world.modState is missing or invalid");
   }
   if (!world.scheduler?.lastRunDayBySystem || typeof world.scheduler.lastRunDayBySystem !== "object") {
     throw new Error("DAY_INPUT world.scheduler.lastRunDayBySystem is missing");
@@ -420,7 +473,7 @@ function advanceCampaignTime(world, catalog, elapsedGameDays, options = {}) {
 
 function migrateWorldState(world) {
   if (!world || typeof world !== "object" || Array.isArray(world)) throw new TypeError("Invalid saved world");
-  if (![1, 2, 3, 4, 5, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
+  if (![1, 2, 3, 4, 5, 6, GAME_STATE_SCHEMA_VERSION].includes(world.schemaVersion)) {
     throw new Error("Unsupported or invalid game-state schema: " + world.schemaVersion);
   }
   if (!world.clock || typeof world.clock.date !== "string" || !Number.isInteger(world.clock.day)) {
@@ -452,6 +505,12 @@ function migrateWorldState(world) {
     world.player.accountId = "player-main";
     delete world.player.account;
     world.schemaVersion = 6;
+  }
+  if (world.schemaVersion < 7) {
+    if (world.modState === undefined) world.modState = {};
+    validateModState(world.modState);
+    world.contentHashUpgradePending = true;
+    world.schemaVersion = 7;
   }
   return world;
 }

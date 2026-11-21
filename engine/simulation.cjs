@@ -38,6 +38,15 @@ function clamp(value, min, max) {
   return Math.min(max, Math.max(min, value));
 }
 
+function validateCampaignClock(clock, startDate, label) {
+  const start = parseDate(startDate);
+  const current = parseDate(clock.date);
+  const elapsedDays = (current.getTime() - start.getTime()) / 86400000;
+  if (elapsedDays !== clock.day) {
+    throw new Error(`${label} campaign date/day mismatch: expected day ${elapsedDays} from ${startDate}, got day ${clock.day} at ${clock.date}`);
+  }
+}
+
 function round(value, digits = 2) {
   const factor = 10 ** digits;
   return Math.round((value + Number.EPSILON) * factor) / factor;
@@ -434,7 +443,7 @@ function validateWorldState(world, catalog) {
     || !Number.isFinite(world.clock.dayFraction) || world.clock.dayFraction < 0 || world.clock.dayFraction >= 1) {
     throw new Error("Save has an invalid game clock");
   }
-  parseDate(world.clock.date);
+  validateCampaignClock(world.clock, catalog.universe.startDate, "Save");
   if (!world.scheduler || typeof world.scheduler !== "object" || !world.scheduler.lastRunDayBySystem
     || typeof world.scheduler.lastRunDayBySystem !== "object") throw new Error("Save has an invalid simulation scheduler state");
   for (const id of catalog.colonies.keys()) {
@@ -525,7 +534,7 @@ function validateDayInputs(world, catalog) {
   if (!world?.clock || !Number.isInteger(world.clock.day) || world.clock.day < 0 || typeof world.clock.date !== "string") {
     throw new Error("DAY_INPUT world.clock.day/date is missing or invalid");
   }
-  parseDate(world.clock.date);
+  validateCampaignClock(world.clock, catalog.universe.startDate, "DAY_INPUT");
   if (!world.rng || !Number.isInteger(world.rng.seed) || !world.rng.streams || typeof world.rng.streams !== "object") {
     throw new Error("DAY_INPUT world.rng seed/streams is missing or invalid");
   }

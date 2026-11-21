@@ -53,6 +53,45 @@ test("separates deterministic random sequences by entity scope and freezes hook 
   assert.throws(() => mutation.run("campaign.after-day", { day: 5 }), { code: "MOD_HOOK_FAILURE" });
 });
 
+test("injects only each Mod's own saved state, not the global state table", () => {
+  const runtime = createModExtensionRuntime([mod(
+    "function onHook(input) { return { events: [{ type: 'state-check', payload: { ownValue: input.modState.counter, globalTableType: typeof input.world.modState } }] }; }"
+  )]);
+  const outcomes = runtime.run("campaign.after-day", {
+    day: 7,
+    world: { modState: { "test-mod": { counter: 4 }, "other-mod": { secret: 99 } } }
+  }, {
+    randomScope: "world",
+    modStateById: { "test-mod": { counter: 4 }, "other-mod": { secret: 99 } }
+  });
+  assert.equal(outcomes[0].events[0].payload.ownValue, 4);
+  assert.equal(outcomes[0].events[0].payload.globalTableType, "undefined");
+});
+
+test("applies bounded persistent Mod state set, increment and delete effects", () => {
+  const world = { modState: {}, clock: { day: 2, date: "2478-04-03" }, domainEventSequence: 0, domainEvents: [] };
+  const catalog = { commodities: new Map(), securities: new Map() };
+  const emitDomainEvent = createDomainEventEmitter(world, world.clock);
+  const first = applyModHookResults([{
+    modId: "test-mod",
+    effects: [
+      { type: "mod.state.set", payload: { key: "phase", value: "opening" } },
+      { type: "mod.state.increment", payload: { key: "turns", delta: 3 } },
+      { type: "mod.state.increment", payload: { key: "turns", delta: 2 } }
+    ],
+    events: []
+  }], { world, catalog, day: 2, hookId: "campaign.after-day", emitDomainEvent });
+  assert.equal(first.effectCount, 3);
+  assert.deepEqual(world.modState["test-mod"], { phase: "opening", turns: 5 });
+
+  applyModHookResults([{
+    modId: "test-mod",
+    effects: [{ type: "mod.state.delete", payload: { key: "phase" } }],
+    events: []
+  }], { world, catalog, day: 2, hookId: "campaign.after-day", subjectKey: "cleanup", emitDomainEvent });
+  assert.deepEqual(world.modState["test-mod"], { turns: 5 });
+});
+
 test("runs multiple Mods in stable ID order rather than folder enumeration order", () => {
   const make = (id) => mod(
     "function onHook() { return { events: [{ type: 'ran', payload: { mod: '" + id + "' } }] }; }",

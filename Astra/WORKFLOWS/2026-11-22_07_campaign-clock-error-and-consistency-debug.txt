@@ -1,0 +1,107 @@
+【工作流记录】Campaign Clock 故障传播、时钟一致性与参数副作用修复
+=====================================================================
+
+工作日期：2026-11-22
+当日序号：07
+仓库：Sakurefa/test-game
+分支：main
+
+基线与结果
+----------
+- 本轮开始时 main HEAD：4ea4d8a095f508a2887eacde9b52d371436c7c62。
+- 最终代码/测试提交：1ed2b6d9506dd94faba198e45e85a8d6be450865。
+- 相关实现提交：
+  - Electron 时钟故障路径：cc01a343abf669575fc98d3306556fbc11860c4d。
+  - Controller 推进失败错误标记：fd1793dc836aaea07a8c7ff8a06464055e24f20d。
+  - Controller 故障回归测试：28255c1284f85880d391b0c2a126a08cdd4e8522。
+  - 日期与累计天数一致性：b0962f7b0d4010155b37b9a20e55554e5397cf11。
+  - 时钟一致性回归测试：abc9fc734070f4a0398d8aa6ed14559d16c54922。
+  - 日时长参数预校验：244aad764ee3a7ec5f9159a0dc77ff4a5255bc4e。
+  - 参数副作用回归测试 / 最终代码测试头：1ed2b6d9506dd94faba198e45e85a8d6be450865。
+- GitHub Windows Actions：[44937502653](https://github.com/Sakurefa/test-game/actions/runs/44937502653)，在最终代码/测试提交上成功。
+- CI：Electron/Engine syntax check 成功；npm test **208/208 通过，0 失败**；Renderer build 成功；generated-renderer 步骤成功。
+- 本轮没有本地运行 npm test 或 build；结果来自 GitHub Windows runner。
+- 用户设备上的 Windows GUI 综合验收仍未进行；本轮未打包 Launcher / Electron Runtime。
+
+读取与审查范围
+--------------
+按仓库要求读取 AGENTS.md、Astra/README.txt、完整 Astra/WORKING_MEMORY.txt、根索引、AK 原则、MOD 化原则、日志规范及上轮 workflow 06。
+
+重点继续审查：
+- Engine：campaign-time、clock、simulation、system-registry、ledger、commands、command-runtime、formulas、population、Mod runtime、domain events。
+- Electron：main、storage、autosave、logger、world-command-gateway。
+- Tests：campaign-time、engine、ledger、commands、storage、autosave、population 和 Mod runtime。
+- 核对最新 main、相关代码差异、既有 Windows CI 与本轮 Actions。
+
+已确认并修复的问题
+------------------
+
+一、时间推进异常的错误传播不完整
+--------------------------------
+CampaignTimeController.tick() 在调用 onAdvance 前更新 lastTimestamp；当结算回调失败时，该时间片已被消费，原始错误向调用者抛出。自动 timer 有统一致命错误处理，但部分 IPC 调用路径（切换速度、世界切换、暂停、离开、设置运行时日时长、存档暂停/恢复等）没有统一识别结算回调失败。某些错误会只被 IPC 通用日志捕获，当前世界却可能继续留在运行态。
+
+修复：
+1. CampaignTimeController 将 onAdvance 异常包装为明确的 CAMPAIGN_TIME_ADVANCE_FAILURE，保留原始 cause。
+2. Electron main 新增 runCampaignTimeOperation() 包装，所有可能触发时间结算的 IPC 控制路径识别该错误并调用现有 failActiveWorld()。
+3. 致命处理入口与 timer 故障入口改用 campaignTime.reset() 停止时钟，不再调用 pause()。pause() 会再次 tick，可能在处理故障时重复触发同一结算错误。
+4. 用户传入无效 speed 的参数校验错误不会被误判为世界结算故障。
+
+二、日期与累计 campaign day 可以彼此矛盾
+----------------------------------------
+读档与日结算输入此前分别检查了日期格式/合法性和 day 的非负整数，但没有检查两者的关系。clock.date 用于年/月结算，clock.day 用于周度节奏；若日期合法但累计天数不对应，世界可以通过校验，导致日历系统和 elapsed-day 系统进入不同时间线。
+
+修复：
+1. Engine 使用同一 parseDate()，计算当前日期与 catalog.universe.startDate 的真实日差。
+2. validateWorldState() 和 validateDayInputs() 均要求该日差严格等于 clock.day。
+3. 该检查只发生在读档验证和日结算输入边界，不进入 100 ms 时钟轮询，也不增加另一套日期运算规则。
+
+三、无效日时长参数会先推进世界再被拒绝
+--------------------------------------
+setBaseDayDurationMs() 此前先 tick，再验证新时长。直接传入非法值（低于 1000 ms 或超过 3600000 ms）会在接口最终报错前先推进当前世界，造成“操作失败但业务状态已变化”。
+
+修复：
+1. 抽出 validateBaseDayDuration()。
+2. setInitialDuration() 与 setBaseDayDurationMs() 共用同一校验。
+3. 运行时设置先验证新值，再结算旧时长下已流逝的时间，最后应用新时长。
+4. 非法设置不触发 onAdvance，不改变当前日时长或消费时间片。
+
+精确代码变更
+------------
+- electron/main.cjs
+- engine/campaign-time.cjs
+- engine/simulation.cjs
+- tests/campaign-time.test.cjs
+- tests/engine.test.cjs
+
+新增回归覆盖
+------------
+- 推进回调失败具有独立错误码，保留 cause；pause 可能再次触发失败，而 reset 可不再执行结算并安全停止时钟。
+- 无效日时长在推进时间前被拒绝，且不调用 onAdvance、不改变已配置日时长；之后有效 tick 仍能结算完整时间片。
+- 日期合法但累计 day 不匹配的存档在完整读档校验中被拒绝。
+- 同类时钟不一致输入在日结算边界被拒绝，且失败不修改原始 world。
+- 上轮已加入的无效日历日期和负数 day 检查继续通过。
+
+未改动
+------
+- World save schema 仍为 8。
+- 人口组权威状态、人口效果、迁移语义。
+- 年/月/周/日 cadence 顺序与 system registry。
+- Mod API、Mod 格式、mods/core 内容。
+- Trigger Queue 与通用 Effect/Command/Event 调用层；仍未实现。
+- 经济、就业、工资、需求篮子、市场成交等游戏规则。
+- Launcher 独立分发机制。
+
+CI 观察到的非失败提示
+---------------------
+- npm 依赖提示 glob@7.2.3 与 boolean@3.2.0 已弃用/不再支持。
+- src/world.js 出现 MODULE_TYPELESS_PACKAGE_JSON 提示。
+- punycode 弃用提示。
+- GitHub Actions 对旧 Node.js 20 action runtime 的迁移警告。
+- Vite 生成文件的 LF/CRLF 提示。
+以上均未导致本轮 syntax check、208 项测试或 Renderer build 失败；本轮没有为清除警告而扩大修改范围。
+
+后续
+----
+用户当前明确要求继续进行 bug-focused debugging。后续应继续沿现有调用路径检查确定性缺陷，发现问题后用小型修复和回归测试验证；不把本轮 Debug 任务扩张为 Trigger 或玩法实现。
+
+用户端 Windows GUI 验收仍待完成。CI 成功不能替代实际桌面运行与存档/时钟综合测试。

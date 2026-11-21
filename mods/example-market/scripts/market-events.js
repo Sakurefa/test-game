@@ -6,12 +6,12 @@ function onCampaignAfterDay(input) {
     (total, market) => total + Object.keys(market.prices || {}).length,
     0
   );
-  const previousMonths = input.modState.monthsObserved || 0;
+  const previousMonths = input.modState.months-observed || 0;
 
   return {
     effects: [{
       type: "mod.state.increment",
-      payload: { key: "monthsObserved", delta: 1 }
+      payload: { key: "months-observed", delta: 1 }
     }],
     events: [{
       type: "monthly-market-observation",

@@ -268,10 +268,12 @@ async function readModPackages(root, options = {}) {
       const meta = parsed.mod;
       const files = parsed.files;
       const apiVersion = meta?.api_version;
+      if (meta && Object.keys(meta).some((key) => ["code", "code_files", "scripts", "script_files"].includes(key))) {
+        throw new Error("Executable code declarations in [mod] are not supported; declare API v4 scripts under [files] and hooks under [hooks]");
+      }
       if (!meta || !files || meta.id !== entry.name || typeof meta.name !== "string"
         || typeof meta.version !== "string" || typeof meta.author !== "string"
-        || !SUPPORTED_API_VERSIONS.has(apiVersion)
-        || Object.keys(meta).some((key) => ["code", "code_files", "scripts", "script_files"].includes(key))) {
+        || !SUPPORTED_API_VERSIONS.has(apiVersion)) {
         throw new Error("Invalid manifest or unsupported Mod API version");
       }
 

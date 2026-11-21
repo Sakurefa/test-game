@@ -30,9 +30,9 @@ The initial base rate is one game day per 60 real seconds at 1x. The 1x–4x mul
 
 A saved game records its world schema version, content fingerprint, calendar date/day/fraction, scheduler markers, random state, dynamic entities, typed domain-event history and recent command receipts. Legacy world schemas 1–5 migrate to schema 6 while preserving campaign time, existing entities, and the player's prior cash/holdings. The migration initializes the finance ledger and command receipt fields that did not exist in older formats. Loading against a different content fingerprint is still rejected explicitly rather than silently binding saved entities to changed Mod definitions.
  
-## Data-only Mod contract
+## Mixed INI and JavaScript Mod contract
 
-A Mod package is INI-only. Its manifest, registry declarations, content definitions and localization files all use INI. JSON files and inline JSON arrays/objects are rejected by the loader. The root npm `package.json` is project build metadata and is not part of the Mod format.
+Mod manifests, registry declarations, entity definitions, balance data and localization remain INI. API v3 continues to support INI-only packages. API v4 may add explicitly declared JavaScript files under `scripts/` and named hooks under `[hooks]` in `manifest.ini`. JSON Mod files and inline JSON values remain forbidden. Core is required and cannot be disabled. JS hooks receive detached frozen snapshots and return only registered effects/events; they do not receive a mutable world reference or general Node/Electron APIs.
 
 Core definitions are divided into:
 - `universe.ini`: universe, systems, locations, colonies and trade routes.
@@ -45,7 +45,7 @@ Core definitions are divided into:
 
 Content sections use `[type.stable-id]`; the singleton universe uses `[universe]`. Repeated nested records use numbered keys, and simple lists use semicolon-separated values. The loader normalizes these INI sections into validated engine objects. Player-visible names, descriptions, government labels and commodity units are stored only in locale INI files. The catalog rejects missing localization references, duplicate IDs and unresolved cross-references before a world can start.
 
-Mods are data-only: they cannot execute scripts, ship native code or provide runtime hooks.
+JavaScript hooks are optional behavior extensions, not arbitrary patches. The current Node `vm` wrapper reduces exposed capabilities and bounds synchronous execution, but it is not a hardened security boundary against deliberately hostile code. Treat JS Mods as trusted/opt-in until process-level sandboxing exists.
 
 ## Determinism and domain events
 
@@ -53,7 +53,7 @@ A world stores its original seed and each named PRNG stream state. Stream IDs ar
 
 The engine appends typed domain events with monotonic sequence IDs, campaign day/date, scope, subject and JSON-safe payload. The retained history is bounded independently from the localized narrative event feed. Production, market settlement and active-war chronology emit events with stable day/entity idempotency keys. A repeated emission with the same key and same fact returns the existing record; reusing a key for a conflicting fact is rejected. The history validates key uniqueness and sequence continuity, and event records survive save/load. Legacy schema migrations begin a fresh typed history because earlier saves did not contain these events.
 
-Save validation rejects non-finite or negative stockpiles, invalid stability/population values, non-positive or non-finite quotes, malformed account state, unbalanced ledger transactions, account balances that disagree with ledger replay, duplicate transaction command IDs and inconsistent domain-event history. This catches corrupted or impossible economic state at the world boundary instead of allowing invalid values to propagate through later settlements.
+Save validation rejects non-finite or negative stockpiles, invalid stability/population values, non-positive or non-finite quotes, malformed account structure/balances and inconsistent domain-event, command-receipt or Mod-state records. Current integer account balances are authoritative runtime values; ordinary operations do not derive them by replaying diagnostic transaction history.
 
 ## Validated commands, event delivery and main-process gateway
 
@@ -67,11 +67,11 @@ The Electron main process now owns a trusted world-command gateway and exposes a
 
 ## Financial account and ledger contract
 
-World schema 6 replaces the prototype `player.account.cash` value with a canonical `finance` ledger. Accounts have stable IDs, owner identity, currency, integer balance in minor units, overdraft policy, status and positions. Runtime services can register new accounts and currency definitions without inventing starting balances; newly registered accounts begin at zero and must be funded by a balanced transaction. The player account is `player-main`; the system treasury is the balancing counter-account used for initial capital and later external settlement flows.
+World schema 7 stores a canonical `finance` account model. Accounts have stable IDs, owner identity, currency, integer minor-unit balances, overdraft policy, status and positions. The player account is `player-main`; the system treasury is the balancing account used for opening capital and external settlement flows. CR uses two decimal minor units.
 
-Every ledger transaction has a monotonically increasing sequence, campaign day/date, stable transaction type, optional command ID/reference and two or more account entries. Entries are signed integer minor-unit deltas. Each transaction must balance to zero per currency, may reference each account only once, and must not violate an account's overdraft policy. Account balances are materialized projections which validation recomputes by replaying the append-only ledger; they are not independent sources of truth. Duplicate command IDs, tampered balances and unbalanced historical transactions are rejected. The ledger currently has a hard 50,000-transaction capacity and refuses new appends rather than silently deleting accounting history.
+Account balances are authoritative runtime state. A validated transfer checks its inputs and affected accounts, updates the two balances directly and returns a diagnostic transaction fact; the fact is recorded through domain events/logs rather than replayed to calculate ordinary balances. The legacy transaction arrays in older saves may still be read for compatibility but are not the current balance source. The only registered player-facing gateway command is `finance.transfer`; it currently has no dedicated in-game transfer UI. Market orders, share settlement, loans, dividends and company operating payments are not implemented.
 
-The first currency is CR with two decimal minor units. Commands exchange integer minor units rather than floating-point currency values, avoiding binary floating-point drift in balances. Schema 1–5 migrations convert the previous player cash value to CR minor units and preserve the previous holdings object as the player's initial positions. The initial capital is represented as a balanced opening transaction against the system treasury.
+World schemas 1–6 migrate to schema 7. Legacy cash/holdings are preserved and converted to the current integer account representation. Old INI-only content fingerprints receive a one-time upgrade only when the current INI content matches exactly; schema-7 saves remain strict about enabled Mod script content.
 
 The engine and main-process gateway are now connected, but no market buy/sell order, share ownership transfer, loan, dividend, company operating-cost or logistics payment command is registered yet. The ledger is the reusable accounting seam those systems will use; its presence does not imply those game mechanics are complete.
 
@@ -97,7 +97,7 @@ The current prototype models industry throughput from level and stability and co
 
 Commodities are physical goods; securities are financial instruments issued by companies. A market belongs to a colony and quotes only the instruments it lists. Current commodity prices react to local inventories, while company securities receive a small seeded operational signal and market noise.
 
-An append-only balanced transaction ledger now records account movements in integer CR minor units. Portfolio positions are retained on account records, while actual share trading and valuation still need their own order and settlement commands. Future fees, debt, interest, dividends and company operating results should post balanced ledger transactions rather than mutate account balances directly.
+Account balances are stored as integer CR minor-unit values and are authoritative for runtime calculations. Transfer facts are recorded to the event/diagnostic stream; no historical replay is required for ordinary balance reads. Portfolio positions remain on account records, while actual share trading and valuation still need their own order and settlement commands.
 
 ### Strategic military and tactical battles
 
@@ -134,7 +134,7 @@ The authoritative engine remains plain Node.js and must not import Electron or b
 - **Assets:** stable asset IDs resolve through a central catalogue/loader with validation, caching and lifecycle management. Image/texture, sprite/animation, particle, audio and font resources share identity and metadata conventions but use suitable resource-specific loaders.
 - **Presentation:** DOM remains responsible for menus, settings and accessible controls. A renderer-neutral scene interface will host the star map, colonies and other 2D spaces. A backend such as PixiJS may implement that interface, but engine rules must not depend on the selected renderer.
 - **Audio:** sound playback and mixing belong to a presentation service. Simulation events may request sound cues by ID; the engine must remain testable without an audio device.
-- **Mod safety:** Mods remain data-only INI packages. Future image/audio/font assets may be declared by data manifests and validated against safe path, size, type and namespace rules. Assets do not grant script execution, runtime hooks or native-code access.
+- **Mod safety:** Content/manifests/localization remain INI. API v4 permits optional trusted/opt-in JavaScript hooks through a narrow registered-effect contract. Future image/audio/font assets may be declared by data manifests and validated for path, size, type and namespace; assets do not grant native-code access or unrestricted host APIs.
 
 Typed domain-event records, a subscription bus and validated world-command dispatch are now implemented as reusable engine services. These foundations are not yet wired into Electron presentation, and no asset manager, scene renderer or audio engine is claimed to exist. Tactical combat is a later isolated subsystem and is not part of this foundation phase.
 
@@ -155,9 +155,9 @@ The campaign progress bar represents the current seven-day week and uses seven v
 
 ## Named randomness and calculation audit
 
-World schema version 3 introduced named streams to replace the single shared PRNG state. World schema version 4 adds a bounded typed domain-event history while preserving the named stream state. World schema version 5 adds bounded command receipts for retry-safe command dispatch. World schema version 6 replaces the prototype cash field with a balanced integer-minor-unit financial ledger. Each stream seed is derived from the saved world seed and a stable lowercase stream ID; each stream advances independently and its state is saved under that ID. Current market noise uses one stream per market instrument (`economy.market.<market-id>.<instrument-id>`). Adding or consuming random values in another market or subsystem therefore cannot shift this instrument's sequence. Stream IDs are persistent simulation identifiers and must never be renamed casually.
+World schema version 3 introduced named random streams. Schema 4 added typed domain events, schema 5 added bounded command receipts, schema 6 introduced the finance account model, and schema 7 added per-Mod persistent state plus the mixed Mod API v4 content-fingerprint rules. Each stream seed is derived from the saved world seed and a stable lowercase stream ID; each stream advances independently and its state is saved under that ID. Current market noise uses one stream per market instrument (`economy.market.<market-id>.<instrument-id>`). Adding or consuming random values in another market or subsystem therefore cannot shift this instrument's sequence. Stream IDs are persistent simulation identifiers and must never be renamed casually.
 
-Schema 1–5 saves migrate to schema 6 while preserving calendar, scheduler, entity and named-stream state where available. The player's previous cash and holdings are carried into the new player account. Schema 1/2 legacy shared PRNG positions cannot be mapped to independent streams without coupling them again, so those saves begin named streams from the original world seed; their future random outcomes intentionally differ from the old shared-stream sequence. Legacy saves begin with an empty typed domain-event history or command-receipt list only where those records did not exist. Schema 1–5 saves receive a balanced opening-capital ledger transaction. After migration, save/load remains deterministic.
+Schemas 1–6 migrate to schema 7 while preserving calendar, scheduler, entity and named-stream state where available. Schema 1/2 legacy shared PRNG positions cannot be mapped to independent streams, so those saves begin named streams from the original world seed; future random outcomes intentionally differ from the old shared-stream sequence. Older saves receive empty domain-event, command-receipt and Mod-state collections only where those records did not exist. Schema 1–6 saves may upgrade their old INI-only fingerprint exactly once if the loaded INI content matches; the resulting schema-7 save fingerprints enabled JS scripts and hooks too. After migration, schema-7 loads remain strict.
 
 The versioned calculation registry currently contains `economy.colony-production` v1, `economy.commodity-price` v2 and `economy.security-price` v2. Production traces expose stability efficiency, requested throughput, stock-limiting inputs, consumed quantities and produced quantities without consuming randomness. Commodity quotes remain inside a 0.1×–10× base-price corridor; securities are limited to ±12% daily movement and a 0.1×–10× initial-price corridor. These guardrails do not affect ordinary Core volatility values but prevent corrupted or extreme inputs from generating runaway quotes. The world save retains the latest 200 calculation records.
 

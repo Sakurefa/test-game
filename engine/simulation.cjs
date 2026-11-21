@@ -8,7 +8,10 @@ const { createFinancialLedger, validateWorldFinancialState } = require("./ledger
 const { createModExtensionRuntime, applyModHookResults, validateModState, applyModEffect } = require("./mod-runtime.cjs");
 const { createPopulationGroups, getPopulationTotal, validatePopulationGroups } = require("./population.cjs");
 const { createResolutionRegistry, MAX_RESOLUTION_EFFECTS } = require("./resolutions.cjs");
-const { createTriggerQueue, scheduleTrigger: scheduleTriggerInstance, processDueTriggers, validateTriggerQueue } = require("./triggers.cjs");
+const {
+  createTriggerQueue, scheduleTrigger: scheduleTriggerInstance,
+  activateDomainEventTriggers, processDueTriggers, validateTriggerQueue
+} = require("./triggers.cjs");
 
 
 function isRecord(value) {
@@ -605,7 +608,13 @@ function settleDay(world, catalog) {
   const modRuntime = getModRuntime(catalog);
   world.clock = advanceClock(world.clock, 1);
   const summary = { production: {}, needs: {}, market: {} };
-  const emitDomainEvent = createDomainEventEmitter(world, world.clock);
+  const recordDomainEvent = createDomainEventEmitter(world, world.clock);
+  const emitDomainEvent = (input) => {
+    const previousSequence = world.domainEventSequence;
+    const event = recordDomainEvent(input);
+    if (event.sequence > previousSequence) activateDomainEventTriggers(world, event);
+    return event;
+  };
   const triggersProcessed = processDueTriggers(world, {
     day: world.clock.day,
     date: world.clock.date,

@@ -49,7 +49,7 @@ function createSystemEvent(trigger, clock) {
     || !isRecord(trigger.event.payload)) {
     throw new TypeError("A System Event requires a registered event type and object payload");
   }
-  return deepFreeze({
+  const systemEvent = {
     id: "system-event:" + trigger.id,
     type: trigger.event.type,
     triggerId: trigger.id,
@@ -58,7 +58,11 @@ function createSystemEvent(trigger, clock) {
     day: clock.day,
     date: clock.date,
     payload: cloneJson(trigger.event.payload)
-  });
+  };
+  if (trigger.sourceEvent) {
+    systemEvent.sourceEvent = cloneJson(trigger.sourceEvent, "System Event source Domain Event");
+  }
+  return deepFreeze(systemEvent);
 }
 
 module.exports = { createSystemEvent };

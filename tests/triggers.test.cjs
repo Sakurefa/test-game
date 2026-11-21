@@ -6,8 +6,8 @@ const path = require("node:path");
 const { readModPackages } = require("../electron/mod-loader.cjs");
 const {
   compileCatalog, createWorld, advanceDay, applyPopulationDelta,
-  createTriggerQueue, scheduleTrigger, processDueTriggers,
-  createResolutionRegistry, validateWorldState
+  createTriggerQueue, scheduleTrigger, activateDomainEventTriggers, processDueTriggers,
+  createResolutionRegistry, validateWorldState, validateTriggerQueue
 } = require("../engine/index.cjs");
 
 function simpleRegistry() {
@@ -64,6 +64,49 @@ test("date and elapsed Triggers share the campaign calendar and process in due o
     due: { kind: "date", date: "2480-03-01" },
     event: { type: "test.resolve", payload: { value: 4 } }
   }, { resolutions, catalog }).duplicate, true);
+});
+
+test("Domain Event Triggers activate on a matching new fact and retain its source snapshot", () => {
+  const world = triggerWorld();
+  const resolutions = simpleRegistry();
+  const catalog = { modIds: ["test-mod"] };
+  const definition = {
+    id: "test-mod.after-market-settlement",
+    ownerId: "test-mod",
+    due: { kind: "domain-event", type: "market.prices-settled", scope: "market" },
+    event: { type: "test.resolve", payload: { value: 7 } }
+  };
+
+  scheduleTrigger(world, definition, { resolutions, catalog });
+  const pending = world.triggerQueue.pending[0];
+  assert.equal(pending.dueDay, null);
+  assert.equal(pending.sourceEvent, null);
+
+  const unrelated = {
+    id: "domain-1", sequence: 1, day: 10, date: "2480-02-28",
+    type: "colony.production-settled", scope: "market",
+    subjectId: "target-market", payload: {}
+  };
+  assert.equal(activateDomainEventTriggers(world, unrelated), 0);
+  assert.equal(pending.sourceEvent, null);
+
+  const matched = {
+    id: "domain-2", sequence: 2, day: 10, date: "2480-02-28",
+    type: "market.prices-settled", scope: "market",
+    subjectId: "target-market", payload: { instrumentCount: 3 }
+  };
+  assert.equal(activateDomainEventTriggers(world, matched), 1);
+  assert.equal(pending.dueDay, 11);
+  assert.deepEqual(pending.sourceEvent, matched);
+  assert.equal(activateDomainEventTriggers(world, matched), 0);
+  assert.equal(validateTriggerQueue(world, {
+    modIds: catalog.modIds,
+    isEventRegistered: resolutions.has.bind(resolutions)
+  }), true);
+
+  world.clock = { day: 11, date: "2480-03-01" };
+  const duplicate = scheduleTrigger(world, definition, { resolutions, catalog });
+  assert.equal(duplicate.duplicate, true);
 });
 
 test("Resolution rejects malformed plans and caps the number of planned Effects", () => {
@@ -160,6 +203,44 @@ test("Mod hook schedules a persisted System Event that applies an approved Effec
   assert.equal(world.triggerQueue.receipts.length, 1);
   assert.equal(world.colonies["new-dawn-colony"].stability, initialStability + 5);
   assert.equal(world.domainEvents.some((item) => item.type === "trigger.resolved"), true);
+  assert.equal(validateWorldState(world, catalog), true);
+});
+
+test("A Mod Domain Event Trigger waits for a new fact, then settles on the next day", async () => {
+  const hook = [
+    "function onBeforeDay(input) {",
+    "  if (input.day !== 1) return {};",
+    "  return { triggers: [{",
+    '    id: "test-trigger.after-market-settlement",',
+    '    due: { kind: "domain-event", type: "market.prices-settled" },',
+    '    event: { type: "effect.apply", payload: { effect: {',
+    '      type: "colony.stability.delta",',
+    '      payload: { colonyId: "new-dawn-colony", delta: 5 }',
+    "    } } }",
+    "  }] };",
+    "}"
+  ].join("\n");
+  const catalog = await loadCatalogWithTriggerHook("test-trigger", hook);
+  const world = createWorld(catalog, { seed: "domain-event-trigger" });
+  const initialStability = world.colonies["new-dawn-colony"].stability;
+
+  advanceDay(world, catalog);
+  assert.equal(world.triggerQueue.pending.length, 1);
+  const pending = world.triggerQueue.pending[0];
+  assert.equal(pending.dueDay, 2);
+  assert.equal(pending.sourceEvent.type, "market.prices-settled");
+  assert.ok(world.domainEvents.some((item) => item.sequence === pending.sourceEvent.sequence));
+  assert.equal(world.colonies["new-dawn-colony"].stability, initialStability);
+
+  advanceDay(world, catalog);
+  assert.equal(world.triggerQueue.pending.length, 0);
+  assert.equal(world.triggerQueue.receipts.length, 1);
+  assert.equal(world.colonies["new-dawn-colony"].stability, initialStability + 5);
+  assert.equal(world.triggerQueue.receipts[0].sourceEvent.type, "market.prices-settled");
+  const resolved = world.domainEvents.find((item) =>
+    item.type === "trigger.resolved" && item.subjectId === "test-trigger.after-market-settlement"
+  );
+  assert.equal(resolved.payload.sourceEvent.sequence, pending.sourceEvent.sequence);
   assert.equal(validateWorldState(world, catalog), true);
 });
 

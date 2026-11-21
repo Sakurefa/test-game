@@ -80,3 +80,35 @@ test("unknown calculation formulas keep a safe generic explanation", () => {
   assert.equal(summary.kind, "unknown");
   assert.equal(summary.titleKey, "audit.formula.unknown");
 });
+
+test("population needs formula calculates daily demand and caps consumption at available stock", () => {
+  const service = createCalculationService();
+  const { result, record } = service.evaluate("economy.population-needs", {
+    population: 1450000,
+    requirements: [
+      { commodityId: "food", dailyNeedPerThousand: 0.001, available: 10 },
+      { commodityId: "water", dailyNeedPerThousand: 0.0015, available: 1 }
+    ]
+  }, { day: 3 });
+  assert.deepEqual(result.requested, { food: 1.45, water: 2.175 });
+  assert.deepEqual(result.consumed, { food: 1.45, water: 1 });
+  assert.deepEqual(result.unmet, { food: 0, water: 1.175 });
+  assert.equal(result.satisfaction.food, 1);
+  assert.equal(result.satisfaction.water, 0.4598);
+  assert.equal(record.formulaId, "economy.population-needs");
+});
+
+test("population needs formula supports no population and duplicate commodity requirements", () => {
+  const service = createCalculationService();
+  const { result } = service.evaluate("economy.population-needs", {
+    population: 0,
+    requirements: [
+      { commodityId: "food", dailyNeedPerThousand: 0.001, available: 0 },
+      { commodityId: "food", dailyNeedPerThousand: 0.002, available: 0 }
+    ]
+  });
+  assert.deepEqual(result.requested, { food: 0 });
+  assert.deepEqual(result.consumed, { food: 0 });
+  assert.deepEqual(result.unmet, { food: 0 });
+  assert.deepEqual(result.satisfaction, { food: 1 });
+});

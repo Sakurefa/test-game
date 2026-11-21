@@ -1,4 +1,17 @@
-const VALID_CADENCES = new Set(["daily", "weekly", "manual"]);
+const CADENCE_PRIORITY = new Map([
+  ["annual", 0],
+  ["monthly", 1],
+  ["weekly", 2],
+  ["daily", 3],
+  ["manual", 4]
+]);
+const VALID_CADENCES = new Set(CADENCE_PRIORITY.keys());
+
+function isValidCampaignDate(value) {
+  if (typeof value !== "string" || !/^\\d{4}-\\d{2}-\\d{2}$/.test(value)) return false;
+  const timestamp = Date.parse(`${value}T00:00:00.000Z`);
+  return Number.isFinite(timestamp) && new Date(timestamp).toISOString().slice(0, 10) === value;
+}
 
 function assertSync(result, hook, id) {
   if (result && typeof result.then === "function") {
@@ -37,10 +50,18 @@ function createSystemRegistry(definitions) {
     for (const dependency of system.dependsOn) {
       if (!byId.has(dependency)) throw new Error(`System ${system.id} depends on missing system ${dependency}`);
       if (dependency === system.id) throw new Error(`System ${system.id} cannot depend on itself`);
+      const dependencySystem = byId.get(dependency);
+      if (system.cadence !== "manual" && dependencySystem.cadence !== "manual"
+        && CADENCE_PRIORITY.get(system.cadence) < CADENCE_PRIORITY.get(dependencySystem.cadence)) {
+        throw new Error(
+          `System ${system.id} (${system.cadence}) cannot depend on later settlement cadence ${dependencySystem.cadence} system ${dependency}`
+        );
+      }
     }
   }
 
-  const compare = (a, b) => a.order - b.order || a._index - b._index || a.id.localeCompare(b.id);
+  const compare = (a, b) => CADENCE_PRIORITY.get(a.cadence) - CADENCE_PRIORITY.get(b.cadence)
+    || a.order - b.order || a._index - b._index || a.id.localeCompare(b.id);
   const remaining = new Map(byId);
   const ordered = [];
   const completed = new Set();
@@ -84,13 +105,20 @@ function createSystemRegistry(definitions) {
     if (!world.scheduler.lastRunDayBySystem || typeof world.scheduler.lastRunDayBySystem !== "object") {
       world.scheduler.lastRunDayBySystem = {};
     }
+    const needsCalendarDate = systems.some((system) => system.cadence === "annual" || system.cadence === "monthly");
+    const date = world.clock?.date;
+    if (needsCalendarDate && !isValidCampaignDate(date)) {
+      throw new TypeError("A valid campaign calendar date is required for annual or monthly systems");
+    }
     const ran = [];
     for (const system of systems) {
-      const due = system.cadence === "daily" ? day > 0
-        : system.cadence === "weekly" ? day > 0 && day % 7 === 0
-          : false;
+      const due = system.cadence === "annual" ? day > 0 && date.endsWith("-01-01")
+        : system.cadence === "monthly" ? day > 0 && date.endsWith("-01")
+          : system.cadence === "daily" ? day > 0
+            : system.cadence === "weekly" ? day > 0 && day % 7 === 0
+              : false;
       if (!due || world.scheduler.lastRunDayBySystem[system.id] === day) continue;
-      executeUpdate(system, { ...context, world, day, systemId: system.id });
+      executeUpdate(system, { ...context, world, day, date, systemId: system.id });
       world.scheduler.lastRunDayBySystem[system.id] = day;
       ran.push(system.id);
     }

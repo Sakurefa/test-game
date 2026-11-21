@@ -102,3 +102,82 @@ test("runtime update failures identify the exact simulation system node", () => 
       && /required quote was missing/.test(error.message)
   );
 });
+
+
+test("registry runs annual, monthly, weekly and daily systems in calendar priority", () => {
+  const log = [];
+  const registry = createSystemRegistry([
+    {
+      id: "daily.reporting",
+      cadence: "daily",
+      order: -100,
+      update: ({ date }) => log.push(`daily:${date}`)
+    },
+    {
+      id: "weekly.check",
+      cadence: "weekly",
+      order: -100,
+      update: ({ date }) => log.push(`weekly:${date}`)
+    },
+    {
+      id: "monthly.settlement",
+      cadence: "monthly",
+      order: 100,
+      update: ({ date }) => log.push(`monthly:${date}`)
+    },
+    {
+      id: "annual.settlement",
+      cadence: "annual",
+      order: 100,
+      update: ({ date }) => log.push(`annual:${date}`)
+    }
+  ]);
+  const world = {
+    clock: { date: "2480-01-01" },
+    scheduler: { lastRunDayBySystem: {} }
+  };
+
+  assert.deepEqual(registry.runDue({ world, day: 364 }), [
+    "annual.settlement", "monthly.settlement", "weekly.check", "daily.reporting"
+  ]);
+  assert.deepEqual(log, [
+    "annual:2480-01-01",
+    "monthly:2480-01-01",
+    "weekly:2480-01-01",
+    "daily:2480-01-01"
+  ]);
+  assert.deepEqual(registry.runDue({ world, day: 364 }), []);
+
+  world.clock.date = "2480-02-01";
+  assert.deepEqual(registry.runDue({ world, day: 395 }), [
+    "monthly.settlement", "daily.reporting"
+  ]);
+
+  world.clock.date = "2480-02-02";
+  assert.deepEqual(registry.runDue({ world, day: 396 }), ["daily.reporting"]);
+  assert.deepEqual(registry.runDue({ world, day: 396 }), []);
+});
+
+test("calendar cadence requires a real campaign date", () => {
+  const registry = createSystemRegistry([
+    { id: "monthly.settlement", cadence: "monthly" }
+  ]);
+  const world = { scheduler: { lastRunDayBySystem: {} } };
+
+  assert.throws(
+    () => registry.runDue({ world, day: 1 }),
+    /valid campaign calendar date/
+  );
+  world.clock = { date: "2480-02-30" };
+  assert.throws(
+    () => registry.runDue({ world, day: 1 }),
+    /valid campaign calendar date/
+  );
+});
+
+test("registry rejects dependencies that contradict settlement cadence priority", () => {
+  assert.throws(() => createSystemRegistry([
+    { id: "annual.report", cadence: "annual", dependsOn: ["daily.refresh"] },
+    { id: "daily.refresh", cadence: "daily" }
+  ]), /cannot depend on later settlement cadence daily/);
+});

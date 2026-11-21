@@ -18,13 +18,18 @@ The simulation engine is plain Node.js CommonJS under `engine/`. It does not imp
 
 The Electron main process owns the active world and its campaign-time controller. It samples a monotonic clock, converts elapsed real time through the configured base-day duration and selected 1x–4x speed, and passes fractional game days to the engine. The renderer issues time-control commands and polls a small clock-only IPC payload. It interpolates the visible day-progress bar locally with requestAnimationFrame; full world snapshots are requested only when the authoritative main-process clock crosses a day boundary. UI animation and polling never drive simulation state.
 
-The simulation registry defines stable system IDs, cadence, priority, dependencies and optional initialize/update/save/restore/dispose lifecycle hooks. Dependencies are topologically ordered, updates are synchronous and deterministic, and each system records its last execution day in the world save. A system cannot run twice on the same day after a save/load or repeated scheduler call.
+The simulation registry defines stable system IDs, cadence, priority, dependencies and optional initialize/update/save/restore/dispose lifecycle hooks. Its supported cadences are annual, monthly, weekly, daily and manual. Annual systems are due on January 1; monthly systems are due on the first day of each calendar month; weekly systems remain anchored to each seven elapsed campaign days (day 7, 14, 21…); daily systems run on every completed game day. Manual systems run only through their explicit call.
+
+On a shared calendar boundary, scheduled systems run in the fixed phase order **annual → monthly → weekly → daily**. Within a phase, explicit dependencies are respected before configured order; a dependency that would require an earlier phase to wait for a later phase is rejected when the registry is created. Each system records its last execution day in the world save, so repeated scheduler calls or save/load do not run the same system twice on one campaign day. Calendar cadence is derived directly from the current campaign date; it does not scan historical dates or maintain a continuously running calendar watcher.
+
+The currently registered game systems still use weekly production and daily population needs, market pricing and war chronology. Adding calendar cadence support does not itself create a general trigger queue, condition/event evaluator or trigger-to-action invocation layer.
 
 The current campaign schedule is:
 
 1. **Every game day:** advance the calendar; update commodity and security quotes; advance active-war chronology; append a bounded daily report.
 2. **Every seventh elapsed game day (day 7, 14, 21…):** run colony industries once before that day’s market repricing, consuming inputs before adding outputs.
-3. **Between date boundaries:** retain fractional day progress in the active world state; explicit world saves persist that fraction without triggering daily systems.
+3. **On January 1 / the first day of each month:** make annual/monthly systems eligible before weekly and daily systems on the same day. No annual or monthly gameplay system is registered yet.
+4. **Between date boundaries:** retain fractional day progress in the active world state; explicit world saves persist that fraction without triggering daily systems.
 
 The initial base rate is one game day per 60 real seconds at 1x. The 1x–4x multiplier is independent of this rate and can be tuned through `setting/simulation.ini` (`base_day_seconds`). New games and loaded games start paused. The engine clock itself does not depend on wall-clock timestamps.
 

@@ -164,9 +164,13 @@ The versioned calculation registry currently contains `economy.colony-production
 Calculation capture is unconditional in the simulation service. A future UI visibility switch must only decide whether the renderer displays already-recorded audit data; it must not be passed into formulas, scheduler systems or random-stream services. Thus enabling/disabling the inspector cannot alter random consumption, formula order or simulation results. Formula IDs in contextual help should resolve to these registry entries rather than duplicate formula text.
 
 
-### Calculation audit inspector UI
+### Calculation and event inspectors
 
-The renderer exposes a read-only calculation inspector over the latest 30 persisted audit records. It displays formula ID/version, simulation day, input parameters, intermediate steps, modifiers, actual random draws and final result. The inspector reads the current world snapshot already held by the renderer; opening, closing, expanding or scrolling the panel makes no IPC request and sends no visibility flag to the simulation engine. When a new daily snapshot arrives, the panel refreshes its displayed records while preserving its own scroll position. This UI is diagnostic, not an interactive formula editor, and it does not yet imply that every simulation subsystem has registered a formula.
+The calculation inspector presents a short, localized explanation for the three registered formulas: commodity pricing, security pricing and colony production. It reads recorded formula inputs, steps and results; it does not rerun a formula or derive a second simulation result. Instrument names are resolved from the current catalog snapshot. The complete JSON inputs, steps, modifiers, random draws and result remain available under a separate raw-record disclosure. Unknown future formulas retain a generic raw-data view until a player explanation is added.
+
+The domain-event inspector labels the expected cadence of recurring core facts: one market-price settlement per market per game day, one chronology update per active war per day, and one production settlement per colony on weekly boundaries (days 7, 14, 21, ...). Command- or Mod-driven events are labeled event-driven rather than incorrectly presented as daily events. Their payload remains available under a raw-event disclosure. These labels describe the intended scheduler cadence; the engine's idempotency keys and simulation tests remain the actual duplicate-prevention and cadence checks.
+
+Both panels remain read-only renderer projections of the existing world snapshot. Opening, closing, expanding or scrolling them makes no IPC request and sends no visibility flag to formulas, scheduler systems or random streams. The display does not affect simulation results.
 
 
 ## Runtime diagnostics, autosaves and failure handling

@@ -246,9 +246,6 @@ function verifySaveReceipt(serialized, state, receipt) {
 function isSafeSlotId(id) {
   return typeof id === "string" && /^slot_[a-zA-Z0-9_-]{1,48}$/.test(id);
 }
-function isSafeSlotId(id) {
-  return typeof id === "string" && /^slot_[a-zA-Z0-9_-]{1,48}$/.test(id);
-}
 
 async function getSafeSlotDirectory(root, id) {
   if (!isSafeSlotId(id)) throw new Error("Invalid save slot ID");

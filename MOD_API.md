@@ -245,12 +245,15 @@ Trigger IDs are stable across saves and retries. Re-submitting the same ID with 
 The due sources currently are:
 - `{ kind: "date", date: "YYYY-MM-DD" }`: a valid campaign calendar date strictly after the current date.
 - `{ kind: "elapsed", days: N }`: a positive integer number of completed campaign days.
+- `{ kind: "domain-event", type: "market.prices-settled", scope: "market", subjectId: "my-market" }`: wait for one newly recorded Domain Event with the exact type and any supplied exact filters. `scope` and `subjectId` are optional; no payload expression or wildcard matcher is provided.
 
-Both are processed only at whole-day boundaries; fractional day progress does not run Trigger actions. The Engine processes already-due Triggers immediately after advancing the campaign clock, before `campaign.before-day` and before annual/monthly/weekly/daily simulation systems. Triggers created later during that settlement can first run on a subsequent completed day, preventing same-boundary recursion.
+A Domain Event Trigger listens only for facts recorded **after the Trigger is scheduled**. It does not scan or replay the retained Domain Event history, and it does not backfill a fact that already occurred. When a new matching fact is appended to the candidate world, the Engine captures its immutable JSON-safe snapshot on the pending Trigger and sets its due day to the next completed campaign day. The snapshot is retained with the Trigger and its receipt, so later pruning of the bounded Domain Event history cannot erase the source fact.
 
-A System Event is a transient internal processing request, not a player-facing narrative event and not a Domain Event. It is resolved inside the candidate-world day transaction. The read-only Event Bus receives completed Domain Event facts only after the whole world commits. If a resolution or Effect fails, the candidate day—including effects, event records, queue removal and receipt—is discarded.
+All due sources are processed only at whole-day boundaries; fractional day progress does not run Trigger actions. The Engine processes Triggers that were already due immediately after advancing the campaign clock, before `campaign.before-day` and before annual/monthly/weekly/daily simulation systems. A Domain Event emitted during a day therefore cannot recursively settle its Trigger on that same boundary. Triggers created later during settlement can first run on a subsequent completed day.
 
-The Engine currently registers `effect.apply` and `formula.effect`. It does not yet provide condition/threshold or Domain-Event-driven Trigger sources, Command/Event resolution types, a generic numeric modifier language, temporary-effect lifecycle management, random result pools or Presentation/UI. API v3 data-only Mods remain unaffected.
+A System Event is a transient internal processing request, not a player-facing narrative event and not a Domain Event. Its optional `sourceEvent` carries the fact that activated a Domain Event Trigger. It is resolved inside the candidate-world day transaction. The read-only Event Bus still receives completed Domain Event facts only after the whole world commits; it is not used as the Trigger execution channel. If a resolution or Effect fails, the candidate day—including effects, event records, queue removal and receipt—is discarded.
+
+The Engine currently registers `effect.apply` and `formula.effect`. Condition/threshold Trigger sources, Command/Event Resolution types, a generic numeric modifier language, temporary-effect lifecycle management, random result pools and Presentation/UI are not yet implemented. API v3 data-only Mods remain unaffected.
 
 ## Current hook points
 

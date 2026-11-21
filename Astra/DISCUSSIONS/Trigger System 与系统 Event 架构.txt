@@ -43,7 +43,7 @@ Presentation 以后可以把已提交事实转换为玩家可见通知、报告�
 
 ## 明确暂缓
 
-条件/阈值 evaluator、Domain Event 订阅/游标触发、Command/Event Resolution、通用 source/target/operation/value modifier、临时效果状态/到期管理、随机结算池与 UI Presentation 均不属于第一阶段。每项后续扩展都需要实际消费者、明确执行边界和聚焦测试；不为抽象本身堆叠框架。
+条件/阈值 evaluator、Command/Event Resolution、通用 source/target/operation/value modifier、临时效果状态/到期管理、随机结算池与 UI Presentation 仍属于后续工作。Domain Event 驱动的单次 Trigger 已在后续实现章节落地。每项扩展都必须有真实消费者、明确执行边界和聚焦测试；不为抽象本身堆叠框架。
 
 ## Resolution 与 Effect 的执行分离（2026-11-22）
 
@@ -83,3 +83,31 @@ Presentation 以后可以把已提交事实转换为玩家可见通知、报告�
 - 源码 CI [44953518426](https://github.com/Sakurefa/test-game/actions/runs/44953518426) 成功，221/221 tests、语法检查与 Renderer build 全部通过。
 - Windows Runtime/Launcher workflow [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367) 成功；Artifact `Market-Simulator-Launcher-EXE` 已上传。
 - Settlement 本身不拥有 Trigger Queue、Domain Event history、receipt 或 Presentation；这些仍由调用它的上层系统负责。
+
+
+## Domain Event 驱动的单次 Trigger（2026-11-22）
+
+新增 due source：
+```js
+{
+  id: "my-mod.after-market-settlement",
+  due: {
+    kind: "domain-event",
+    type: "market.prices-settled",
+    scope: "market",
+    subjectId: "my-market"
+  },
+  event: { type: "effect.apply", payload: { effect: { type: "colony.stability.delta", payload: { colonyId: "my-colony", delta: 2 } } } }
+}
+```
+
+- `type` 必填；`scope`、`subjectId` 可选，提供时进行精确匹配。不提供 payload 条件表达式、通配符或持续重复订阅。
+- 只匹配 Trigger 创建后新写入的 Domain Event；订阅时不扫描既有历史，也不回溯补触发。
+- Domain Event emitter 在 candidate world 新增事实时检查当前 pending Trigger。只扫描有上限的待处理队列（最多 4096），不会扫描 Domain Event history，也不依赖其 300 条历史保留窗口。
+- 命中后，将完整 JSON-safe source event snapshot 保存到 Trigger，并将 dueDay 设为 source event day + 1。当天只激活、不执行；下一完整日边界由既有 Trigger runner 处理。
+- Event Bus 仍只在 world commit 后发布已提交事实；Domain Event-triggered Trigger 在 candidate world 内由 emitter 激活，不把 Event Bus 变为可变状态通道。
+- System Event、`trigger.resolved` 和 receipt 保留 sourceEvent 快照；即使 Domain Event history 后续裁剪，Trigger 的来源仍可追溯。
+- Duplicate idempotency-key emission 如果返回既有事实，不会再次激活订阅。Time-based Trigger 的既有签名语义不变；本次未升级 world schema。
+- 新增单元与集成测试，覆盖精确匹配、source snapshot、下一日结算和既有 Effect/Settlement 执行链。
+
+实现提交：`6804bc9e394abada2dad48dd398fae68636df027`。源码 CI [44957849824](https://github.com/Sakurefa/test-game/actions/runs/44957849824) 成功，223/223 tests、语法检查与 Renderer build 全部通过。

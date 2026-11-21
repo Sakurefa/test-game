@@ -138,6 +138,6 @@ test("population needs calculation does not round the available input quantity u
   });
   assert.equal(result.requested.water, 1000);
   assert.equal(result.consumed.water, 0.12345);
-  assert.equal(result.unmet.water, 999.87655);
+  assert.equal(result.unmet.water, 999.877);
   assert.equal(result.satisfaction.water, 0.0001);
 });

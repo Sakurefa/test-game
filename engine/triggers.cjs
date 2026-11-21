@@ -63,7 +63,7 @@ function triggerSignature(trigger) {
 
 function normalizeDue(due, clock) {
   if (!isRecord(due) || typeof due.kind !== "string") {
-    throw new TypeError("Trigger due must be a date or elapsed-time descriptor");
+    throw new TypeError("Trigger due must be a date, elapsed-time or Domain Event descriptor");
   }
   if (due.kind === "date") {
     if (!exactKeys(due, ["kind", "date"]) || typeof due.date !== "string") {

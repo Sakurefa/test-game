@@ -69,3 +69,25 @@
 .fatal-error-panel textarea{width:100%;min-height:240px;flex:1;resize:vertical;padding:12px;border:1px solid rgba(147,174,211,.25);border-radius:5px;color:#c5d3e4;background:#080f19;font:10px/1.55 ui-monospace,Consolas,monospace;white-space:pre;overflow:auto;user-select:text}
 .fatal-error-actions{display:flex;justify-content:flex-end;gap:9px;flex-wrap:wrap}
 @media(max-width:650px){.fatal-error-backdrop{padding:10px}.fatal-error-panel{padding:15px}.fatal-error-panel textarea{min-height:180px}}
+
+.audit-readable-summary{display:grid;gap:8px}
+.audit-explanation{margin:0;color:#aebfd3;font-size:9px;line-height:1.65}
+.audit-status{display:inline-flex;align-self:start;width:max-content;padding:4px 7px;border:1px solid rgba(147,174,211,.18);border-radius:4px;color:#c2d2e5;font-size:8px;font-weight:500}
+.audit-status.commodity-price,.audit-status.security-price{color:#9ebbd7}
+.audit-status.colony-production{color:#a9cfb6}
+.audit-fact-grid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:6px}
+.audit-fact-grid span{display:flex;justify-content:space-between;gap:7px;padding:7px 8px;background:rgba(7,14,23,.35)}
+.audit-fact-grid small{color:#7d91aa;font-size:8px}
+.audit-fact-grid b{color:#c6d5e7;font-size:9px;font-weight:500;text-align:right}
+.audit-resource-group{display:grid;gap:5px;padding-top:7px;border-top:1px solid rgba(147,174,211,.1)}
+.audit-resource-group>small{color:#8298b2;font-size:8px}
+.audit-resource-group>div{display:grid;gap:5px}
+.audit-resource-group span{display:flex;justify-content:space-between;gap:8px;color:#9fb1c7;font-size:8px}
+.audit-resource-group span b{color:#c1d0e2;font-weight:500;text-align:right}
+.audit-limiter{margin:0;padding:7px 8px;border-left:2px solid rgba(205,157,115,.65);background:rgba(91,61,39,.15);color:#d7b08d;font-size:8px}
+.audit-raw-details{margin-top:2px;border-top:1px solid rgba(147,174,211,.14)}
+.audit-raw-details>summary{padding:8px 2px;color:#8fa5bf;font-size:8px;cursor:pointer;list-style:none}
+.audit-raw-details>summary::-webkit-details-marker{display:none}
+.audit-raw-details .audit-record-body{padding:0 2px 7px}
+.audit-cadence{color:#9db7d2!important}
+@media(max-width:700px){.audit-fact-grid{grid-template-columns:1fr}.audit-resource-group span{align-items:flex-start;flex-direction:column}}

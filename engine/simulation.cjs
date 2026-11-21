@@ -17,7 +17,7 @@ function getModRuntime(catalog) {
 }
 
 function runModHook(modRuntime, hookId, input, { world, catalog, day, subjectKey = "world", emitDomainEvent }) {
-  const outcomes = modRuntime.run(hookId, input);
+  const outcomes = modRuntime.run(hookId, input, { randomScope: subjectKey });
   return applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey, emitDomainEvent });
 }
 

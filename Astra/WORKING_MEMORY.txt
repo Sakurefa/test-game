@@ -42,7 +42,7 @@ Help Astra maintain continuity across sessions and execute the user's confirmed 
 5. CONTINUITY AND RECORD KEEPING
 --------------------------------
 - At task start, follow AGENTS.md and Astra/README.txt; read only discussion topics and workflow records relevant to the task.
-- Design discussion is filed by topic in Astra/DISCUSSIONS/. Concrete work sessions are filed in Astra/WORKFLOWS/ using YYYY-MM-DD_work-direction-specific-topic.txt.
+- Mandatory engineering principles are maintained in Astra/IMPORTANT_PRINCIPLES/ and must be read before design or implementation. Design discussion is filed by topic in Astra/DISCUSSIONS/. Concrete work sessions are filed in Astra/WORKFLOWS/ using YYYY-MM-DD_NN_work-direction-specific-topic.txt, with one shared chronological sequence per date.
 - Root ASTRA_WORKLOG.md is an index/current-state summary, never a chronological transcript.
 - Workflow records state baseline/resulting commit, scope, exact files, actual tests/CI, known issues, next user-approved task and Windows GUI status.
 - Update topic records when decisions or implementation facts change. Do not create diary filler for routine exchanges.
@@ -85,6 +85,6 @@ Continue the aggregate population foundation while prohibiting premature gamepla
 - Discussions are organized by subject under Astra/DISCUSSIONS/ and maintained across dates.
 - Workflows are organized by date plus concrete work direction/topic under Astra/WORKFLOWS/. A busy day may contain multiple separate records.
 - Root ASTRA_WORKLOG.md is a small navigation index, not a transcript.
-- Follow Astra/DISCUSSIONS/日志编写规范.txt for naming and cross-links.
+- Follow Astra/DISCUSSIONS/日志编写规范.txt for naming, daily sequence numbers and cross-links.
 
 END

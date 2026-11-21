@@ -280,9 +280,10 @@ function applyModEffect(effect, world, catalog, modId) {
         throw new TypeError("Mod state key must be a stable lowercase ID");
       }
       const state = getModState(world, modId);
-      const before = state[payload.key] ?? null;
+      const existed = Object.hasOwn(state, payload.key);
+      const before = existed ? state[payload.key] : null;
       delete state[payload.key];
-      return { modId, key: payload.key, before, deleted: before !== null };
+      return { modId, key: payload.key, before, deleted: existed };
     }
     case "colony.population.delta": {
       requireKeys(payload, ["colonyId", "delta"], effect.type);

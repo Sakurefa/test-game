@@ -408,6 +408,7 @@ handleIpc("world:leave", async () => {
   activeWorld = null;
   activeCatalog = null;
   activeSaveId = null;
+  activeSaveReceipt = null;
   activeWorldDirty = false;
   return true;
 });

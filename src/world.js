@@ -13,12 +13,11 @@ function auditJson(value) {
 }
 
 function findAuditInstrument(snapshot, record) {
-  const streams = (record.randomDraws || []).map((draw) => draw.streamId).filter(Boolean);
+  const streams = new Set((record.randomDraws || []).map((draw) => draw.streamId).filter(Boolean));
   for (const market of snapshot.markets || []) {
     for (const instrument of market.instruments || []) {
-      if (streams.some((streamId) => streamId.endsWith("." + instrument.id))) {
-        return { ...instrument, marketName: entityName(snapshot, market) };
-      }
+      const streamId = `economy.market.${market.id}.${instrument.id}`;
+      if (streams.has(streamId)) return { ...instrument, marketName: entityName(snapshot, market) };
     }
   }
   return null;

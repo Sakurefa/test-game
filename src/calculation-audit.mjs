@@ -57,6 +57,31 @@ export function summarizeCalculationRecord(record) {
         ]
       };
     }
+    case "economy.population-needs": {
+      const needs = Object.entries(result.requested || {}).map(([commodityId, requested]) => ({
+        commodityId,
+        requested,
+        consumed: result.consumed?.[commodityId] ?? 0,
+        unmet: result.unmet?.[commodityId] ?? 0,
+        satisfaction: result.satisfaction?.[commodityId] ?? 1,
+        available: inputs.requirements?.find((item) => item.commodityId === commodityId)?.available ?? 0
+      }));
+      const shortageCount = needs.filter((item) => item.unmet > 0).length;
+      return {
+        kind: "population-needs",
+        titleKey: "audit.formula.population_needs",
+        explanationKey: shortageCount > 0
+          ? "audit.explanation.population_needs_shortage"
+          : "audit.explanation.population_needs_met",
+        statusKey: shortageCount > 0 ? "audit.status.needs_shortage" : "audit.status.needs_met",
+        facts: [
+          { labelKey: "audit.field.population", value: inputs.population },
+          { labelKey: "audit.field.need_count", value: needs.length },
+          { labelKey: "audit.field.shortage_count", value: shortageCount }
+        ],
+        needs
+      };
+    }
     case "economy.colony-production": {
       const actual = result.batchScale;
       const statusKey = Number.isFinite(actual) && actual <= 0 ? "audit.status.no_output"

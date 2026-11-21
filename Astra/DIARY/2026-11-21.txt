@@ -195,3 +195,54 @@ string rather than the single-backslash regex literals in the test file. The
 four assertions are now directly replaced and checked in the retrieved file.
 The engine-side precision behavior and the new sub-mill shortage regression
 passed in that run.
+
+2026-11-21
+Title: Confirming aggregate population and narrative individuals
+===============================================================
+
+The user made four explicit population-architecture decisions:
+
+1. Population is simulated as aggregate groups, not as a population of
+   continuously simulated individual people.
+2. Group attributes initially store aggregate values, averages and proportions;
+   do not build a complete joint distribution across every dimension.
+3. Effects and date/condition triggers are separate concepts.
+4. Population needs are settled for groups in aggregate, not person by person.
+
+The user clarified the intended presentation boundary: ordinary residents
+remain part of aggregate population statistics. Individual people appear only
+when a narrative or strategically unique role makes them relevant, such as
+an engineer featured in an incident or a named manager appointed to a key
+building role. Such a person may have role-specific attributes and influence
+a group or building, but this must not turn into a hidden individual-level
+population economy. The character/group relationship and population-counting
+semantics still need an explicit design before implementation.
+
+The design must keep social class, profession, wealth, species/subspecies and
+capability distributions independently extensible. Do not create every
+possible cross-product of these dimensions. Marginal proportions cannot be
+treated as proof of an intersection (for example, the share of highly capable
+technicians) unless the model stores or derives that relationship. Class and
+other content categories must come from Core/optional Mod INI definitions;
+the engine must not recognize hard-coded class names or species-specific
+gameplay rules.
+
+The effect direction is to provide generic, targeted numerical influence with
+an explicit source, target, operation and value. Permanent effects have no
+timer; temporary effects use separate triggers for expiry or configured
+follow-up actions. Trigger processing should work from due dates/conditions,
+not by repeatedly scanning historical effects. This is a design contract,
+not authorization to add specific laws, events, species, need values, wages
+or other game content.
+
+The next foundation direction is to define the smallest aggregate population
+group representation and its independent statistical dimensions while
+preserving the existing scalar colony population and legacy
+`colony.population.delta` compatibility. Group-level needs and the effect/
+trigger data contracts follow after that. The user explicitly reaffirmed the
+AK principle and Mod-first content boundary: keep the engine generic, direct
+and maintainable; put game definitions and balance values in INI Mod data.
+
+Repository work in this session was limited to Astra's durable collaboration
+records. No simulation code, Mod content, schema, tests, Renderer or game
+balance values were changed.

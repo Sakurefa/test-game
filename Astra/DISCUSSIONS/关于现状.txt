@@ -54,6 +54,15 @@
 - `domain-event` due source 已实现：按新写入 Domain Event 的精确 type 与可选 scope/subjectId 匹配。
 - 订阅建立前发生的历史事实不会回放；匹配事实在写入 candidate world 时激活 Trigger，并把来源快照持久化在 pending Trigger。
 - 激活日不执行，dueDay 为来源事实日 + 1；下一完整游戏日复用既有 Trigger → System Event → Settlement 路径。
-- 不扫描 300 条 Domain Event history，不使用 Event Bus 驱动权威世界变更；只扫描有上限的 pending Trigger Queue。EventBus 仍然仅在 world commit 后发布事实。
+- 不扫描 300 条 Domain Event history，不使用 Event Bus 驱动权威世界变更；只扫描有上限的 pending Trigger Queue。日结算与命令事务写入新 Domain Event 时都会激活匹配 Trigger；Event Bus 仍然仅在 world commit 后发布事实。
 - World schema 保持 9，旧 date/elapsed Trigger 的签名/存档格式语义保持兼容。
 - 源码提交：`6804bc9e394abada2dad48dd398fae68636df027`；源码 CI [44957849824](https://github.com/Sakurefa/test-game/actions/runs/44957849824) 成功：223/223 tests、语法检查与 Renderer build 全部通过。
+
+
+## 命令事务事件入口补齐（2026-11-22）
+
+- Domain Event Trigger 激活入口已同时接入 `engine/simulation.cjs` 的日结算事实写入和 `engine/command-runtime.cjs` 的命令事务事实写入。
+- 命令处理先在 detached candidate world 写入 Domain Event，并激活匹配 pending Trigger，再调用世界提交；Event Bus 仍在提交成功后才通知订阅者。
+- 命令重放不写新事实，因此不会重复激活 Trigger 或重复发布 Event Bus 通知。
+- 新增命令集成测试：验证命令产生的事实会安排下一日 Trigger、提交后的 Event Bus 观察到已经激活的 Trigger、重复 command ID 不会重复执行，并且该 Trigger 能在下一完整日由现有 Settlement 路径处理。
+- 最终 Engine/测试提交：`78bd540b5bb2e872d304b3ad0509460985629e09`；源码 CI [44958699387](https://github.com/Sakurefa/test-game/actions/runs/44958699387) 成功，224/224 tests。

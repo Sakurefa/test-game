@@ -110,7 +110,7 @@ The previous clock interpolation, incremental daily region refresh, scroll reten
 - Per-industry weekly production reports are implemented in PR #4: requested/actual batches and output, actual input consumption, limiting material/inventory, and explicit normal/limited/no-output status. PR CI passed 141/141 tests; the UI still needs user-side Windows verification.
 - Calculation audits now have localized player-facing summaries for commodity quotes, security quotes and colony production. Raw inputs, formula steps, modifiers, random draws and results are kept under a separate advanced disclosure.
 - Domain events now explain the normal cadence of daily market settlement, daily active-war chronology and weekly colony production. Command/Mod events are labeled event-driven; no duplicate-scan or new runtime audit was added.
-- Add a compact save/load state fingerprint/receipt so persistence can be compared without inspecting every field.
+- Save/load integrity receipts are implemented in the current branch: a SHA-256 digest, serialized byte count, schema, campaign day/date and content fingerprint are recorded in existing slot metadata and verified before loading. Legacy saves without a receipt remain compatible.
 
 ### Priority 3 — complete the common observation boundary
 - engine/queries.cjs currently provides detached projections for world overview, faction, colony, market, fleet and war.

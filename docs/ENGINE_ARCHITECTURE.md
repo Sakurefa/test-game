@@ -219,3 +219,10 @@ The current Mod runtime uses Node vm with a fresh context, disabled dynamic stri
 The long-range design anticipates future hooks and command/event contracts for population needs and workforce, law and government transitions, company finance, market orders/fills, cargo loading/delivery, fleet movement, diplomacy, research and missions. These should be added as the corresponding core domain commands and effects are implemented. Do not turn the Mod runtime into a general world-patching API.
 
 Tactical combat remains outside the campaign scheduler. Future battles use a separate fixed-step simulation instance and return only a validated campaign outcome command.
+
+
+### Read-only world query layer
+
+The engine now exports a small query registry from engine/queries.cjs. The default registry provides world overview and faction, colony, market, fleet and war summaries. Query results are JSON-detached and recursively frozen, so consumers cannot mutate authoritative state through a returned projection. Input and output sizes are bounded.
+
+This is an engine-side contract and test surface; the renderer still uses the existing campaign snapshot IPC in this revision. Future UI, AI and subsystem integrations should adopt named projections as they are migrated, rather than introducing ad hoc cross-system reads. Query handlers themselves are trusted core code, not JavaScript Mod callbacks.

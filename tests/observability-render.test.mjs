@@ -99,3 +99,49 @@ test("domain event panel explains weekly recurrence before exposing raw payload"
   assert.ok(markup.indexOf("每座殖民地每周一次") < markup.indexOf("查看原始事件数据"));
   assert.match(markup, /campaign-day:7:colony\.production-settled:new-dawn-colony/);
 });
+
+test("colony needs audit explains actual consumption and shortage without hiding raw values", () => {
+  const view = snapshot();
+  view.world.audit.calculations = [{
+    day: 1,
+    formulaId: "economy.population-needs",
+    version: 1,
+    inputs: { population: 1450000, requirements: [
+      { commodityId: "food", dailyNeedPerThousand: .001, available: 10 },
+      { commodityId: "water", dailyNeedPerThousand: .0015, available: 1 }
+    ] },
+    steps: [],
+    modifiers: [],
+    randomDraws: [],
+    result: {
+      requested: { food: 1.45, water: 2.175 },
+      consumed: { food: 1.45, water: 1 },
+      unmet: { food: 0, water: 1.175 },
+      satisfaction: { food: 1, water: .4598 }
+    }
+  }];
+  view.commodities.push({ id: "water", nameKey: "entity.water.name", unitKey: "entity.water.unit" });
+  const markup = renderCalculationAuditPanel(view);
+  assert.match(markup, /人口日常需求/);
+  assert.match(markup, /供应不足/);
+  assert.match(markup, /45\.98%/);
+  assert.match(markup, /缺口 1\.18/);
+});
+
+test("domain event panel explains daily population demand settlement", () => {
+  const view = snapshot();
+  view.commodities.push({ id: "water", nameKey: "entity.water.name", unitKey: "entity.water.unit" });
+  view.world.domainEvents = [{
+    id: "domain-4", sequence: 4, day: 1, date: "2478-04-02",
+    type: "colony.needs-settled", scope: "colony", subjectId: "new-dawn-colony",
+    idempotencyKey: "campaign-day:1:colony.needs-settled:new-dawn-colony",
+    payload: { needCount: 2, shortageCount: 1, needs: [
+      { commodityId: "food", available: 10, requested: 1.45, consumed: 1.45, unmet: 0, satisfaction: 1 },
+      { commodityId: "water", available: 1, requested: 2.175, consumed: 1, unmet: 1.175, satisfaction: .4598 }
+    ]}
+  }];
+  const markup = renderDomainEventPanel(view);
+  assert.match(markup, /殖民地日常需求结算/);
+  assert.match(markup, /每座殖民地每天一次/);
+  assert.match(markup, /缺口 1\.18/);
+});

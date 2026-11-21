@@ -351,13 +351,16 @@ function compileCatalog(modPackages) {
       : JSON.stringify(classificationCompatibleContent);
     const classificationCompatibleHash = crypto.createHash("sha256")
       .update(classificationCompatibleFingerprint).digest("hex");
+    const classificationCompatibleLegacyHash = crypto.createHash("sha256")
+      .update(JSON.stringify(classificationCompatibleContent)).digest("hex");
 
     return {
       ok: true,
       catalog: {
         ...catalog, universe, contentHash, legacyContentHash, serializable,
         localizations, defaultLocale, extensions,
-        compatibleContentHashes: [classificationCompatibleHash]
+        compatibleContentHashes: [classificationCompatibleHash],
+        compatibleLegacyContentHashes: [classificationCompatibleLegacyHash]
       }
     };
   } catch (error) {

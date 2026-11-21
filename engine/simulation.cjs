@@ -395,8 +395,11 @@ function validateWorldState(world, catalog) {
   }
   if (world.contentHash !== catalog.contentHash) {
     const canUpgradeLegacyFingerprint = world.contentHashUpgradePending === true
-      && typeof catalog.legacyContentHash === "string"
-      && world.contentHash === catalog.legacyContentHash;
+      && (
+        world.contentHash === catalog.legacyContentHash
+        || (Array.isArray(catalog.compatibleLegacyContentHashes)
+          && catalog.compatibleLegacyContentHashes.includes(world.contentHash))
+      );
     const canUpgradeKnownPopulationClassification = Array.isArray(catalog.compatibleContentHashes)
       && catalog.compatibleContentHashes.includes(world.contentHash);
     if (!canUpgradeLegacyFingerprint && !canUpgradeKnownPopulationClassification) {

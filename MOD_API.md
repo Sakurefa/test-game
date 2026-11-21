@@ -245,6 +245,6 @@ Never add native modules, executable binaries, arbitrary host callbacks or direc
 
 ### Legacy save content fingerprints
 
-When a schema 1–6 save is migrated to schema 7, the loader may recognize the previous INI-only content fingerprint if the current INI content is byte-for-byte equivalent. It then upgrades the stored fingerprint to include the currently enabled API v4 script sources and hook declarations.
+When a schema 1–6 save is migrated to schema 7, the loader may recognize the previous INI-only content fingerprint if the current INI content is byte-for-byte equivalent. It then upgrades the stored fingerprint to include the currently enabled API v4 script sources and hook declarations. The population classification addition also retains the exact immediately previous INI-only fingerprint for this migration path.
 
 One narrow additive-content exception also exists for the population classification catalog addition: a Schema-7 save from the immediately previous catalog can be upgraded when all prior content and the exact enabled JavaScript extension set match. Only the two new classification collections are excluded when computing that one compatibility fingerprint. This does not authorize arbitrary Schema-7 content changes; changes to existing definitions, enabled scripts or hook declarations still cause a fingerprint mismatch.

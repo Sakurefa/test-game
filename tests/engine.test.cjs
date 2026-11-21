@@ -287,6 +287,26 @@ test("schema-six saves upgrade the legacy INI fingerprint when the enabled v4 Mo
   assert.equal(Object.hasOwn(migrated, "contentHashUpgradePending"), false);
 });
 
+test("Schema-six saves upgrade only the exact pre-classification legacy INI fingerprint", async () => {
+  const c = await catalog();
+  const legacy = createWorld(c, { seed: "population-classification-legacy-hash-upgrade" });
+  legacy.schemaVersion = 6;
+  legacy.contentHash = c.compatibleLegacyContentHashes?.[0];
+  delete legacy.modState;
+
+  const migrated = migrateWorldState(legacy);
+  assert.equal(migrated.contentHashUpgradePending, true);
+  assert.equal(validateWorldState(migrated, c), true);
+  assert.equal(migrated.contentHash, c.contentHash);
+
+  const unrelated = createWorld(c, { seed: "population-classification-legacy-hash-reject" });
+  unrelated.schemaVersion = 6;
+  unrelated.contentHash = "unrelated-legacy-content-fingerprint";
+  delete unrelated.modState;
+  const invalidMigration = migrateWorldState(unrelated);
+  assert.throws(() => validateWorldState(invalidMigration, c), /different Mod content/);
+});
+
 test("Schema-seven saves upgrade only the exact pre-classification content fingerprint", async () => {
   const c = await catalog();
   const world = createWorld(c, { seed: "population-classification-hash-upgrade" });

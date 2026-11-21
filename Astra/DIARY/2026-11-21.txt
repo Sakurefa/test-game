@@ -144,3 +144,15 @@ The first implementation slice therefore adds profession and wealth-tier
 content types to the INI Mod loader/catalog and gives Core neutral placeholder
 definitions. It does not invent a demographic composition, split any
 existing colony population, or enable unfinished economic behavior.
+
+
+Documentation correction
+------------------------
+
+During the final review, an update to the Mod API guide was mistakenly built
+from a partial line-range fetch and briefly replaced the full guide with only
+that excerpt. This was caught immediately by checking the committed diff.
+The full guide was restored from the pre-change main revision, the intended
+population section and save-compatibility wording were reapplied, and the
+restored document was checked at its full 251-line length. No game runtime
+code or save data was affected by this documentation correction.

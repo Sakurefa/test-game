@@ -146,7 +146,7 @@ async function readSettings(root) {
 async function writeSettings(root, patch) {
   if (!patch || typeof patch !== "object" || Array.isArray(patch)) throw new Error("Settings update must be an object");
   const current = await readSettings(root);
-  const changed = [];
+  const updates = [];
   for (const [group, values] of Object.entries(patch)) {
     if (!DEFAULT_SETTINGS[group] || !values || typeof values !== "object" || Array.isArray(values)) {
       throw new Error(`Unknown settings group: ${group}`);
@@ -156,6 +156,11 @@ async function writeSettings(root, patch) {
       : { ...current[group], ...values };
     const next = validateGroup(group, { [group]: merged });
     if (group === "mods") next.enabled.core = true;
+    updates.push({ group, next });
+  }
+
+  const changed = [];
+  for (const { group, next } of updates) {
     await atomicWrite(path.join(root, "setting", `${group}.ini`), serializeIni({ [group]: next }));
     current[group] = next;
     changed.push(group);

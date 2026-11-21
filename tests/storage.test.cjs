@@ -65,6 +65,29 @@ test("writes validated settings atomically and prevents disabling core", async (
   await assert.rejects(() => writeSettings(root, { simulation: { base_day_seconds: 5 } }), /Invalid setting/);
 });
 
+test("validates every group in a settings patch before writing any group", async (t) => {
+  const root = await fixture(t);
+  await initializeStorage(root);
+  const graphicsPath = path.join(root, "setting", "graphics.ini");
+  const audioPath = path.join(root, "setting", "audio.ini");
+  const graphicsBefore = await fs.readFile(graphicsPath, "utf8");
+  const audioBefore = await fs.readFile(audioPath, "utf8");
+
+  await assert.rejects(
+    () => writeSettings(root, {
+      graphics: { ui_scale: 120 },
+      audio: { master_volume: 101 }
+    }),
+    /Invalid setting audio\.master_volume/
+  );
+
+  assert.equal(await fs.readFile(graphicsPath, "utf8"), graphicsBefore);
+  assert.equal(await fs.readFile(audioPath, "utf8"), audioBefore);
+  const settings = await readSettings(root);
+  assert.equal(settings.graphics.ui_scale, 100);
+  assert.equal(settings.audio.master_volume, 100);
+});
+
 test("creates, lists and removes versioned save slots", async (t) => {
   const root = await fixture(t);
   await initializeStorage(root);

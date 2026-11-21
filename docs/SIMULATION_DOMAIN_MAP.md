@@ -51,7 +51,7 @@ The first executable step currently uses each colony's aggregate population; pop
 Current needs shortfalls are visible and recorded; they do not yet directly change population or stability.
 
 Interfaces:
-- Events: population.cohort-created, population.cohort-changed, population.migrated, population.needs-settled, population.employment-settled.
+- Events: `colony.needs-settled` (implemented daily aggregate demand fact); future cohort lifecycle and migration events remain planned.
 - Commands: population.create-cohort, population.migrate, population.assign-work.
 - Read projections: cohort totals, needs satisfaction, labor supply, employment and migration flows.
 

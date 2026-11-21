@@ -11,7 +11,7 @@ test("daily and weekly autosaves rotate independently across two slots", async (
   t.after(() => fs.rm(root, { recursive: true, force: true }));
   await initializeStorage(root);
   const manager = createAutomaticSaveManager({ root, listSaveSlots, createSaveSlot, readGameState, writeGameState });
-  const world = (day) => ({ schemaVersion: 8, clock: { day, date: `2478-04-${String(day + 1).padStart(2, "0")}` }, marker: day });
+  const world = (day) => ({ schemaVersion: 9, triggerQueue: { pending: [], receipts: [] }, clock: { day, date: `2478-04-${String(day + 1).padStart(2, "0")}` }, marker: day });
 
   await manager.save("daily", world(1));
   await manager.save("daily", world(2));

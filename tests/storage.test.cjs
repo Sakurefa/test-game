@@ -159,6 +159,17 @@ test("writes and restores a versioned game world inside its save slot", async (t
   assert.ok(slot.metadata.updated_at);
 });
 
+
+test("writeGameState rejects legacy schema until Engine migration upgrades it", async (t) => {
+  const root = await fixture(t);
+  await initializeStorage(root);
+  await createSaveSlot(root, "slot_old_schema", "Old Schema");
+  await assert.rejects(
+    () => writeGameState(root, "slot_old_schema", { schemaVersion: 8, clock: { day: 1, date: "2478-04-02" } }),
+    /Invalid or unsupported game state/
+  );
+});
+
 test("save receipt rejects world file changes before returning a world state", async (t) => {
   const root = await fixture(t);
   await initializeStorage(root);

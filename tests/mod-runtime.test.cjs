@@ -411,7 +411,7 @@ test("runs the example Mod hook through real world day settlement", async () => 
     { day: 60, marketCount: 3, quoteCount: 15, previousMonths: 1, modId: "example-market", eventType: "monthly-market-observation" }
   ]);
   assert.deepEqual(world.modState["example-market"], { "months-observed": 2 });
-  assert.equal(world.schemaVersion, 8);
+  assert.equal(world.schemaVersion, 9);
 });
 
 

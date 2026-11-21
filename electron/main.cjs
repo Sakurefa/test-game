@@ -65,7 +65,7 @@ function formatErrorChain(error) {
 async function failActiveWorld(error, source) {
   if (fatalHandling) return;
   fatalHandling = true;
-  campaignTime.pause();
+  campaignTime.reset();
   const failureId = require("node:crypto").randomUUID();
   const errorMessage = error instanceof Error ? error.message : String(error);
   const errorStack = error instanceof Error ? formatErrorChain(error) : String(error);
@@ -112,11 +112,23 @@ const campaignTime = new CampaignTimeController({
     if (result.daysAdvanced > 0 || result.dayFraction !== 0) activeWorldDirty = true;
   }
 });
+
+function runCampaignTimeOperation(source, operation) {
+  try {
+    return operation();
+  } catch (error) {
+    if (error?.code === "CAMPAIGN_TIME_ADVANCE_FAILURE") {
+      void failActiveWorld(error, source);
+    }
+    throw error;
+  }
+}
+
 const campaignTimer = setInterval(() => {
   try {
     campaignTime.tick();
   } catch (error) {
-    campaignTime.pause();
+    campaignTime.reset();
     void failActiveWorld(error, "campaign-clock");
   }
 }, 100);
@@ -263,8 +275,7 @@ handleIpc("world:start-new", async () => {
       await removeSaveSlot(GAME_ROOT, nextSaveId).catch(() => {});
       throw error;
     }
-    campaignTime.tick();
-    campaignTime.pause();
+    runCampaignTimeOperation("world.transition.clock", () => campaignTime.pause());
     disposeWorldCommandGateway();
     activeCatalog = nextCatalog;
     activeWorld = nextWorld;
@@ -291,8 +302,7 @@ handleIpc("world:load-save", async (_event, saveId) => {
     const loadedSave = await readGameStateWithReceipt(GAME_ROOT, saveId);
     const nextWorld = migrateWorldState(loadedSave.state);
     validateWorldState(nextWorld, nextCatalog);
-    campaignTime.tick();
-    campaignTime.pause();
+    runCampaignTimeOperation("world.transition.clock", () => campaignTime.pause());
     disposeWorldCommandGateway();
     activeCatalog = nextCatalog;
     activeWorld = nextWorld;
@@ -314,7 +324,7 @@ handleIpc("world:load-save", async (_event, saveId) => {
 handleIpc("world:set-speed", async (_event, speed) => {
   if (worldSaveInProgress || worldTransitionInProgress) throw new Error("Time controls are temporarily unavailable during a save or world transition");
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
-  const state = campaignTime.setSpeed(speed);
+  const state = runCampaignTimeOperation("world.set-speed", () => campaignTime.setSpeed(speed));
   logger.info("world.clock", state.paused ? "Campaign time paused" : `Campaign time set to ${state.speed}x`);
   return getActiveWorldSnapshot();
 });
@@ -323,7 +333,7 @@ handleIpc("world:dispatch-command", async (_event, command) => {
   if (worldSaveInProgress || worldTransitionInProgress) throw new Error("World commands are temporarily unavailable during a save or world transition");
   if (!activeCommandGateway) throw new Error("No active world command gateway is available");
   try {
-    campaignTime.tick();
+    runCampaignTimeOperation("world.dispatch-command.clock", () => campaignTime.tick());
     const outcome = activeCommandGateway.dispatch(command);
     return { ...outcome, snapshot: getActiveWorldSnapshot() };
   } catch (error) {
@@ -346,7 +356,7 @@ handleIpc("world:time-status", async () => {
 handleIpc("world:advance-day", async () => {
   if (worldSaveInProgress || worldTransitionInProgress) throw new Error("World progression is temporarily unavailable during a save or world transition");
   if (!activeWorld || !activeCatalog) throw new Error("No active world is loaded");
-  campaignTime.pause();
+  runCampaignTimeOperation("world.advance-day.pause", () => campaignTime.pause());
   const eventBus = activeCommandGateway ? { publish: (event) => activeCommandGateway.publishEvent(event) } : null;
   try {
     advanceDay(activeWorld, activeCatalog, { ...(eventBus ? { eventBus } : {}), onDaySettled });
@@ -382,7 +392,7 @@ handleIpc("world:save", async () => {
     worldBeingSaved = activeWorld;
     saveId = activeSaveId;
     previousSpeed = campaignTime.getState().speed;
-    campaignTime.pause();
+    runCampaignTimeOperation("world.save.pause", () => campaignTime.pause());
     const consistentSnapshot = structuredClone(worldBeingSaved);
     const receipt = await writeGameState(GAME_ROOT, saveId, consistentSnapshot);
     if (activeWorld === worldBeingSaved && activeSaveId === saveId) {
@@ -395,14 +405,14 @@ handleIpc("world:save", async () => {
   } finally {
     worldSaveInProgress = false;
     if (worldBeingSaved && activeWorld === worldBeingSaved && activeSaveId === saveId && previousSpeed > 0) {
-      campaignTime.setSpeed(previousSpeed);
+      runCampaignTimeOperation("world.save.resume", () => campaignTime.setSpeed(previousSpeed));
     }
   }
 });
 
 handleIpc("world:leave", async () => {
   if (worldSaveInProgress || worldTransitionInProgress) throw new Error("Cannot leave while a world save or transition is in progress");
-  campaignTime.pause();
+  runCampaignTimeOperation("world.leave.pause", () => campaignTime.pause());
   disposeWorldCommandGateway();
   logger.info("world", `Leaving active world ${activeSaveId || "unknown"}`);
   activeWorld = null;
@@ -426,7 +436,9 @@ handleIpc("settings:read", async () => {
 handleIpc("settings:write", async (_event, patch) => {
   await ensureStorage();
   const result = await writeSettings(GAME_ROOT, patch);
-  campaignTime.setBaseDayDurationMs(result.settings.simulation.base_day_seconds * 1000);
+  runCampaignTimeOperation("settings.write.campaign-duration", () =>
+    campaignTime.setBaseDayDurationMs(result.settings.simulation.base_day_seconds * 1000)
+  );
   logger.info("settings", `Updated settings groups: ${result.changed.join(", ")}`);
   const window = BrowserWindow.getFocusedWindow() || BrowserWindow.getAllWindows()[0];
   if (window && result.settings.graphics) {
@@ -576,7 +588,7 @@ app.whenReady().then(async () => {
 app.on("before-quit", (event) => {
   if (quitting) return;
   quitting = true;
-  campaignTime.pause();
+  campaignTime.reset();
   clearInterval(campaignTimer);
   logger.info("shutdown", "Shutdown requested; stopping tracked cleanup tasks");
   if (cleanupTasks.size > 0) {

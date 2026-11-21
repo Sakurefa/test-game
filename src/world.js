@@ -46,6 +46,21 @@ function renderCommodityAmounts(snapshot, labelKey, amounts) {
   return `<div class="audit-resource-group"><small>${escapeHtml(tr(snapshot, labelKey))}</small><div>${values}</div></div>`;
 }
 
+function renderNeedsRows(snapshot, needs) {
+  if (!Array.isArray(needs) || needs.length === 0) return "";
+  return `<div class="needs-list">${needs.map((item) => {
+    const unit = snapshot.commodities.find((commodity) => commodity.id === item.commodityId)?.unitKey;
+    const unitLabel = unit ? tr(snapshot, unit) : "";
+    const shortage = item.unmet > 0;
+    return `<div class="needs-row ${shortage ? "warning" : "met"}">
+      <div><b>${escapeHtml(entityName(snapshot, snapshot.commodities.find((commodity) => commodity.id === item.commodityId), item.commodityId))}</b>
+        <small>结算前库存 ${number(item.available)} / 需求 ${number(item.requested)} ${escapeHtml(unitLabel)} · 实际消耗 ${number(item.consumed)}${escapeHtml(unitLabel)}${shortage ? ` · 缺口 ${number(item.unmet)}${escapeHtml(unitLabel)}` : ""}</small>
+      </div>
+      <strong>${number((item.satisfaction ?? 1) * 100)}%</strong>
+    </div>`;
+  }).join("")}</div>`;
+}
+
 function renderAuditRecord(snapshot, record) {
   const summary = summarizeCalculationRecord(record);
   const draws = Array.isArray(record.randomDraws) ? record.randomDraws : [];
@@ -78,6 +93,7 @@ function renderAuditRecord(snapshot, record) {
           ${renderAuditFacts(snapshot, summary.facts, instrument)}
           ${inputRows ? `<div class="audit-resource-group"><small>${escapeHtml(tr(snapshot, "audit.field.recipe_inputs"))}</small><div>${inputRows}</div></div>` : ""}
           ${limiting}
+          ${renderNeedsRows(snapshot, summary.needs)}
           ${renderCommodityAmounts(snapshot, "audit.field.consumed", summary.consumed)}
           ${renderCommodityAmounts(snapshot, "audit.field.produced", summary.produced)}
         </div>
@@ -145,6 +161,7 @@ function renderDomainEventRecord(snapshot, event) {
           <p class="audit-explanation">${escapeHtml(tr(snapshot, summary.explanationKey))}</p>
           ${renderAuditFacts(snapshot, summary.facts)}
           ${renderEventChanges(snapshot, summary.changes)}
+          ${renderNeedsRows(snapshot, summary.needs)}
           ${renderCommodityAmounts(snapshot, "audit.field.production_output", summary.production)}
         </div>
         <details class="audit-raw-details">
@@ -259,8 +276,15 @@ function colonies(snapshot) {
             return `<span><small>${escapeHtml(entityName(snapshot, commodity, id))}</small><b>${number(amount)} ${escapeHtml(commodity?.unitKey ? tr(snapshot, commodity.unitKey) : "")}</b></span>`;
           }).join("");
           const productionReport = colony.state.lastProductionReport;
+          const needsReport = colony.state.lastNeedsReport;
           const reportByIndustry = new Map((productionReport?.industries || [])
             .map((entry) => [entry.industryIndex, entry]));
+          const needsSummary = needsReport
+            ? `<div class="daily-needs">
+                <div class="needs-heading"><b>日常需求 · 第 ${needsReport.day} 天</b><small>${needsReport.shortageCount > 0 ? `${needsReport.shortageCount} 项供应不足` : "供应满足"}</small></div>
+                ${renderNeedsRows(snapshot, needsReport.needs)}
+              </div>`
+            : '<div class="daily-needs pending">等待首次日常需求结算</div>';
           const formatAmounts = (amounts) => Object.entries(amounts || {}).map(([id, amount]) => {
             const commodity = snapshot.commodities.find((item) => item.id === id);
             const unit = commodity?.unitKey ? tr(snapshot, commodity.unitKey) : "";
@@ -295,6 +319,7 @@ function colonies(snapshot) {
             <article class="colony-card">
               <div class="colony-heading"><div><span class="world-eyebrow">${escapeHtml(colony.location.systemId)}</span><h4>${escapeHtml(entityName(snapshot, colony))}</h4><p>${escapeHtml(entityName(snapshot, colony.faction))} · ${escapeHtml(entityName(snapshot, colony.location))}</p></div><b class="stability">${colony.state.stability}%</b></div>
               <div class="colony-population"><span>人口</span><b>${number(colony.state.population)}</b></div>
+              ${needsSummary}
               <div class="stock-grid">${stock}</div>
               <div class="industry-list"><div class="industry-list-heading"><b>生产设施</b><small>${productionDate}</small></div><ul>${industry}</ul></div>
             </article>`;

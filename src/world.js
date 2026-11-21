@@ -62,10 +62,13 @@ function renderAuditRecord(snapshot, record) {
   const status = summary.statusKey
     ? `<b class="audit-status ${escapeHtml(summary.kind)}">${escapeHtml(tr(snapshot, summary.statusKey))}</b>`
     : "";
+  const statusPreview = summary.statusKey
+    ? `<small class="audit-record-status-note">${escapeHtml(tr(snapshot, summary.statusKey))}</small>`
+    : "";
   return `
     <details class="audit-record">
       <summary>
-        <span><b>第 ${record.day ?? "—"} 天 · ${escapeHtml(tr(snapshot, summary.titleKey))}</b><small>${escapeHtml(record.formulaId)} · v${record.version}${subject ? " · " + escapeHtml(subject) : ""}</small></span>
+        <span><b>第 ${record.day ?? "—"} 天 · ${escapeHtml(tr(snapshot, summary.titleKey))}</b><small>${escapeHtml(record.formulaId)} · v${record.version}${subject ? " · " + escapeHtml(subject) : ""}</small>${statusPreview}</span>
         <em>${escapeHtml(tr(snapshot, "audit.random_draws"))}：${draws.length}</em>
       </summary>
       <div class="audit-record-body">

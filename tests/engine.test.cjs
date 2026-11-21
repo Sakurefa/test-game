@@ -32,7 +32,9 @@ test("weekly production report explains limited inputs and matches the stockpile
   assert.ok(Math.abs(entry.actualBatches-requestedBatches/2)<1e-9);
   assert.equal(entry.requestedBatches,requestedBatches);
   for(const id of new Set([...Object.keys(before),...Object.keys(entry.consumed),...Object.keys(entry.produced)])){
-    const expected=Math.round(((before[id]||0)-(entry.consumed[id]||0)+(entry.produced[id]||0)+Number.EPSILON)*1000)/1000;
+    let expected=before[id]||0;
+    if(Object.hasOwn(entry.consumed,id))expected=Math.round((Math.max(0,expected-entry.consumed[id])+Number.EPSILON)*1000)/1000;
+    if(Object.hasOwn(entry.produced,id))expected=Math.round((expected+entry.produced[id]+Number.EPSILON)*1000)/1000;
     assert.equal(colony.stockpiles[id],expected);
   }
 });
@@ -54,7 +56,7 @@ test("weekly production report keeps zero-output facilities and identifies the e
   assert.equal(entry.limitingInput,limitingId);
   assert.equal(entry.limitingAvailable,0);
   assert.ok(entry.limitingRequired>0);
-  assert.deepEqual(entry.consumed,{[limitingId]:0});
+  assert.deepEqual(entry.consumed,Object.fromEntries([...inputTotals.keys()].map(id=>[id,0])));
   assert.deepEqual(entry.produced,Object.fromEntries((recipe.outputs||[]).map(item=>[item.commodityId,0])));
   assert.deepEqual(colony.stockpiles,before);
 });

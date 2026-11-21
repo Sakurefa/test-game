@@ -1,0 +1,9 @@
+Astra 日志体系重构
+====================
+
+工作日期：2026-11-21
+工作基线：d8ab44d36b72fa2bfbfa557cdd40ea759a8737b1
+
+将旧 ASTRA_WORKLOG.md 的 Session log 历史条目按工作流方向分组拆分为四个 Astra/WORKFLOWS/ 文件，保留原始条目标题与正文；建立 Astra/DISCUSSIONS/ 主题档案；根 ASTRA_WORKLOG.md 改为索引与当前状态摘要；更新 AGENTS.md、Astra/README.txt、Astra/WORKING_MEMORY.txt 的阅读和记录规则。
+
+本次仅整理协作文档；未修改游戏源代码、Mod、存档 schema、测试、Renderer 或平衡数据。未运行 npm test、本地构建或 Windows GUI 测试。基线 combined status 查询无状态条目，不据此声称 CI 通过。

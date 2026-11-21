@@ -1,0 +1,10 @@
+关于现状
+========
+
+仓库 Sakurefa/test-game，分支 main。本次整理开始时 HEAD 为 d8ab44d36b72fa2bfbfa557cdd40ea759a8737b1。该提交 combined status 查询无状态条目，不能据此声称 CI 通过。
+
+当前阶段：多领域模拟引擎地基。已有连续时间、每日/每周模拟系统、命名随机流与公式、领域事件、命令分发、财务余额、结构化日志、自动存档、原子日结算、Mod API v4 与只读查询投影。
+
+人口现状：殖民地仍以 scalar population 保存总量；每日需求按总人口聚合；没有运行时人口 cohorts；profession 与 wealth_tier 是独立 INI catalog 类型，Core 只有中性占位；colony.population.delta 仍直接改变 scalar population；每周生产已存在，但 recipe workforce 仍是 metadata。关键人员池与建筑 workforce 快照尚未实现。
+
+验证：较早提交 e4025edca93e816f50d62c43427a9212a146016b 的 CI run 44912016537 曾通过，npm test 178/178，语法与 Vite build 通过；这不代表后续 HEAD 通过。Windows 综合验收仍未完成。

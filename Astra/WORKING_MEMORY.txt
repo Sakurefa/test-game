@@ -3,263 +3,88 @@ ASTRA WORKING MEMORY
 
 PURPOSE
 -------
-
-Help Astra maintain continuity across sessions and execute the user's
-confirmed direction without expanding the scope. This file is deliberately
-shorter than the engineering work log. It contains stable agreements, not
-a live inventory of every feature or a list of things Astra wants to build.
+Help Astra maintain continuity across sessions and execute the user's confirmed direction without expanding scope. This file stores stable agreements, not a live task list.
 
 1. THE USER OWNS THE DIRECTION
 ------------------------------
-
 - The user defines the game's purpose, priorities, taste and acceptable tradeoffs.
-- Astra is the technical collaborator: inspect carefully, explain clearly,
-  implement the agreed task and report the real result.
-- Do not replace the user's direction with a more ambitious or fashionable
-  architecture.
-- "Continue" means continue along the direction and scope already agreed.
-  It is not blanket permission to add adjacent features, redesign systems,
-  or turn every audit observation into work.
-- Do not ask the user to repeat decisions that are already present in these
-  files. Re-read the records and verify the repository first.
+- Astra inspects carefully, explains clearly, implements agreed tasks and reports real results.
+- Do not replace the user's direction with a more ambitious architecture.
+- “Continue” means continue within confirmed scope; it is not blanket permission for adjacent features or unrelated redesign.
+- Do not ask the user to repeat decisions already recorded. Re-read records and verify the repository.
 
 2. THE AK ENGINEERING PRINCIPLE
 -------------------------------
-
-The desired code character is like an AK-47: simple, reliable, maintainable
-and easy to modify.
-
-- Prefer direct, understandable code and a small number of proven seams.
-- Add an abstraction only when a concrete current consumer needs it.
-- The AK principle and the Mod principle are complementary: simulation logic
-  stays generic and direct, while game-specific definitions and balance values
-  belong in Mod data. Core must provide the required baseline definitions in
-  INI; optional Mods may extend them. Do not hard-code professions, wealth
-  tiers, species, subspecies, class names, need baskets, consumption rates,
-  wages, recipe content or economic tuning into engine/Renderer logic.
-  API v4 JavaScript remains for explicitly declared behavior hooks, not as a
-  replacement for INI content.
-- Do not hard-code player-visible strings. Keep them in localization INI and
-  reference stable keys from content definitions.
-- Do not allow display rounding to alter economic calculations or stored
-  inventory. Keep requested, fulfilled and unmet quantities precise in the
-  simulation; apply formatting only at the presentation boundary. If a
-  displayed unit needs finer precision to explain a real shortage, format
-  that view accordingly.
-- Do not build speculative frameworks for hypothetical future features.
-- The program is a machine that executes defined work and records what
-  happened; it is not an autonomous agent that must constantly inspect,
-  repair or optimize itself.
-- Perform only the checks needed at the relevant operation boundary.
-  Do not add recurring full-history audits, self-healing or defensive
-  machinery without a demonstrated need.
-- Logs are evidence for external maintenance, not a second authoritative
-  database. Record causes and useful context; keep retention bounded.
+- Prefer direct, understandable code: simple, reliable, maintainable and easy to modify.
+- Add abstractions only for concrete current consumers.
+- Keep the engine generic; game definitions and balance values belong in Mod INI. API v4 JavaScript is for declared behavior hooks, not content replacement.
+- Player-visible text belongs in localization INI and definitions reference stable keys.
+- Display rounding must not alter calculations or stored inventory.
+- Avoid speculative frameworks, recurring full-history audits, self-healing and unnecessary defensive machinery.
+- Logs are evidence for external maintenance, not a second authoritative database.
 
 3. COLLABORATION BOUNDARIES
 ---------------------------
-
-- Inspection is not modification. If asked to inspect or audit, default to
-  read-only and report findings.
-- A finding is not a task. A recommendation is not approval. A suggested
-  priority order is not an instruction to execute every item.
-- Do not make unrelated "while I am here" changes.
-- Do not claim a feature, test, build or desktop behavior is verified unless
-  the corresponding work was actually performed.
-- Keep CI, local test/build results and the user's Windows GUI test separate.
-- When a requirement is materially ambiguous, inspect existing decisions and
-  implementation first. If it still cannot be safely inferred, stop at the
-  narrowest reasonable boundary and explain the uncertainty.
-- Preserve the user's existing decisions even when another approach seems
-  more convenient. Raise alternatives as proposals, not silent replacements.
+- Inspection is not modification. A finding or recommendation is not approval.
+- Do not make unrelated changes.
+- Do not claim unperformed features, tests, builds or desktop behavior are verified.
+- Keep CI, local checks and user Windows GUI tests separate.
+- Preserve existing decisions; raise alternatives as proposals.
 
 4. PROJECT DECISIONS THAT MUST NOT DRIFT
 ----------------------------------------
-
-- The GitHub repository holds the complete editable game source, Mods,
-  assets and Electron runtime dependencies.
-- The standalone launcher EXE is distributed separately (for example via
-  the user's QQ group or a workflow artifact). It is not committed to the
-  source repository. The user places the EXE beside the source directory;
-  the launcher loads the adjacent project.
-- Mod manifests, registry, content definitions and localization remain INI.
-  API v3 INI-only Mods remain supported. API v4 may use explicitly declared
-  JavaScript hooks through the narrow approved API.
-- Core is required and cannot be disabled.
-- Mod JavaScript receives detached read-only snapshots and may return only
-  approved effects/events. The Node vm wrapper is capability reduction,
-  not a hardened security boundary against hostile code; JS Mods remain
-  trusted/opt-in.
-- Keep the engine independent from Electron, DOM and Renderer concerns.
-  Preserve the existing main-process IPC boundary and atomic day settlement.
-- Runtime world state is authoritative. Diagnostic records are not a
-  transaction-replay database.
+- The repository contains complete editable source, Mods, assets and Electron runtime dependencies. The standalone launcher EXE is distributed separately.
+- Mod manifests, registry, content definitions and localization remain INI. API v3 INI-only Mods remain supported; API v4 may use explicitly declared JS hooks.
+- Core is required. Mod scripts receive detached read-only snapshots and return approved effects/events only. Node vm is not a hardened hostile-code security boundary; JS Mods remain trusted/opt-in.
+- Keep the engine independent from Electron, DOM and Renderer concerns. Preserve the main-process IPC boundary and atomic day settlement.
+- Runtime world state is authoritative; diagnostics are not a transaction-replay database.
 
 5. CONTINUITY AND RECORD KEEPING
 --------------------------------
-
-- Conversation context and reasoning mode may vary between sessions.
-  Project continuity must come from these tracked files and the current
-  repository, not from assuming Astra remembers every message.
-- At task start, follow the reading order in Astra/README.txt and AGENTS.md.
-- At task end, record exact engineering facts in ASTRA_WORKLOG.md:
-  date, base/current commit, files, inspected or changed scope, actual tests
-  and CI, known issues, next user-approved task, and Windows GUI status.
-- Add a dated diary entry for meaningful collaboration decisions, corrections
-  and lessons. Do not create diary filler for routine file edits.
-- Update this file only when a durable decision is explicitly confirmed or
-  corrected. Do not let speculative ideas silently become rules.
-- Older work-queue entries in the engineering log may be stale. Re-check the
-  current branch, code and CI, and honor the user's latest instruction before
-  acting on them.
+- At task start, follow AGENTS.md and Astra/README.txt; read only discussion topics and workflow records relevant to the task.
+- Design discussion is filed by topic in Astra/DISCUSSIONS/. Concrete work sessions are filed in Astra/WORKFLOWS/ using YYYY-MM-DD_work-direction-specific-topic.txt.
+- Root ASTRA_WORKLOG.md is an index/current-state summary, never a chronological transcript.
+- Workflow records state baseline/resulting commit, scope, exact files, actual tests/CI, known issues, next user-approved task and Windows GUI status.
+- Update topic records when decisions or implementation facts change. Do not create diary filler for routine exchanges.
+- Older work queues may be stale; re-check current branch, code and CI.
 
 6. CURRENT GAMEPLAY PRIORITY
 ----------------------------
-
-The user's next major gameplay priority is a Victoria 3-inspired population
-supply/demand and goods production/consumption economy. The goal is to make
-populations meaningful economic actors and connect their needs with
-industrial production, local goods supply, market prices and consumption
-before expanding into the broader logistics, political and military domains.
-
-This is a confirmed high-level direction, not a finalized economic rulebook.
-The exact need baskets, substitutions, affordability, labor allocation,
-wage formation, market-clearing model, stock allocation and settlement
-cadence remain open design questions. Do not silently invent those rules.
+The next major gameplay priority is a Victoria 3-inspired population supply/demand and goods production/consumption economy. This is a high-level direction, not a finalized rulebook. Need baskets, substitutions, affordability, labor, wages, market clearing, stock allocation and detailed cadence remain open until confirmed.
 
 7. CONFIRMED POPULATION SIMULATION MODEL
 ----------------------------------------
-
-The user has confirmed these four foundational choices:
-
-- Population simulation is purely aggregate/group-based. There is no
-  continuously simulated person record for every resident.
-- Group attributes initially store aggregate values and proportions/averages,
-  not a full joint distribution across every dimension.
-- Temporary effects and their date/condition triggers are separate systems.
-  Effects describe what changes; triggers schedule/check when an effect or
-  follow-up action should occur.
-- Needs are settled at group level in aggregate. Individual-by-individual
-  consumption and household/person account books are out of scope.
-
-The governing distinction is: **groups are simulation entities; individuals
-are narrative entities.** A named engineer, manager or other person may appear
-in an event or occupy a genuinely important unique role. Such a character can
-have only the attributes needed for that narrative or role and may influence
-a group, building or event through the approved effect/command boundary.
-This does not create a hidden individual population simulation, and such
-characters must not be counted twice in population totals. The exact
-relationship between a named role-holder and the aggregate group they came
-from remains a future modeling detail.
-
-Population dimensions should remain independently extensible and data-defined:
-social class/stratum, profession, wealth, species, subspecies and capability
-or qualification distributions are examples. Their definitions and labels
-belong in Core/optional Mod INI data, not engine constants. "Upper/middle/
-lower/other" are possible data-defined categories, not built-in engine
-semantics. Species-specific needs (including non-human resource needs) and
-building workforce-composition thresholds are future content/rules, not
-current content to invent.
-
-Do not automatically construct every cross-product of dimensions. A group
-may have aggregate attributes and dimension-level proportions; a combined
-statistic such as "high-capability technicians of species X" must only be
-asserted when the data model actually records or derives that relationship.
-Independent marginal percentages do not prove an intersection percentage.
-The initial model should stay small and avoid combinatorial group explosion.
-
-The effect foundation should allow relevant simulation values to be influenced
-without hard-coding specific laws/events into the engine. A configured effect
-needs a target, source, operation and value; relevant operations include
-addition, subtraction and multiplication. Permanent effects have no timer and
-remain until changed or removed. Temporary effects have an explicit expiry
-or trigger relationship. Do not force every numeric field to support every
-operation if that has no meaningful domain semantics.
-
-Triggers are separate scheduled/conditional records. A temporary effect may
-register a future trigger; when it fires, configured behavior may remove or
-change the effect, emit an event, or invoke an approved action. Date-bound
-processing should use the due-trigger path rather than repeatedly scanning
-all historical effects. Mod content remains INI; any optional executable
-behavior remains subject to the existing narrow API v4 hook contract.
-
-Population needs, income/purchasing power, market access and affordability,
-wages, labor capacity, capability matching, fertility and mortality are
-future aggregate systems. Their interfaces should be designed for group-level
-inputs and outputs. Do not add personal debt, personal wage ledgers, personal
-purchases or per-person need settlement to the population runtime.
+- Population is aggregate/group-based, not continuously simulated person by person.
+- Group attributes initially store aggregate values, averages and proportions, not a full joint distribution.
+- Effects and date/condition triggers are separate.
+- Needs settle at group level.
+- Governing distinction: groups are simulation entities; individuals are narrative entities.
+- Named characters may exist for events or unique roles, but must not create individual household/economic simulation or be double-counted in population.
+- Dimensions such as class, profession, wealth, species, subspecies and capability are independently extensible and Mod-defined.
+- Never infer intersection ratios by multiplying independent marginal proportions; avoid automatic full cross-products.
+- Effects use explicit source, target, operation and value where applicable. Temporary effects use separate triggers; process due triggers rather than rescanning all historical effects.
+- Do not add personal debt, personal wage ledgers, personal purchases or per-person need settlement to ordinary population runtime.
 
 8. CURRENT SESSION GUARDRAIL
 ----------------------------
-
-The user has confirmed the aggregate population model above and authorized
-continuing its design and foundation work, while explicitly prohibiting
-premature game content and invented balance rules. The next foundation work
-should first define a minimal aggregate group representation and its
-independent statistical dimensions, preserving compatibility with the current
-scalar colony population and legacy population-delta Mod effect. Then define
-the data contracts for group-level needs and effects/triggers. Keep each step
-small, INI-driven where it represents game content, and consistent with AK
-and Mod principles. This does not authorize adding actual social classes,
-species, needs, wages, laws, events or economic tuning as Core gameplay
-content.
-
-
+Continue the aggregate population foundation while prohibiting premature gameplay content and invented balance rules. First define a minimal aggregate group representation and independent statistical dimensions, preserving scalar colony population and legacy colony.population.delta behavior. Then define group-level needs and effect/trigger contracts. Keep steps small and consistent with AK and Mod principles.
 
 9. PERSONNEL ENTITIES AND SETTLEMENT-DEPENDENT BUILDING EFFECTS
 --------------------------------------------------------------
+- Named personnel originate from events. Ordinary hiring may abstract selectable candidates from population groups; special events may create predefined/generated people.
+- A separate personnel pool stores acquired people and only the identity, role, capabilities, relationships and affiliations they need.
+- Personnel may have class/species/organization affiliation or serve independently. They are not a second population ledger.
+- If a person is abstracted from a group, hiring/creation rules must explicitly define whether and when the source group count changes. Never double-count.
+- Building conditions use actual employed workforce groups and headcounts, not volatile colony averages or unsupported marginal intersections.
+- At configured settlement boundaries, inspect only workforce attributes relevant to active conditions; calculate shares from actual employed headcounts; apply/remove persistent effects; keep effects stable until the next scheduled evaluation.
+- Coincident settlement priority is annual → monthly → weekly → daily. Monthly/annual operations are future fixed-date trigger calls, not always-running scans.
+- Thresholds, tags, workforce categories, effects and settlement definitions remain Mod-defined INI content.
 
-The user clarified two further architecture rules:
-
-- Named personnel are created through events, not by continuously simulating
-  every resident. Ordinary hiring may abstract selectable candidates from
-  aggregate population groups. Special events may create predefined or
-  generated people. A persistent personnel pool stores people already
-  generated/acquired and serving the player, such as friends, partners or
-  recruited specialists.
-- Personnel are stored independently from population groups and may carry
-  their own profession, capabilities, identity, relationships and optional
-  affiliations. An individual may be affiliated with a class, species,
-  organization or other group, or may serve independently without a normal
-  population affiliation. This supports exceptional entities such as royal
-  family members or agitators who operate through their own lists and
-  location/activity rules.
-- A personnel record is not automatically an additional resident. If a
-  person is abstracted from a population group, the hiring/creation rule must
-  explicitly define whether and how the aggregate group count changes.
-  Never double-count a named person in the population total.
-- Personnel attributes are only as detailed as their narrative or unique
-  strategic role requires. They do not create individual household accounts,
-  personal population needs, personal debt ledgers or per-person economic
-  simulation.
-
-For conditional building effects and similar rules:
-
-- Prefer direct operational facts (such as the building's actual employed
-  workforce groups and headcounts) over repeatedly deriving conditions from
-  volatile colony-wide averages or independent marginal population ratios.
-- A scheduled settlement may inspect only the workforce attributes relevant
-  to configured conditions. If no employed group has a relevant tag or
-  capability, skip that condition's detailed calculation.
-- Evaluate workforce-composition conditions at the configured settlement
-  boundary (the user's example is weekly). Calculate proportions from actual
-  employed headcounts at that instant. Apply or remove the corresponding
-  persistent building effect based on the result.
-- Once applied, the effect remains stable during the interval even if staff
-  change. Re-evaluate at the next scheduled settlement; do not continuously
-  recalculate it after every hire/departure.
-- When multiple settlement periods coincide, preserve the explicit priority:
-  annual settlement, then monthly, then weekly, then daily. In the current
-  project, weekly and daily are the ordinary simulation cadences; monthly and
-  annual settlement are future fixed-date settlement operations invoked by
-  triggers, not additional always-running scans.
-- These are generic engine contracts. Thresholds, tags, workforce categories,
-  effects and settlement definitions must be Mod-defined INI content, not
-  hard-coded game rules.
-
-The governing optimization rule is: avoid repeated dependencies between
-volatile derived values; use direct source data, calculate only relevant
-conditions, settle in a deterministic priority order, and keep the resulting
-effect stable until its next scheduled evaluation.
+10. DISCUSSION AND WORKFLOW ARCHIVE RULE
+----------------------------------------
+- Discussions are organized by subject under Astra/DISCUSSIONS/ and maintained across dates.
+- Workflows are organized by date plus concrete work direction/topic under Astra/WORKFLOWS/. A busy day may contain multiple separate records.
+- Root ASTRA_WORKLOG.md is a small navigation index, not a transcript.
+- Follow Astra/DISCUSSIONS/日志编写规范.txt for naming and cross-links.
 
 END

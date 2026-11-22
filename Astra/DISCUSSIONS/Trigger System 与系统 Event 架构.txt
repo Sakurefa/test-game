@@ -143,3 +143,28 @@ Presentation 以后可以把已提交事实转换为玩家可见通知、报告�
 
 实现提交：`3e4a3ddc77f1da021ef6ded5e8eabf249f5a0bf5`；Domain Event emitter 闭合修正：`e1806f47b463578184608b5de170882a8f70b244`；Mod Event descriptor 公开形状修正：`f942a9b93e9f5c56b1dc0bbd2fb7466522c7fab0`。最终源码 CI [44962162081](https://github.com/Sakurefa/test-game/actions/runs/44962162081) 成功，227/227 tests、Engine/Electron syntax、Renderer build 与 generated-renderer 全部通过。初始两次 CI 失败是本次新改动的实现错误（一个 emitter closure、一个内部 null 字段泄漏）；均修正后重新完整验证。
 
+
+
+## 现有 Mod Effect 白名单审视（2026-11-22）
+
+当前 `engine/mod-runtime.cjs` 的 `applyModEffect()` 是唯一批准 Mod Effect 的状态转移入口。Hook 返回的 Effects 与 Trigger Resolution 计划中的 Effects 最终复用同一个执行器；Hook 路径和 Trigger 路径都在 candidate world 中执行，并为成功应用的 Effect 写入 `mod.effect-applied`。Trigger 路径还会把本次实际应用结果写入 `trigger.resolved`。整日失败时这些候选变更不会提交。
+
+当前白名单共有 13 种类型：
+- Mod 自有状态：`mod.state.set`、`mod.state.increment`、`mod.state.delete`。
+- 人口群体：`colony.population.delta`、`colony.population.group.split`、`colony.population.group.merge`、`colony.population.group.dimension.set`。
+- 殖民地与市场：`colony.stability.delta`、`colony.stockpile.delta`、`market.price.multiplier`。
+- 军事状态：`fleet.readiness.delta`、`fleet.morale.delta`、`war.weariness.delta`。
+
+对仓库当前启用的 Mod 脚本做全文检索，唯一被实际 Mod 内容使用的类型是 `example-market/scripts/market-events.js` 中的 `mod.state.increment`。其他 12 种类型目前由 Effect 执行器、API 契约和测试覆盖，但没有被当前随仓库发布的 Mod 脚本实际调用。它们仍是已公开的 Engine 能力；这项审查不擅自删除或改动其公开类型。
+
+### 当前 Effect 的语义边界
+
+- 白名单中的 Effect 是**立即状态转移请求**：执行时直接改动当前权威 World 字段；修改结果会随正常存档持久化。
+- 这些 Effect 不会创建独立的活动效果实例，不保存可供以后移除的来源贡献、叠加关系、持续时间或剩余时间。
+- `*.delta` 不是可以安全反向应用的临时 Modifier。例如稳定度先被 +20 后因上限而截断，再于到期时 -20，无法恢复原值；期间其他系统的增减也不能与原 Effect 可靠区分。
+- 因此，现有 Trigger Queue 虽能安排未来一次到期动作，却不能自动让现有直接修改型 Effect 变成可撤销的临时效果。临时效果需要独立的、可追踪来源的生命周期状态与明确的应用/移除语义；不能靠保存一个 delta、到期时盲目取反来实现。
+- 目前不建设通用 Modifier 语言或活动效果框架。待有真实消费者（例如实际雇佣 workforce 条件、建筑持续加成等）并明确叠加、刷新、覆盖、到期与基础值关系后，再确定最小数据模型。
+
+### Mod 状态增量边界修正（2026-11-22）
+
+`mod.state.increment` 保留现有行为：键不存在时按 0 初始化；键已存在时必须是有限数字。显式 `null` 是合法 JSON 状态值，但不等于键不存在，也不能被静默当作 0。原实现用空值合并导致 `null` 被误判为缺失键；现已改为检查 `Object.hasOwn`，并补入回归测试。

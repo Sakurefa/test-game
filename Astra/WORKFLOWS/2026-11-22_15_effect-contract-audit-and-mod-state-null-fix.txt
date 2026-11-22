@@ -1,0 +1,72 @@
+【工作流记录】Mod Effect 白名单审视与 Mod 状态增量修正
+===================================================
+
+工作日期：2026-11-22
+当日序号：15
+仓库：Sakurefa/test-game
+分支：main
+
+基线与目标
+----------
+- 基线 main：`94e916b1ea36d909fb820517e8e956344a982712`。
+- 代码提交：`f5b4fe928e74685e87da14fe14bf7e8ccfee5882`。
+- 目标：审查现有批准 Mod Effect 的实际执行器、状态修改边界、Hook/Trigger 共用路径、测试覆盖及其能否承担未来临时效果生命周期；发现明确缺陷时作局部修正。
+- 同时遵守 AK 原则与 Mod 化原则：不新增 Modifier DSL、不把玩法数据写进 Engine、不因“以后可能需要”建立活动效果框架。
+
+审查范围
+--------
+- `engine/mod-runtime.cjs`：`applyModEffect()`、Mod 状态访问/验证、Hook Effect 记录。
+- `tests/mod-runtime.test.cjs`：批准 Effect 的行为、目标校验和结果记录。
+- `engine/triggers.cjs`、`engine/settlement.cjs`、`engine/simulation.cjs`：Trigger Resolution 与 Hook 的 Effect 执行路径。
+- `MOD_API.md`、`mods/example-market/scripts/market-events.js`、所有仓库内启用 Mod 脚本：公开契约及实际消费者。
+
+审查结论
+--------
+1. 当前 Mod Effect 白名单共有 13 种，分为 Mod 自有状态、人口群体、殖民地/市场和舰队/战争状态四组。
+2. Hook 结果与 Trigger Resolution 计划最终复用 `applyModEffect()`。两条入口均在 candidate world 中执行；Hook 路径写入 `mod.effect-applied`，Trigger 路径也写入该事实，并在 `trigger.resolved` 中附带本次应用结果。整日事务失败时候选变更不提交。
+3. 对仓库所有当前启用 Mod 脚本检索 13 种 Effect type，唯一实际被发布 Mod 使用的是 `mods/example-market/scripts/market-events.js` 中的 `mod.state.increment`。其他 12 种 Effect 已在执行器/API/测试中存在，但暂无当前仓库 Mod 内容消费者。本次不据此删除既有公开接口。
+4. 当前 Effect 都是立即状态转移：直接修改权威 World 字段；结果会随 World 正常存档，但不会建立独立的活动 Modifier/临时效果实例，不保存可移除的来源贡献、堆叠关系、持续时间或到期状态。
+5. 现有 Trigger 可以安排未来到期动作，但不能让直接 delta 自动变成可逆临时 Modifier。对已 clamp 的数值做反向 delta、或在中途发生其他变化后再取反，都不能可靠还原原值。临时效果必须等待真实消费者，并另行明确基础值/修正值、来源、堆叠、刷新、覆盖和移除语义；本轮不实现框架。
+
+发现并修正
+----------
+`mod.state.increment` 原本通过 `state[key] ?? 0` 取初始值，因此“键不存在”与“键明确存在且值为 null”被合并为同一种情况。Mod 状态 `set` 允许 JSON-safe 的 null，故这是实际语义错误。
+
+修正：
+- 键不存在：仍从 0 开始递增，保持现有 Example Mod 和测试行为。
+- 键存在：必须是有限数字；显式 null、字符串、布尔值和对象均拒绝。
+- 使用 `Object.hasOwn(state, key)` 区分是否存在。
+- 新增回归测试：先通过 `mod.state.set` 写入 null，再验证 increment 报错且 World 快照不变。
+
+代码变更
+--------
+- `engine/mod-runtime.cjs`：修正缺失键与显式 null 的区分及错误说明。
+- `tests/mod-runtime.test.cjs`：新增 1 项 null 增量回归测试。
+
+代码验证
+--------
+- 源码提交：`f5b4fe928e74685e87da14fe14bf7e8ccfee5882`。
+- GitHub Actions：[44985920234](https://github.com/Sakurefa/test-game/actions/runs/44985920234)，结论 success。
+- Engine/Electron syntax：通过。
+- `npm test`：**229/229 通过，0 失败**。
+- Renderer build：通过。
+- generated-renderer：通过。
+- 本地测试/构建：未执行；测试和构建由 GitHub Actions 执行。
+- 用户设备 Windows GUI：未执行；本轮未重建 Runtime/Launcher EXE。
+
+文档与 Astra
+------------
+- `MOD_API.md`：说明即时状态转移与活动 Modifier 的边界，注明 Mod-state increment 的缺失键/null 语义。
+- `Astra/WORKING_MEMORY.txt`：澄清当前 Effect 白名单尚不包含可追踪、可撤销的活动效果实例。
+- `Astra/DISCUSSIONS/Trigger System 与系统 Event 架构.txt`：记录 13 种 Effect、实际 Mod 消费情况、临时效果不可简单取反及下一步边界。
+- `Astra/DISCUSSIONS/关于现状.txt`：同步当前消费者与实现状态。
+- `ASTRA_WORKLOG.md`：更新 Engine source/test revision、CI、工作流序号与后续工作方向。
+- `Astra/WORKFLOWS/2026-11-22_15_effect-contract-audit-and-mod-state-null-fix.txt`：本工作流记录。
+
+结论与下一步
+------------
+- 已验证当前 Effect 执行层简单且集中；本轮只修复可复现的 null 增量问题。
+- 不把当前 `*.delta` 类型当作可撤销、可定时的 Modifier；不能用未来 Trigger expiry + 反向 delta 冒充临时效果。
+- 在真实玩法消费者出现前，不扩张活动效果框架。后续若引入建筑 workforce 等持续条件效果，应先明确权威来源、叠加/刷新语义和移除方式，再确定最小存储结构。
+- Command Resolution 与 condition/threshold Trigger 仍分别等待真实模拟消费者和明确的权威评估契约。
+- 本轮未改变 World schema，未修改 Core 或任何游戏玩法内容。

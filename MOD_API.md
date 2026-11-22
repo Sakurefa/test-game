@@ -302,6 +302,8 @@ Hook errors fail the current day settlement. The engine runs day settlement on a
 
 Effects are requests, not arbitrary object mutations. The engine validates the target and applies the transition. Population group counts are the authoritative runtime population records; the scalar colony total is recalculated from their sum and is only a compatibility/read projection. Split and merge rearrange existing members and therefore preserve that total. A dimension update changes only the selected group's stored distribution; any gameplay rule deciding when such a reclassification occurs belongs in Mod behavior, not in the Engine.
 
+The approved Effects currently perform **immediate state transitions**. They do not create active, stackable or source-tracked modifier instances that can later be removed. A `*.delta` Effect is not automatically reversible: applying an inverse delta at expiry is unsafe when values are clamped or other changes occur in between. Timed/persistent modifier lifecycle management is not implemented.
+
 | Effect type | Payload keys | Behavior |
 | --- | --- | --- |
 | colony.population.delta | colonyId, delta | Adds population to the unclassified group; reductions are distributed proportionally across existing groups; total is recalculated from group counts and cannot become negative |
@@ -315,7 +317,7 @@ Effects are requests, not arbitrary object mutations. The engine validates the t
 | fleet.morale.delta | fleetId, delta | Adjusts morale, bounded to 0–100 |
 | war.weariness.delta | warId, factionId, delta | Adjusts weariness for a participating faction; result cannot be negative |
 | mod.state.set | key, value | Sets a JSON-safe value in this Mod's own saved namespace |
-| mod.state.increment | key, delta | Increments a numeric value in this Mod's own saved namespace |
+| mod.state.increment | key, delta | Adds to a numeric value in this Mod's own saved namespace; an absent key starts at 0, while an existing key must contain a finite number (`null` is not treated as absent) |
 | mod.state.delete | key | Deletes a value from this Mod's own saved namespace |
 
 Example:

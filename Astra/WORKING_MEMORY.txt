@@ -68,6 +68,7 @@ Need baskets, substitutions, affordability, labor, wages, market clearing, stock
 - Dimensions such as class, profession, wealth, species, subspecies and capability are independently extensible and Mod-defined.
 - Never infer intersection ratios by multiplying independent marginal proportions; avoid automatic full cross-products.
 - Effects use explicit source, target, operation and value where applicable. Temporary effects use separate triggers; process due triggers rather than rescanning all historical effects.
+- Current approved Mod Effects are immediate state mutations, not active/source-tracked/reversible modifier instances. A later Trigger expiry cannot safely undo a clamped delta or distinguish overlapping changes. The agreed Trigger-driven expiry model therefore remains a future lifecycle mechanism, not a capability already provided by the current Effect whitelist.
 - Do not add personal debt, personal wage ledgers, personal purchases or per-person need settlement to ordinary population runtime.
 
 8. CURRENT ENGINE FOUNDATION GUARDRAIL

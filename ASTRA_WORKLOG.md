@@ -5,8 +5,8 @@
 ## Repository snapshot
 
 - Repository: https://github.com/Sakurefa/test-game
-- Branch: `main`; latest Engine source/test revision: `6847cc807f04942336f2ce0d50ad8706016d5db1` (Resolution plans can emit Mod-scoped Domain Events through `event.emit`; emitted facts can activate another Trigger for the next day). The Runtime workflow's generated `resources/app/package.json` sync is recorded in `0f2d9a5fc41c34dfd1c669d04319bfd08743aeb`; subsequent Astra documentation commits are separate.
-- Latest successful Windows source CI: [44984154723](https://github.com/Sakurefa/test-game/actions/runs/44984154723). Engine/Electron syntax checks passed; `npm test` passed **228/228** with 0 failures; Renderer build and generated-renderer step succeeded.
+- Branch: `main`; latest Engine source/test revision: `f5b4fe928e74685e87da14fe14bf7e8ccfee5882` (Resolution plans can emit Mod-scoped Domain Events through `event.emit`; emitted facts can activate another Trigger for the next day). The Runtime workflow's generated `resources/app/package.json` sync is recorded in `0f2d9a5fc41c34dfd1c669d04319bfd08743aeb`; subsequent Astra documentation commits are separate.
+- Latest successful Windows source CI: [44985920234](https://github.com/Sakurefa/test-game/actions/runs/44985920234). Engine/Electron syntax checks passed; `npm test` passed **229/229** with 0 failures; Renderer build and generated-renderer step succeeded.
 - Latest successful Windows Runtime/Launcher workflow: [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367). Mod loader tests, Renderer build, minimal Electron app preparation, Windows Electron Runtime build, dependency sync, generated-file commit and Launcher EXE upload all succeeded.
 - Launcher artifact: `Market-Simulator-Launcher-EXE`, Artifact ID `14726491849`, about 92.7 MB, expires 2026-12-05 21:50 UTC. This confirms CI packaging/upload, not user-device launch verification.
 - No local full test suite/build was run. User-side Windows GUI acceptance remains outstanding.
@@ -27,9 +27,9 @@ Files use `YYYY-MM-DD_NN_topic.txt`. NN is one shared chronological sequence for
 
 - 2026-11-20: 01
 - 2026-11-21: 01–08
-- 2026-11-22: 01–14
+- 2026-11-22: 01–15
 
-Latest focused record: `Astra/WORKFLOWS/2026-11-22_14_trigger-late-effect-atomicity-test.txt`.
+Latest focused record: `Astra/WORKFLOWS/2026-11-22_15_effect-contract-audit-and-mod-state-null-fix.txt`.
 
 ## Current foundation state
 
@@ -63,12 +63,13 @@ Recurring systems run annual → monthly → weekly → daily. Existing consumer
 - `engine/triggers.cjs` owns due detection, System Event creation, Settlement invocation, appending approved planned Domain Events to the candidate world, the `trigger.resolved` fact, queue removal and receipts. Each approved Effect records `mod.effect-applied`.
 - A Domain Event emitted by a Trigger can activate another pending Trigger, which is scheduled for the next completed day. Event Bus remains read-only and publishes only after candidate-world commit. Presentation/UI remains separate.
 - Trigger resolution, calculation audit/random state, approved Effect mutation, Domain Events, queue removal and receipts share the candidate-world daily transaction. A failure discards the entire candidate day. A new late-failure integration test now proves rollback after an earlier Effect and its `mod.effect-applied` fact have already been created in the candidate.
+- Approved Mod Effects currently perform immediate state transitions through one shared `applyModEffect()` executor; they do not create active, source-tracked or reversible modifier instances. The enabled `example-market` Mod currently consumes only `mod.state.increment`; other approved types are contract/test-covered but not used by shipped Mod scripts. Timed-effect expiry therefore remains unimplemented.
 
 Not yet implemented: condition/threshold sources; Command Resolution; generic numeric modifiers and temporary-effect lifecycle; random result pools; Presentation/UI for committed facts.
 
 ## Next Engine foundation step
 
-The Event output contract is now in place. Do not add Command Resolution to the daily Trigger pipeline until an actual simulation-side consumer and its actor/authority semantics are defined; the current player command gateway is an Electron main-process boundary. Condition/threshold sources likewise require a real authoritative consumer and a defined evaluation point, edge/level semantics and re-arm behavior. Keep each step backed by a real consumer and focused failure/atomicity tests.
+The Effect whitelist audit is recorded. The `mod.state.increment` null-vs-missing ambiguity is fixed; other Effects remain immediate mutations, not active temporary modifiers. Do not add a general modifier/effect-lifecycle framework until a real consumer and its stacking, refresh, base-value and expiry semantics are defined. Command Resolution still waits for a simulation-side consumer and authority semantics; condition/threshold sources still require an authoritative consumer and a defined evaluation point, edge/level semantics and re-arm behavior. Keep each step backed by real consumers and focused tests.
 
 ## Relevant project records
 

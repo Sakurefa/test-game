@@ -26,6 +26,14 @@
 - `formula.effect` 的输入在 Trigger 调度时捕获；它只能选择 Engine 已注册公式，并通过顶层结果字段映射向已注册 Effect 填值，不提供公式表达式/回调扩展。
 - 公式使用按 Trigger ID 派生的稳定随机流；结果记录与流状态在 candidate world 成功后一起提交。
 
+
+### Mod Effect 白名单现状（2026-11-22）
+
+- `applyModEffect()` 提供 13 种批准的即时状态转移，Hook 与 Trigger Resolution 共用同一执行器；成功应用会留下 `mod.effect-applied` 事实。
+- 仓库当前启用的 Mod 脚本只有 `example-market` 使用了 `mod.state.increment`；其他 Effect 目前由引擎契约与测试覆盖，尚无随仓库发布的 Mod 实际调用。
+- 现有 Effect 直接修改权威状态，不创建活动效果实例或可撤销 Modifier；临时效果生命周期仍未实现。到期 Trigger 不能仅靠对原 delta 取反来可靠恢复状态。
+- `mod.state.increment` 的缺失键仍从 0 开始；显式 `null` 不再被当作缺失键，必须先是有限数字才能递增。
+
 ## 人口与经济现状
 
 - 人口采用聚合群体模型；群体人数是权威记录，殖民地总人口等于所有群体人数之和，标量 `population` 仅作为派生兼容投影。

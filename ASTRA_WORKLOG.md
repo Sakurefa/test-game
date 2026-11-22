@@ -83,6 +83,7 @@ The Effect whitelist audit is recorded. The `mod.state.increment` null-vs-missin
 
 ## 2026-11-22_17 — Trigger completion checkpoint and next direction
 
+- Documentation commit: `8eec2a3bf0d0ade150b1bd16df34c1a04bf988be` (workflow result metadata is recorded in the following documentation-only commit).
 - Trigger status: **core implementation complete; automated simulation test passed; Windows user-device GUI acceptance outstanding**. Do not continue expanding Trigger without a real consumer.
 - Evidence: source CI [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324), 233/233 tests plus syntax and Renderer build; documentation CI [44988145049](https://github.com/Sakurefa/test-game/actions/runs/44988145049), success.
 - Next direction recommendation (not yet approved implementation scope): design the population-group-level needs and goods-consumption model. Current daily needs are still colony-aggregate; Core defines commodity daily_need_per_thousand but no actual demographic composition. Respect independent population dimensions; never infer joint distributions by multiplying marginal proportions. Need baskets, affordability, substitution, shortages and allocation remain open.

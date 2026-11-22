@@ -13,6 +13,7 @@ WORKING_MEMORY.txt — concise durable decisions and continuity notes.
 DISCUSSIONS/ — topic-based design records; a topic keeps its file across dates.
 WORKFLOWS/ — dated, sequenced records of concrete work sessions:
   YYYY-MM-DD_NN_work-direction-specific-topic.txt
+REFERENCES/ — external research and source-linked reference collections:
 Root ASTRA_WORKLOG.md — short index/current-state summary, never a transcript.
 
 MANDATORY READING ORDER

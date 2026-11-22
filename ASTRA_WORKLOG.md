@@ -27,9 +27,12 @@ Files use `YYYY-MM-DD_NN_topic.txt`. NN is one shared chronological sequence for
 
 - 2026-11-20: 01
 - 2026-11-21: 01–08
-- 2026-11-22: 01–16
+- 2026-11-22: 01–17
+- 2026-11-23: 01
 
-Latest focused record: `Astra/WORKFLOWS/2026-11-22_16_trigger-functional-test-and-defect-fixes.txt`.
+Latest focused record: `Astra/WORKFLOWS/2026-11-23_01_victoria3-population-economy-production-research.txt`.
+
+External reference library: `Astra/REFERENCES/VICTORIA_3/` contains source-linked research on Pops/needs, markets/economy, buildings/production methods, and a project-specific mapping. This is research, not an implementation specification.
 
 ## Current foundation state
 

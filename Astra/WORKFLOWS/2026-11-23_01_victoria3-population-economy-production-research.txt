@@ -1,0 +1,62 @@
+# Victoria 3 人口、经济与生产参考资料搜集
+
+日期：2026-11-23
+序号：01
+基线：0e7582ffc8b8935a6d4718cc22acae76d2dcdd98
+
+## 用户任务
+
+新建参考资料目录，联网研究 Victoria 3 的人口、经济、生产系统，整理 Paradox 公开说明和可供本项目借鉴的关键资料。
+
+## 仓库检查
+
+- 重新检查 main、AGENTS.md、Astra/README.txt、完整 WORKING_MEMORY、AK 原则、MOD 化原则、人口/建筑设计讨论、现状与下一步讨论、相关工作流及最新 CI。
+- 基线 main：0e7582ffc8b8935a6d4718cc22acae76d2dcdd98
+- 最新文档 CI：44990850167，success。
+- 当前仓库没有既有 REFERENCES 目录。
+
+## 新增资料目录
+
+Astra/REFERENCES/
+- README.txt
+- VICTORIA_3/README.txt
+- VICTORIA_3/01_population_and_needs.md
+- VICTORIA_3/02_economy_and_markets.md
+- VICTORIA_3/03_buildings_and_production.md
+- VICTORIA_3/04_our_game_mapping.md
+- VICTORIA_3/SOURCES.md
+
+## 研究内容
+
+- Pops 的联合属性组合、职业/工作地点、财富与生活水平。
+- 财富等级 buy packages、需求类别、替代商品和消费。
+- 市场 Buy Orders / Sell Orders、价格、贸易路线和供需反馈。
+- 建筑、Production Methods、输入输出、岗位资格、就业和工资。
+- 1.8 食物短缺/Food Security 机制的版本演进。
+- 社区数据解析项目中可观察到的游戏定义结构和订单报告。
+
+来源明确区分 Paradox 官方开发日志、版本标注 Wiki、社区解析/模拟项目。没有把社区解析结果冒充官方引擎源码，也没有复制游戏文件或大规模原始数据表。
+
+## 与本项目的关键映射
+
+- 当前人口群体是权威人数 + 独立边际维度，不是 V3 的完整联合属性 Pop。禁止将边际比例相乘生成职业/财富交叉人口。
+- 当前需求按殖民地总人口和商品 daily_need_per_thousand 计算；实际 consumed 已受库存限制并扣除库存，报告 requested / consumed / unmet / satisfaction。
+- 当前生产每周按 recipe 输入输出结算，库存限制批次；recipe.workforce 仅为 metadata，未形成实际就业。
+- 当前市场价格按库存、target_stock、elasticity、volatility 和平滑公式计算，不是完整 buy/sell order 市场清算。
+- 建议下一阶段仍先设计群体需求配置与共享库存分配，再考虑支付能力/市场订单；就业与生产方式应等待权威 workforce 数据。
+
+## 文档与项目索引
+
+- 新增 REFERENCES 目录及 7 份资料文件。
+- 更新 Astra/README.txt 目录说明。
+- 更新 Astra/DISCUSSIONS/关于接下来的工作.txt，挂接参考资料索引和关键差异。
+- 更新 ASTRA_WORKLOG.md 的资料目录与工作流索引。
+- 未修改 WORKING_MEMORY：本次是外部研究，不形成新的已确认工程决策。
+
+## 验证边界
+
+- 代码、Engine、Mod、测试均未修改。
+- 未运行本地测试或构建。
+- 基线最新文档 CI 44990850167 已成功。
+- 本次研究来源与版本限制记录在 SOURCES.md。
+- 资料结论是设计参考，不代表用户批准任何需求模型、市场模型或就业系统实现。

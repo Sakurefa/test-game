@@ -1,0 +1,50 @@
+【工作流记录】Trigger 多 Effect 中途失败的整日原子回滚验证
+======================================================
+
+工作日期：2026-11-22
+当日序号：14
+仓库：Sakurefa/test-game
+分支：main
+
+基线与目标
+----------
+- 基线 main：`8c8666924ab3df8489a5e12c977b552e291b2793`。
+- 代码测试提交：`6847cc807f04942336f2ce0d50ad8706016d5db1`。
+- 目标：补齐 Trigger 原子性测试的迟发失败场景。现有测试已覆盖 Effect 直接失败和公式字段绑定失败，但没有验证“前一项 Effect 已成功应用、后一项 Effect 才失败”时正式世界仍完整回滚。
+- 本次不新增生产代码、Effect 类型、Resolution、存档字段或游戏内容；只强化已确认的 candidate-world 事务契约测试。
+
+检查与实施
+----------
+1. 重新检查 `advanceDay()`：先验证输入，再 `structuredClone(world)` 得到 candidate；所有日结算在 candidate 上运行；只有 `settleDay()` 完整成功后才替换正式 world。
+2. 检查 Trigger → Settlement → Effect executor → Domain Event 的实际执行顺序。每项 Effect 执行后会写入 `mod.effect-applied`；若后续 Effect 抛错，异常会阻止 `advanceDay()` 的正式提交。
+3. 在 `tests/triggers.test.cjs` 新增多 Effect 迟发失败集成测试：
+   - 使用现有 `formula.effect` 与 `economy.commodity-price` 公式生成两项 Effect。
+   - 第一项 `mod.state.set` 合法执行并在 candidate 中写入 Mod 状态与对应效果事实。
+   - 第二项 `colony.stability.delta` 指向不存在的殖民地，执行时抛出 `Missing colony missing-trigger-colony`。
+   - 比较失败前后的正式 world 快照，确认完全相等。
+   - 额外确认 campaign day、pending Trigger、receipt、Mod 状态、`mod.effect-applied` 和 `trigger.resolved` 均未在正式 world 中留下半完成结果。
+
+精确文件变更
+------------
+- `tests/triggers.test.cjs`：新增 1 项迟发失败回滚集成测试。
+- `Astra/WORKFLOWS/2026-11-22_14_trigger-late-effect-atomicity-test.txt`：本工作流记录。
+- `ASTRA_WORKLOG.md`：更新当前测试提交、CI 结果、日期序号与导航。
+
+验证结果
+--------
+- GitHub Actions 源码 CI：[44984154723](https://github.com/Sakurefa/test-game/actions/runs/44984154723)，测试代码提交 `6847cc807f04942336f2ce0d50ad8706016d5db1`。
+- Engine/Electron syntax：通过。
+- `npm test`：**228/228 通过，0 失败**。
+- Renderer build：通过。
+- generated-renderer：通过。
+- 本地测试/构建：未执行；测试与构建由 GitHub Actions 执行。
+- 用户设备 Windows GUI 验收：未执行。本次未重建 Runtime/Launcher EXE。
+
+结论与后续边界
+--------------
+- 这次验证补齐了“多 Effect 执行中途失败”的 candidate-world 原子回滚覆盖；没有发现需要增加生产代码才能满足当前事务契约的缺陷。
+- 目前可确认：若后续 Effect 失败，之前 Effect 的候选状态修改、效果事实、公式计算/随机上下文、Trigger queue 和 receipt 都不会提交到正式 world。
+- 不因此引入通用事务框架；继续使用既有 detached candidate-world 提交边界。
+- Command Resolution 仍等待模拟侧真实消费者及权限语义；condition/threshold Trigger 仍等待真实权威数据消费者。用户当前确认的方向仍是继续完善通用 Engine 地基，不提前加入具体人口/经济玩法。
+- 后续继续审查现有机制的真实消费者与边界；通用数值 Modifier、临时效果生命周期等在具体业务消费者与规则契约明确前不擅自实现。
+

@@ -5,8 +5,8 @@
 ## Repository snapshot
 
 - Repository: https://github.com/Sakurefa/test-game
-- Branch: `main`; latest Engine source/test revision: `f942a9b93e9f5c56b1dc0bbd2fb7466522c7fab0` (Resolution plans can emit Mod-scoped Domain Events through `event.emit`; emitted facts can activate another Trigger for the next day). The Runtime workflow's generated `resources/app/package.json` sync is recorded in `0f2d9a5fc41c34dfd1c669d04319bfd08743aeb`; subsequent Astra documentation commits are separate.
-- Latest successful Windows source CI: [44962162081](https://github.com/Sakurefa/test-game/actions/runs/44962162081). Engine/Electron syntax checks passed; `npm test` passed **227/227** with 0 failures; Renderer build and generated-renderer step succeeded.
+- Branch: `main`; latest Engine source/test revision: `6847cc807f04942336f2ce0d50ad8706016d5db1` (Resolution plans can emit Mod-scoped Domain Events through `event.emit`; emitted facts can activate another Trigger for the next day). The Runtime workflow's generated `resources/app/package.json` sync is recorded in `0f2d9a5fc41c34dfd1c669d04319bfd08743aeb`; subsequent Astra documentation commits are separate.
+- Latest successful Windows source CI: [44984154723](https://github.com/Sakurefa/test-game/actions/runs/44984154723). Engine/Electron syntax checks passed; `npm test` passed **228/228** with 0 failures; Renderer build and generated-renderer step succeeded.
 - Latest successful Windows Runtime/Launcher workflow: [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367). Mod loader tests, Renderer build, minimal Electron app preparation, Windows Electron Runtime build, dependency sync, generated-file commit and Launcher EXE upload all succeeded.
 - Launcher artifact: `Market-Simulator-Launcher-EXE`, Artifact ID `14726491849`, about 92.7 MB, expires 2026-12-05 21:50 UTC. This confirms CI packaging/upload, not user-device launch verification.
 - No local full test suite/build was run. User-side Windows GUI acceptance remains outstanding.
@@ -27,9 +27,9 @@ Files use `YYYY-MM-DD_NN_topic.txt`. NN is one shared chronological sequence for
 
 - 2026-11-20: 01
 - 2026-11-21: 01–08
-- 2026-11-22: 01–13
+- 2026-11-22: 01–14
 
-Latest focused record: `Astra/WORKFLOWS/2026-11-22_13_resolution-domain-event-emission.txt`.
+Latest focused record: `Astra/WORKFLOWS/2026-11-22_14_trigger-late-effect-atomicity-test.txt`.
 
 ## Current foundation state
 
@@ -62,7 +62,7 @@ Recurring systems run annual → monthly → weekly → daily. Existing consumer
 - `engine/settlement.cjs` provides a reusable `settleSystemEvent()` pipeline: it validates and runs the Resolution plan, applies Effects through the injected validated Effect executor, and returns the planned Domain Event descriptors. It does not own Trigger scheduling or write event history.
 - `engine/triggers.cjs` owns due detection, System Event creation, Settlement invocation, appending approved planned Domain Events to the candidate world, the `trigger.resolved` fact, queue removal and receipts. Each approved Effect records `mod.effect-applied`.
 - A Domain Event emitted by a Trigger can activate another pending Trigger, which is scheduled for the next completed day. Event Bus remains read-only and publishes only after candidate-world commit. Presentation/UI remains separate.
-- Trigger resolution, calculation audit/random state, approved Effect mutation, Domain Events, queue removal and receipts share the candidate-world daily transaction. A failure discards the entire candidate day.
+- Trigger resolution, calculation audit/random state, approved Effect mutation, Domain Events, queue removal and receipts share the candidate-world daily transaction. A failure discards the entire candidate day. A new late-failure integration test now proves rollback after an earlier Effect and its `mod.effect-applied` fact have already been created in the candidate.
 
 Not yet implemented: condition/threshold sources; Command Resolution; generic numeric modifiers and temporary-effect lifecycle; random result pools; Presentation/UI for committed facts.
 

@@ -291,9 +291,9 @@ function applyModEffect(effect, world, catalog, modId) {
       if (!Object.hasOwn(state, payload.key) && Object.keys(state).length >= MAX_MOD_STATE_KEYS) {
         throw new RangeError("Mod state cannot exceed " + MAX_MOD_STATE_KEYS + " keys");
       }
-      const before = state[payload.key] ?? 0;
+      const before = Object.hasOwn(state, payload.key) ? state[payload.key] : 0;
       if (typeof before !== "number" || !Number.isFinite(before)) {
-        throw new TypeError("Mod state increment requires an existing numeric value: " + payload.key);
+        throw new TypeError("Mod state increment cannot add to a non-numeric existing value: " + payload.key);
       }
       const after = requireFinite(before + requireFinite(payload.delta, effect.type + ".delta"), effect.type + ".result");
       const nextState = { ...state, [payload.key]: after };

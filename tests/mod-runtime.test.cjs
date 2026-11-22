@@ -93,6 +93,34 @@ test("applies bounded persistent Mod state set, increment and delete effects", (
   assert.deepEqual(world.modState["test-mod"], { turns: 5 });
 });
 
+test("Mod state increment treats missing keys as zero but rejects an explicitly null value", () => {
+  const world = { modState: {}, clock: { day: 2, date: "2478-04-03" }, domainEventSequence: 0, domainEvents: [] };
+  const catalog = { commodities: new Map(), securities: new Map() };
+  const emitDomainEvent = createDomainEventEmitter(world, world.clock);
+
+  applyModHookResults([{
+    modId: "test-mod",
+    effects: [{ type: "mod.state.set", payload: { key: "counter", value: null } }],
+    events: []
+  }], {
+    world, catalog, day: 2, hookId: "campaign.after-day",
+    subjectKey: "set-null-counter", emitDomainEvent
+  });
+
+  const beforeIncrement = structuredClone(world);
+  assert.throws(() => applyModHookResults([{
+    modId: "test-mod",
+    effects: [{ type: "mod.state.increment", payload: { key: "counter", delta: 1 } }],
+    events: []
+  }], {
+    world, catalog, day: 2, hookId: "campaign.after-day",
+    subjectKey: "increment-null-counter", emitDomainEvent
+  }), /non-numeric existing value/);
+
+  assert.deepEqual(world, beforeIncrement);
+  assert.equal(world.modState["test-mod"].counter, null);
+});
+
 test("runs multiple Mods in stable ID order rather than folder enumeration order", () => {
   const make = (id) => mod(
     "function onHook() { return { events: [{ type: 'ran', payload: { mod: '" + id + "' } }] }; }",

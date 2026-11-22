@@ -11,7 +11,7 @@ const DEFAULT_SETTINGS = {
   graphics: { schema_version: STORAGE_VERSION, ui_scale: 100 },
   audio: { schema_version: STORAGE_VERSION, master_volume: 100, music_volume: 100, effects_volume: 100 },
   simulation: { schema_version: STORAGE_VERSION, base_day_seconds: 60 },
-  mods: { schema_version: STORAGE_VERSION, enabled: { "trigger-test": false } }
+  mods: { schema_version: STORAGE_VERSION, enabled: {} }
 };
 
 function serializeIni(value) {

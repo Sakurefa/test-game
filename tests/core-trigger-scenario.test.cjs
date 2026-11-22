@@ -15,7 +15,13 @@ const {
 
 test("optional Trigger Test Mod runs every current Trigger, Resolution and Effect through real daily settlement and save restore", async (t) => {
   const modsRoot = path.join(__dirname, "..", "mods");
-  const mods = await readModPackages(modsRoot, { enabledMods: { "trigger-test": true } });
+  const fixtureRoot = await fs.mkdtemp(path.join(os.tmpdir(), "trigger-test-mods-"));
+  t.after(() => fs.rm(fixtureRoot, { recursive: true, force: true }));
+  for (const id of ["core", "example-market"]) {
+    await fs.cp(path.join(modsRoot, id), path.join(fixtureRoot, id), { recursive: true });
+  }
+  await fs.cp(path.join(__dirname, "fixtures", "trigger-test"), path.join(fixtureRoot, "trigger-test"), { recursive: true });
+  const mods = await readModPackages(fixtureRoot, { enabledMods: { "trigger-test": true } });
   const testMod = mods.find((mod) => mod.id === "trigger-test");
   assert.ok(testMod, "Trigger Test Mod is present");
   assert.equal(testMod.error, undefined);

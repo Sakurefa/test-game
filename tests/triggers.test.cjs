@@ -1,6 +1,5 @@
 "use strict";
 
-const { MAX_DOMAIN_EVENT_PAYLOAD_BYTES } = require("../engine/domain-events.cjs");
 
 const test = require("node:test");
 const assert = require("node:assert/strict");
@@ -470,7 +469,9 @@ test("a failed due Trigger leaves the live day, queue and prior world changes un
 });
 
 
-test("maximum-sized Domain Event payload fits inside a persisted Trigger source snapshot",()=>{
+
+
+test("large Domain Event source snapshots are not rejected by the smaller Trigger-definition payload limit",()=>{
  const world=triggerWorld();
  const resolutions=simpleRegistry();
  const catalog={modIds:["test-mod"]};
@@ -483,9 +484,11 @@ test("maximum-sized Domain Event payload fits inside a persisted Trigger source 
  const source={
   id:"domain-1",sequence:1,day:11,date:"2480-02-29",
   type:"market.prices-settled",scope:"market",subjectId:"target-market",
-  payload:{message:"x".repeat(MAX_DOMAIN_EVENT_PAYLOAD_BYTES-32)}
+  payload:{message:"x".repeat(32*1024)}
  };
  assert.equal(activateDomainEventTriggers(world,source),1);
+ world.clock={day:11,date:"2480-02-29"};
  assert.equal(world.triggerQueue.pending[0].dueDay,12);
+ assert.equal(world.triggerQueue.pending[0].sourceEvent.payload.message.length,32*1024);
  assert.equal(validateTriggerQueue(world,{modIds:catalog.modIds,isEventRegistered:(id)=>resolutions.has(id)}),true);
 });

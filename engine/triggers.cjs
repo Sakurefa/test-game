@@ -22,7 +22,7 @@ function exactKeys(value, allowed) {
   return isRecord(value) && Object.keys(value).every((key) => allowed.includes(key));
 }
 
-function cloneJson(value, label = "Trigger payload") {
+function cloneJson(value, label = "Trigger payload", maxBytes = MAX_TRIGGER_PAYLOAD_BYTES) {
   function normalize(item) {
     if (item === null || typeof item === "string" || typeof item === "boolean") return item;
     if (typeof item === "number") {
@@ -37,8 +37,8 @@ function cloneJson(value, label = "Trigger payload") {
   }
   const normalized = normalize(value);
   const encoded = JSON.stringify(normalized);
-  if (Buffer.byteLength(encoded, "utf8") > MAX_TRIGGER_PAYLOAD_BYTES) {
-    throw new RangeError(label + " exceeds " + MAX_TRIGGER_PAYLOAD_BYTES + " bytes");
+  if (maxBytes !== null && Buffer.byteLength(encoded, "utf8") > maxBytes) {
+    throw new RangeError(label + " exceeds " + maxBytes + " bytes");
   }
   return JSON.parse(encoded);
 }
@@ -118,10 +118,10 @@ function normalizeDomainEventSnapshot(event) {
     type: event.type,
     scope: event.scope,
     subjectId: event.subjectId,
-    payload: cloneJson(event.payload, "Trigger source Domain Event payload")
+    payload: cloneJson(event.payload, "Trigger source Domain Event payload", null)
   };
   if (event.idempotencyKey !== undefined) snapshot.idempotencyKey = event.idempotencyKey;
-  return cloneJson(snapshot, "Trigger source Domain Event");
+  return cloneJson(snapshot, "Trigger source Domain Event", null);
 }
 
 function matchesDomainEvent(due, event) {

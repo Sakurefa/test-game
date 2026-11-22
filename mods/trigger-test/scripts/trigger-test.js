@@ -131,7 +131,7 @@ function onBeforeDay(input, api) {
           type: "mod.state.increment",
           payload: { key: "trigger-test-emitted-event-runs", delta: 1 }
         }),
-        effectTrigger("18-date", { kind: "date", date: "2478-04-02" }, {
+        effectTrigger("18-date", { kind: "date", date: "2478-04-03" }, {
           type: "mod.state.increment",
           payload: { key: "trigger-test-date-runs", delta: 1 }
         }),

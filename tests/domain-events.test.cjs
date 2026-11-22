@@ -1,5 +1,5 @@
 const test=require("node:test"),assert=require("node:assert/strict");
-const {DOMAIN_EVENT_HISTORY_LIMIT,MAX_DOMAIN_EVENT_PAYLOAD_BYTES,createDomainEventEmitter,validateDomainEventState}=require("../engine/domain-events.cjs");
+const {DOMAIN_EVENT_HISTORY_LIMIT,createDomainEventEmitter,validateDomainEventState}=require("../engine/domain-events.cjs");
 const fixture=()=>({domainEventSequence:0,domainEvents:[]});
 test("domain events use monotonic IDs and authoritative campaign timestamps",()=>{
  const world=fixture(),emit=createDomainEventEmitter(world,{day:7,date:"2478-04-08"});
@@ -55,18 +55,12 @@ test("event history validation rejects duplicate idempotency keys",()=>{
 });
 
 
-test("Domain Event payloads have one bounded contract for retained facts and Trigger snapshots",()=>{
- const world=fixture(),emit=createDomainEventEmitter(world,{day:1,date:"2478-04-02"});
- const payload={message:"x".repeat(MAX_DOMAIN_EVENT_PAYLOAD_BYTES-32)};
- const event=emit({type:"market.prices-settled",scope:"market",subjectId:"new-dawn-market",payload});
- assert.equal(validateDomainEventState(world),true);
- assert.equal(event.payload.message.length,MAX_DOMAIN_EVENT_PAYLOAD_BYTES-32);
- assert.throws(()=>emit({type:"market.prices-settled",payload:{message:"x".repeat(MAX_DOMAIN_EVENT_PAYLOAD_BYTES)}}),/exceeds 12288 bytes/);
-});
 
-test("saved Domain Event history rejects a payload beyond the creation limit",()=>{
+
+test("Domain Event history retains large JSON-safe payloads without a Trigger-only size restriction",()=>{
  const world=fixture(),emit=createDomainEventEmitter(world,{day:1,date:"2478-04-02"});
- emit({type:"market.prices-settled",payload:{message:"valid"}});
- world.domainEvents[0].payload.message="x".repeat(MAX_DOMAIN_EVENT_PAYLOAD_BYTES);
- assert.throws(()=>validateDomainEventState(world),/invalid domain event payload.*exceeds 12288 bytes/);
+ const payload={message:"x".repeat(32*1024)};
+ emit({type:"market.prices-settled",scope:"market",subjectId:"new-dawn-market",payload});
+ assert.equal(world.domainEvents[0].payload.message.length,32*1024);
+ assert.equal(validateDomainEventState(world),true);
 });

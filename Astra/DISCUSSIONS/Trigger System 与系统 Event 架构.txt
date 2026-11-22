@@ -203,3 +203,12 @@ Presentation 以后可以把已提交事实转换为玩家可见通知、报告�
 ### 当前结论
 
 当前 Trigger 的已实现能力已由一条真实 Mod-loader → daily settlement → Effects/Domain Events → save/restore → next-day settlement 集成场景覆盖。下一步不应为了“覆盖面”继续增加 Trigger/Resolution/Effect 类型；等待具体游戏 Mod 消费者，再按真实需求扩展。条件/阈值来源、Command Resolution、临时效果生命周期和 Presentation 仍保持原先暂缓决议。
+
+
+## 当前完成状态（2026-11-22）
+
+Trigger System 的本阶段核心实现已完成，并通过自动化模拟验收。具体覆盖范围、缺陷修正、真实 Mod-loader 测试剧本与 CI 证据见 Astra/WORKFLOWS/2026-11-22_16_trigger-functional-test-and-defect-fixes.txt。
+
+状态：核心实现完成；233/233 自动化测试通过；Windows 用户设备 GUI 验收待进行。后续不为覆盖面继续扩展 Trigger/Resolution/Effect，等待真实消费者或缺陷。
+
+边界提醒：条件/阈值 due source、Command Resolution、临时效果生命周期、通用数值 Modifier 与 Presentation 仍未实现，但它们不是本阶段未完成的缺陷清单。应在出现真实消费者并明确语义后分别设计。

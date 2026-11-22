@@ -93,3 +93,14 @@
 - 测试自动选择分支，完成 Trigger → Domain Event → 下游 Trigger 链，并在匹配 Domain Event 后存档、重新加载、次日执行。
 - Windows 源码 CI [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324) 成功：233/233 tests，Engine/Electron syntax 与 Renderer build 全部通过。World schema 仍为 9。
 - 该结果是 Windows CI 自动化引擎/Mod/存档测试，不是用户设备 GUI 验收；未重新构建 Launcher EXE。
+
+
+## Trigger 核心实现完成检查点（2026-11-22）
+
+当前 Trigger/System Event/Resolution/Settlement 已完成本阶段约定的 Engine 核心实现，并通过完整自动化模拟验收。实现包含 date、elapsed、domain-event 三种 due source，effect.apply、formula.effect、event.emit 三种 Resolution，全部 13 种批准 Effect，以及 candidate-world 原子提交、回执、来源快照和存档往返。
+
+真实 Mod-loader + daily-settlement 测试剧本覆盖了当前全部已实现的 Trigger source、Resolution 和 Effect。Windows 源码 CI [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324) 成功：233/233 tests、Engine/Electron syntax、Renderer production build 与 generated-renderer 均通过。随后文档提交 CI [44988145049](https://github.com/Sakurefa/test-game/actions/runs/44988145049) 也已成功。
+
+项目状态应记为：**核心实现完成，自动化模拟测试通过，等待 Windows 用户设备 GUI 验收**。后续仅在真实 Mod 消费者或缺陷出现时扩展，不再为了覆盖面继续增加 Trigger/Resolution/Effect 类型。
+
+本次没有在用户设备启动 Electron GUI，也没有重新构建/上传 Launcher Runtime EXE。

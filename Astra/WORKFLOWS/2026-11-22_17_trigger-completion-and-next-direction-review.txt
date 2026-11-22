@@ -1,0 +1,57 @@
+# Trigger 完成归档与下一阶段方向审视
+
+日期：2026-11-22
+序号：17
+基线：f8ceffb7399fb580dac9db7052b3492f4701e652
+
+## 本次目标
+
+将 Trigger 核心实现完成与自动化模拟验收结果正式写入 Astra 工作区，并检查当前工程记录和代码，提出下一阶段方向。
+
+## 检查范围
+
+- AGENTS.md、Astra/README.txt、Astra/WORKING_MEMORY.txt
+- 两份最高优先级 AK / MOD 化原则
+- 关于现状、关于接下来的工作、Trigger System 与系统 Event 架构、人员与建筑结算设计
+- 最新 Trigger 验收工作流与 Engine/Mod 相关实现
+- main 最新提交与 GitHub Actions 状态
+
+## Trigger 完成状态
+
+当前 Trigger/System Event/Resolution/Settlement 的约定核心范围已完成：date、elapsed、domain-event 三种 due source；effect.apply、formula.effect、event.emit 三种 Resolution；全部 13 种批准 Effect；candidate-world 原子事务、失败回滚、receipt、Domain Event source snapshot；真实 Mod loader、每日结算和存档往返的三日集成测试。
+
+Windows 源码 CI [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324) 成功：233/233 tests、Engine/Electron syntax、Renderer build 与 generated-renderer 均通过。文档基线 CI [44988145049](https://github.com/Sakurefa/test-game/actions/runs/44988145049) 也已成功。
+
+正式状态：**核心实现完成、自动化模拟测试通过、等待 Windows 用户设备 GUI 验收**。条件/阈值、Command Resolution、临时效果生命周期、通用 Modifier 与 Presentation 是未来可能的独立扩展，不是当前 Trigger 核心实现的未修复缺陷。
+
+## 下一方向审视
+
+建议下一阶段从人口群体级需求与商品消费开始设计，而不是继续堆叠 Trigger 能力。
+
+依据：
+- 人口群体人数已是权威数据，但 settlePopulationNeeds() 仍按殖民地总人口聚合计算。
+- Core 的 commodity INI 已有 daily_need_per_thousand，当前需求公式/日结算路径可作为起点。
+- Core 人口定义目前只有 neutral profession/wealth 分类，没有真实人口构成。
+- Working Memory 已确认需求按群体结算；各维度目前是独立边际分布，禁止相乘推导联合分布。
+- 现有 recipe workforce 仍是 metadata，没有实际雇佣群体与人数。建筑 workforce 条件应等待权威就业数据。
+
+建议的先后步骤：先审计需求公式、需求报告、库存消费与存档状态，分清需求计算与扣库存/满足需求；设计最小 Mod INI 需求配置契约与群体需求口径；再分阶段讨论库存分配、满足率/短缺、支付能力、替代品和市场清算。这些规则尚未由用户确认。
+
+这只是下一方向建议，不代表具体模型或实现范围已经获批。
+
+## 文件更新
+
+- Astra/WORKING_MEMORY.txt
+- Astra/DISCUSSIONS/关于现状.txt
+- Astra/DISCUSSIONS/关于接下来的工作.txt
+- Astra/DISCUSSIONS/Trigger System 与系统 Event 架构.txt
+- Astra/WORKFLOWS/2026-11-22_17_trigger-completion-and-next-direction-review.txt
+- ASTRA_WORKLOG.md
+
+## 验证与边界
+
+- 本次仅更新项目文档并审视现有代码，没有修改 Engine、Mod 或测试代码。
+- 本次没有运行本地测试或构建。
+- 依据已有 CI：44987890324（源码与 233/233 自动化测试成功）、44988145049（文档提交 CI 成功）。
+- 未在用户 Windows 设备启动 GUI；未重新构建/上传 Launcher Runtime EXE。
+- 下一步需由用户确认方向后再进入具体设计/实现。

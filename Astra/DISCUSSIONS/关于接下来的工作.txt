@@ -167,3 +167,24 @@
 实现链：`3e4a3ddc77f1da021ef6ded5e8eabf249f5a0bf5`；语法闭合修正 `e1806f47b463578184608b5de170882a8f70b244`；Domain Event descriptor 形状修正 `f942a9b93e9f5c56b1dc0bbd2fb7466522c7fab0`。最终 CI [44962162081](https://github.com/Sakurefa/test-game/actions/runs/44962162081) 成功：227/227 tests，syntax 和 Renderer build 通过。未执行本地测试/构建，未在用户 Windows 设备验收，也未重新构建 Runtime/Launcher。
 
 尚未实现：Command Resolution、条件/阈值 due source、通用数值 modifier、临时效果生命周期、随机事件池和 Presentation。后续需要实际消费方来决定是否继续扩展命令入口；不要把 Electron player command gateway 塞进每日模拟 Engine。
+
+
+## Trigger 完成后的下一方向建议（2026-11-22；待用户确认）
+
+Trigger 核心实现与自动化模拟验收已经完成。建议下一阶段回到项目长期目标中最核心、且已有权威数据基础的部分：**人口群体级需求与商品消费**，而不是继续扩展 Trigger。
+
+理由：
+- Engine 已有权威 population group counts，但当前 settlePopulationNeeds() 仍按殖民地总人口聚合计算。
+- Core 已在 commodity INI 中定义 daily_need_per_thousand，现有需求公式和日结算路径可作为迁移起点。
+- Core 当前没有真实人口构成；population.ini 只有 neutral profession/wealth 分类。不能把尚未定义的群体构成当成已经存在的游戏事实。
+- Working Memory 已确认需求按群体结算，但群体各维度是独立边际分布。不能将职业、财富等比例相乘来猜测联合人群构成。
+
+建议先做设计审视，而不是直接大规模编码：
+1. 检查现有需求公式、需求报告、存档状态和商品库存消费路径，明确当前“需求计算”与“实际扣库存/满足需求”的边界。
+2. 定义最小的 Mod INI 需求配置契约，以及群体如何明确引用/承载需求配置；避免由 Engine 硬编码职业、阶级或商品名单。
+3. 明确群体需求的计算口径，保证不从独立边际比例推导不存在的联合分布；先让每个群体的需求可解释、可审计。
+4. 再分别讨论库存分配、满足率/短缺、支付能力、替代品和市场清算。不要把这些未决规则一次性塞入第一步。
+
+此方向与“Victoria 3 式人口供需 + 商品生产消费”目标直接相连，同时能先消费已有的人口群体地基。它目前只是基于现状的下一步建议，不代表用户已经批准具体需求模型或实现范围。
+
+暂不建议先做建筑 workforce/条件效果：目前 recipe workforce 仍只是 metadata，没有实际雇佣群体与人数；建筑条件必须等待权威就业数据，不能从殖民地人口维度比例推算。

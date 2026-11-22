@@ -5,8 +5,8 @@
 ## Repository snapshot
 
 - Repository: https://github.com/Sakurefa/test-game
-- Branch: `main`; latest Engine source/test revision: `78028fb60da90e91f906851837710f8ae0b9753d`. Trigger source snapshots now preserve the complete JSON-safe Domain Event payload instead of incorrectly applying the smaller Trigger-definition payload limit; daily Trigger Queue validation is performed once in the due-processing path.
-- Latest successful Windows source CI: [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324). Engine/Electron syntax checks passed; `npm test` passed **233/233** with 0 failures; Renderer build and generated-renderer step succeeded. The new end-to-end Trigger scenario passed.
+- Branch: `main`; Engine source/test revision: `78028fb60da90e91f906851837710f8ae0b9753d`; documentation checkpoint updated in workflow 2026-11-22_17. Trigger source snapshots now preserve the complete JSON-safe Domain Event payload instead of incorrectly applying the smaller Trigger-definition payload limit; daily Trigger Queue validation is performed once in the due-processing path.
+- Latest successful Windows source CI: [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324). Engine/Electron syntax checks passed; `npm test` passed **233/233** with 0 failures; Renderer build and generated-renderer step succeeded. The new end-to-end Trigger scenario passed. The subsequent documentation commit CI [44988145049](https://github.com/Sakurefa/test-game/actions/runs/44988145049) also completed successfully.
 - Latest successful Windows Runtime/Launcher workflow: [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367). Mod loader tests, Renderer build, minimal Electron app preparation, Windows Electron Runtime build, dependency sync, generated-file commit and Launcher EXE upload all succeeded.
 - Launcher artifact: `Market-Simulator-Launcher-EXE`, Artifact ID `14726491849`, about 92.7 MB, expires 2026-12-05 21:50 UTC. This confirms CI packaging/upload, not user-device launch verification.
 - No local full test suite/build was run. User-side Windows GUI acceptance remains outstanding.
@@ -79,3 +79,12 @@ The Effect whitelist audit is recorded. The `mod.state.increment` null-vs-missin
 - Trigger semantics: `Astra/DISCUSSIONS/Trigger System 与系统 Event 架构.txt`.
 - Current status and next decisions: `Astra/DISCUSSIONS/关于现状.txt`, `Astra/DISCUSSIONS/关于接下来的工作.txt`.
 - Execution details: `Astra/WORKFLOWS/2026-11-22_09_trigger-system-engine-foundation.txt`, `Astra/WORKFLOWS/2026-11-22_10_resolution-effect-plan-and-formula-consumer.txt`, `Astra/WORKFLOWS/2026-11-22_11_settlement-runner-separated-from-trigger-queue.txt`. Historical workflow files preserve their original state and must not be rewritten as current status.
+
+
+## 2026-11-22_17 — Trigger completion checkpoint and next direction
+
+- Trigger status: **core implementation complete; automated simulation test passed; Windows user-device GUI acceptance outstanding**. Do not continue expanding Trigger without a real consumer.
+- Evidence: source CI [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324), 233/233 tests plus syntax and Renderer build; documentation CI [44988145049](https://github.com/Sakurefa/test-game/actions/runs/44988145049), success.
+- Next direction recommendation (not yet approved implementation scope): design the population-group-level needs and goods-consumption model. Current daily needs are still colony-aggregate; Core defines commodity daily_need_per_thousand but no actual demographic composition. Respect independent population dimensions; never infer joint distributions by multiplying marginal proportions. Need baskets, affordability, substitution, shortages and allocation remain open.
+- Defer workforce/condition settlement until actual employed workforce groups and headcounts exist. Recipe workforce remains metadata.
+- No code was changed or tested in this documentation/review session. No user-device GUI test and no Runtime/Launcher rebuild were performed.

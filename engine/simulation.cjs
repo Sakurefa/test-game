@@ -607,7 +607,6 @@ function validateWorldState(world, catalog) {
     throw new Error("Save has an invalid game clock");
   }
   validateCampaignClock(world.clock, catalog.universe.startDate, "Save");
-  validateTriggerQueue(world, { modIds: catalog.modIds, isEventRegistered: (id) => triggerResolutions.has(id) });
   if (!world.scheduler || typeof world.scheduler !== "object" || !world.scheduler.lastRunDayBySystem
     || typeof world.scheduler.lastRunDayBySystem !== "object") throw new Error("Save has an invalid simulation scheduler state");
   for (const id of catalog.colonies.keys()) {

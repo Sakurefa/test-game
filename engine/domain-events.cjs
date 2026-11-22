@@ -1,4 +1,6 @@
 const DOMAIN_EVENT_HISTORY_LIMIT=300;
+const MAX_DOMAIN_EVENT_PAYLOAD_BYTES=12*1024;
+const MAX_DOMAIN_EVENT_TYPE_LENGTH=128;
 const EVENT_TYPE_PATTERN=/^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
 const IDENTIFIER_PATTERN=/^[a-z0-9][a-z0-9._-]{1,63}$/;
 const SCOPE_PATTERN=/^[a-z][a-z0-9_-]{0,31}$/;
@@ -12,6 +14,7 @@ function clonePayload(value){
   return item;
  });
  if(encoded===undefined)throw new TypeError("Domain event payload is not serializable");
+ if(Buffer.byteLength(encoded,"utf8")>MAX_DOMAIN_EVENT_PAYLOAD_BYTES)throw new RangeError("Domain event payload exceeds "+MAX_DOMAIN_EVENT_PAYLOAD_BYTES+" bytes");
  return JSON.parse(encoded);
 }
 function normalizeDomainEventDescriptor(input){
@@ -21,7 +24,7 @@ function normalizeDomainEventDescriptor(input){
  const subjectId=input.subjectId===undefined?null:input.subjectId;
  const payload=input.payload===undefined?{}:input.payload;
  const idempotencyKey=input.idempotencyKey===undefined?null:input.idempotencyKey;
- if(typeof type!=="string"||!EVENT_TYPE_PATTERN.test(type))throw new TypeError("Domain event requires a stable type ID");
+ if(typeof type!=="string"||type.length>MAX_DOMAIN_EVENT_TYPE_LENGTH||!EVENT_TYPE_PATTERN.test(type))throw new TypeError("Domain event requires a stable type ID no longer than "+MAX_DOMAIN_EVENT_TYPE_LENGTH+" characters");
  if(typeof scope!=="string"||!SCOPE_PATTERN.test(scope))throw new TypeError("Domain event requires a valid scope");
  if(subjectId!==null&&(typeof subjectId!=="string"||!IDENTIFIER_PATTERN.test(subjectId)))throw new TypeError("Domain event subjectId must be a stable identifier or null");
  if(idempotencyKey!==null&&(typeof idempotencyKey!=="string"||!IDEMPOTENCY_KEY_PATTERN.test(idempotencyKey)))throw new TypeError("Domain event idempotencyKey must be a stable key or null");
@@ -60,13 +63,14 @@ function validateDomainEventState(world){
  for(const event of world.domainEvents){
   if(!isRecord(event)||!Number.isInteger(event.sequence)||event.sequence<=previous||event.sequence>world.domainEventSequence||event.id!=="domain-"+event.sequence
    ||!Number.isInteger(event.day)||event.day<0||typeof event.date!=="string"||!/^\d{4}-\d{2}-\d{2}$/.test(event.date)
-   ||typeof event.type!=="string"||!EVENT_TYPE_PATTERN.test(event.type)||typeof event.scope!=="string"||!SCOPE_PATTERN.test(event.scope)
+   ||typeof event.type!=="string"||event.type.length>MAX_DOMAIN_EVENT_TYPE_LENGTH||!EVENT_TYPE_PATTERN.test(event.type)||typeof event.scope!=="string"||!SCOPE_PATTERN.test(event.scope)
    ||(event.subjectId!==null&&(typeof event.subjectId!=="string"||!IDENTIFIER_PATTERN.test(event.subjectId)))||!isRecord(event.payload)
    ||(event.idempotencyKey!==undefined&&(typeof event.idempotencyKey!=="string"||!IDEMPOTENCY_KEY_PATTERN.test(event.idempotencyKey))))throw new Error("Save contains an invalid domain event");
+  try{clonePayload(event.payload);}catch(error){throw new Error("Save contains an invalid domain event payload: "+error.message);}
   if(event.idempotencyKey!==undefined){if(idempotencyKeys.has(event.idempotencyKey))throw new Error("Save contains duplicate domain event idempotency keys");idempotencyKeys.add(event.idempotencyKey);}
   previous=event.sequence;
  }
  if(world.domainEvents.length>0&&previous!==world.domainEventSequence)throw new Error("Save domain-event sequence does not match its latest retained event");
  return true;
 }
-module.exports={DOMAIN_EVENT_HISTORY_LIMIT,IDEMPOTENCY_KEY_PATTERN,normalizeDomainEventDescriptor,createDomainEventEmitter,validateDomainEventState};
+module.exports={DOMAIN_EVENT_HISTORY_LIMIT,MAX_DOMAIN_EVENT_PAYLOAD_BYTES,MAX_DOMAIN_EVENT_TYPE_LENGTH,IDEMPOTENCY_KEY_PATTERN,normalizeDomainEventDescriptor,createDomainEventEmitter,validateDomainEventState};

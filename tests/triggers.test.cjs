@@ -408,6 +408,50 @@ test("a missing formula result binding aborts the candidate day before applying 
   assert.equal(world.triggerQueue.receipts.length, 0);
 });
 
+const partialEffectFailureFactory = (catalog) => {
+  const source = formulaHookFactory(catalog);
+  const original = [
+    "      effects: [{",
+    '        type: "mod.state.set",',
+    '        payload: { key: "calculated-price" },',
+    '        resultFields: { value: "price" }',
+    "      }]"
+  ].join("\n");
+  const replacement = [
+    "      effects: [{",
+    '        type: "mod.state.set",',
+    '        payload: { key: "calculated-price" },',
+    '        resultFields: { value: "price" }',
+    "      }, {",
+    '        type: "colony.stability.delta",',
+    '        payload: { colonyId: "missing-trigger-colony" },',
+    '        resultFields: { delta: "price" }',
+    "      }]"
+  ].join("\n");
+  if (!source.includes(original)) throw new Error("Could not add the late-failing Effect to the formula Trigger test");
+  return source.replace(original, replacement);
+};
+
+test("a later Trigger Effect failure rolls back earlier Effects, event records, calculation audit and random state", async () => {
+  const catalog = await loadCatalogWithTriggerHook("test-trigger", partialEffectFailureFactory);
+  const world = createWorld(catalog, { seed: "trigger-late-effect-failure" });
+  advanceDay(world, catalog);
+  const before = structuredClone(world);
+
+  assert.throws(() => advanceDay(world, catalog), /Missing colony missing-trigger-colony/);
+  assert.deepEqual(world, before);
+  assert.equal(world.clock.day, 1);
+  assert.equal(world.triggerQueue.pending.length, 1);
+  assert.equal(world.triggerQueue.receipts.length, 0);
+  assert.equal(world.modState["test-trigger"]?.["calculated-price"], undefined);
+  assert.equal(world.domainEvents.some((item) =>
+    item.type === "mod.effect-applied" && item.payload.triggerId === "test-trigger.formula-price_with_underscore"
+  ), false);
+  assert.equal(world.domainEvents.some((item) =>
+    item.type === "trigger.resolved" && item.subjectId === "test-trigger.formula-price_with_underscore"
+  ), false);
+});
+
 test("a failed due Trigger leaves the live day, queue and prior world changes untouched", async () => {
   const catalog = await loadCatalogWithTriggerHook("test-trigger", failingHook);
   const world = createWorld(catalog, { seed: "trigger-atomicity" });

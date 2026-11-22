@@ -1,0 +1,80 @@
+# Trigger 全功能运行验收与缺陷修正
+
+日期：2026-11-22
+基线：`2714ace526a4c239f8472927d73c39f9a28d294d`
+最终 Engine/测试提交：`78028fb60da90e91f906851837710f8ae0b9753d`
+
+## 目标
+
+按既有 Trigger System 设计审查实现缺口，修复已确认缺陷，并通过真实 Mod loader 和每日结算路径验证当前全部已实现 Trigger/Resolution/Effect 能力。保持 AK 原则与 MOD 化原则，不把测试内容塞入 Engine 或必需 Core。
+
+## 修正
+
+1. `engine/triggers.cjs`
+   - Trigger definition 自身的 System Event payload 仍受 16 KiB 上限。
+   - Domain Event source snapshot 不再错误复用该较小上限，完整保留合法 JSON-safe 来源事实。
+2. `engine/simulation.cjs`
+   - 移除 `validateDayInputs()` 中重复的 Trigger Queue 完整校验。
+   - `processDueTriggers()` 仍在独立执行入口统一校验；`validateWorldState()` 仍在世界/存档边界验证队列。
+3. 测试覆盖
+   - Domain Event 历史接受 32 KiB JSON-safe payload。
+   - 匹配后的 Trigger source snapshot 可完整保存 32 KiB payload，不受 Trigger definition payload 上限影响。
+
+## 运行剧本
+
+新增：
+- `tests/fixtures/trigger-test/manifest.ini`
+- `tests/fixtures/trigger-test/scripts/trigger-test.js`
+- `tests/core-trigger-scenario.test.cjs`
+
+测试将真实 `mods/core` 与 `mods/example-market` 复制到临时 Mod 根目录，再加载 API v4 Trigger Test fixture。它不放在正式 `mods/` 目录，不默认参与玩家游戏，也不改变 Core 内容或存档 schema。
+
+场景按完整 campaign day 运行：
+- Day 1：测试 Mod 用 `api.random()` 在两个分支中选择；安排 17 个 Trigger，覆盖 date、elapsed、domain-event source、effect.apply、formula.effect、event.emit，以及 13 种 Effect 的首批调用。
+- Day 2：执行已到期 Trigger；接收现有市场 `market.prices-settled` 事实；执行公式并输出 Mod Domain Event；Hook 在人口 split 已提交到 candidate world 后再安排 merge 与 dimension.set。
+- Day 3：执行 event.emit 产生的下游 Mod Domain Event Trigger，以及人口 merge/dimension.set。
+- Day 2 后将 pending Trigger（包括已匹配的完整 sourceEvent）、receipts 与 World 存入真实 Electron storage 测试路径；重新读取、校验后继续 Day 3。
+- 最终检查 19 条 receipts、pending 归零、人口总量守恒、Effect 结果、随机选择结果与 sourceEvent 快照保留。
+
+覆盖的 13 种 Effect：
+- `mod.state.set`、`mod.state.increment`、`mod.state.delete`
+- `colony.population.delta`、`colony.population.group.split`、`colony.population.group.merge`、`colony.population.group.dimension.set`
+- `colony.stability.delta`、`colony.stockpile.delta`、`market.price.multiplier`
+- `fleet.readiness.delta`、`fleet.morale.delta`、`war.weariness.delta`
+
+覆盖的 3 种 Resolution：`effect.apply`、`formula.effect`、`event.emit`。
+覆盖的 3 种 due source：`date`、`elapsed`、`domain-event`。
+
+## 文件
+
+- `engine/triggers.cjs`
+- `engine/simulation.cjs`
+- `tests/domain-events.test.cjs`
+- `tests/triggers.test.cjs`
+- `tests/core-trigger-scenario.test.cjs`
+- `tests/fixtures/trigger-test/manifest.ini`
+- `tests/fixtures/trigger-test/scripts/trigger-test.js`
+- `Astra/DISCUSSIONS/Trigger System 与系统 Event 架构.txt`
+- `Astra/DISCUSSIONS/关于现状.txt`
+- `Astra/WORKING_MEMORY.txt`
+- `ASTRA_WORKLOG.md`
+
+## 验证结果
+
+- Windows 源码 CI：[44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324) — success。
+- `npm test`：233/233，0 failures。
+- Engine/Electron syntax checks：success。
+- Renderer production build：success。
+- generated-renderer step：success，无额外文件变更。
+- World schema：仍为 9。
+- 未执行本地测试；未在用户设备启动 Electron GUI；未重新构建/上传 Launcher Runtime EXE。
+
+## 中间测试问题与处理
+
+- 首次尝试给 Domain Event payload 增加 12 KiB 上限，CI 显示这会与 Trigger source snapshot、`trigger.resolved` 的完整来源上下文产生新边界问题。最终撤回该新增限制，改为仅让 source snapshot 不继承 Trigger definition 的 16 KiB payload 上限。
+- 测试 Mod 曾短暂置于正式 `mods/` 目录，导致不显式排除该 Mod 的既有测试意外加载它。已将 fixture 移入 `tests/fixtures/`，并在测试中复制真实 Core/example-market 包到临时目录后单独加载。
+- fixture 的 JS 文件路径随后修正为 manifest 声明的 `scripts/trigger-test.js`。
+
+## 结论与下一步
+
+当前 Trigger 已实现能力有真实 Mod loader + daily settlement + storage round-trip 场景覆盖。不要为了扩大覆盖面继续堆叠抽象或新增 Effect/Resolution；后续等待具体 Mod 消费者。条件/阈值、Command Resolution、临时效果生命周期、Presentation 继续遵守既有暂缓决议。

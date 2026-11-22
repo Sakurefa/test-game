@@ -168,3 +168,38 @@ Presentation 以后可以把已提交事实转换为玩家可见通知、报告�
 ### Mod 状态增量边界修正（2026-11-22）
 
 `mod.state.increment` 保留现有行为：键不存在时按 0 初始化；键已存在时必须是有限数字。显式 `null` 是合法 JSON 状态值，但不等于键不存在，也不能被静默当作 0。原实现用空值合并导致 `null` 被误判为缺失键；现已改为检查 `Object.hasOwn`，并补入回归测试。
+
+
+## Trigger 全功能运行验收与缺陷修正（2026-11-22）
+
+本轮以 `2714ace526a4c239f8472927d73c39f9a28d294d` 为基线，完成一次面向当前全部 Trigger 能力的代码审查与自动化运行验收。最终源码提交：`78028fb60da90e91f906851837710f8ae0b9753d`。
+
+### 缺陷与清理
+
+- `engine/triggers.cjs` 原先对 Domain Event source snapshot 复用了 Trigger definition payload 的 16 KiB 上限。Domain Event emitter 本身允许更大的合法 JSON-safe payload，导致同一事实在无监听者时可以写入、有监听 Trigger 时却可能在快照阶段失败。
+- 现已将两种数据边界分开：Trigger 自身声明的 Event payload 仍受 16 KiB 限制；Domain Event source snapshot 不再错误套用该限制，完整保留来源事实。回归测试使用 32 KiB payload 验证事实写入与 Trigger 快照均可通过。
+- `engine/simulation.cjs` 的 `validateDayInputs()` 与 `processDueTriggers()` 曾对同一 Trigger Queue 重复执行完整校验。日结算入口移除前置重复检查，由 `processDueTriggers()` 在实际处理前统一校验；独立 `validateWorldState()` 仍保留存档/世界边界校验。
+
+### 真实 Mod 运行剧本
+
+- 新增 `tests/fixtures/trigger-test/`，作为 API v4 测试 Mod，不放入正式 `mods/` 目录，不污染 Core 或玩家存档。
+- 自动化测试把仓库真实 `mods/core` 与 `mods/example-market` 复制到临时 Mod 根目录，再加载测试 Mod，通过真实 Mod loader、catalog、`createWorld()`、`advanceDay()` 与 Electron 存档接口运行。
+- 第 1 天安排 17 个 Trigger；第 2 天执行日期/经过时间/市场事实响应、Effect 与 Formula Resolution、Event Emit，并在 Hook 中继续安排人口群体合并和维度变更；第 3 天完成下游 Mod Domain Event Trigger 与人口群体操作。
+- 测试剧本通过 `api.random()` 在两个分支中确定性选择，不依赖尚未实现的玩家多选 UI。
+- 场景覆盖全部 13 种当前批准 Effect：Mod state set/increment/delete；人口 delta/split/merge/dimension.set；殖民地 stability、stockpile；market price multiplier；fleet readiness/morale；war weariness。
+- 覆盖全部 3 种 Resolution：`effect.apply`、`formula.effect`、`event.emit`；全部 3 种 due source：date、elapsed、domain-event。
+- 第 2 天后将带有已匹配 sourceEvent 的 pending Trigger、回执和完整世界写入存档，重新读取并验证，再推进第 3 天完成剩余动作。最终验证 19 条 Trigger receipts、无 pending 遗留、人口总量守恒及来源快照保留。
+- 该测试使用真实 Core 内容作为基底；测试专用行为只在 `tests/fixtures` 中启用，不改写 `mods/core` 的正式内容。
+
+### 验证
+
+- Windows 源码 CI：[44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324) 成功。
+- `npm test`：233/233 通过，0 失败。
+- Engine/Electron syntax 检查通过。
+- Renderer production build 通过；generated-renderer 步骤通过，无额外生成文件变更。
+- World schema 保持 9；本轮没有用户设备 GUI 启动验收，也没有重新构建/上传 Launcher Runtime EXE。
+- 两次中间 CI 失败均为本轮早期测试实现问题：先尝试对 Domain Event 设统一 12 KiB 限制，后因 source snapshot 与 `trigger.resolved` 的完整来源上下文边界不合适而撤回；随后测试 Mod 曾短暂放在正式 `mods/` 目录导致既有测试意外加载，已移入 `tests/fixtures/` 并修正声明脚本路径。最终提交以 233/233 的完整 CI 验证为准。
+
+### 当前结论
+
+当前 Trigger 的已实现能力已由一条真实 Mod-loader → daily settlement → Effects/Domain Events → save/restore → next-day settlement 集成场景覆盖。下一步不应为了“覆盖面”继续增加 Trigger/Resolution/Effect 类型；等待具体游戏 Mod 消费者，再按真实需求扩展。条件/阈值来源、Command Resolution、临时效果生命周期和 Presentation 仍保持原先暂缓决议。

@@ -5,8 +5,8 @@
 ## Repository snapshot
 
 - Repository: https://github.com/Sakurefa/test-game
-- Branch: `main`; latest Engine source/test revision: `f5b4fe928e74685e87da14fe14bf7e8ccfee5882` (Resolution plans can emit Mod-scoped Domain Events through `event.emit`; emitted facts can activate another Trigger for the next day). The Runtime workflow's generated `resources/app/package.json` sync is recorded in `0f2d9a5fc41c34dfd1c669d04319bfd08743aeb`; subsequent Astra documentation commits are separate.
-- Latest successful Windows source CI: [44985920234](https://github.com/Sakurefa/test-game/actions/runs/44985920234). Engine/Electron syntax checks passed; `npm test` passed **229/229** with 0 failures; Renderer build and generated-renderer step succeeded.
+- Branch: `main`; latest Engine source/test revision: `78028fb60da90e91f906851837710f8ae0b9753d`. Trigger source snapshots now preserve the complete JSON-safe Domain Event payload instead of incorrectly applying the smaller Trigger-definition payload limit; daily Trigger Queue validation is performed once in the due-processing path.
+- Latest successful Windows source CI: [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324). Engine/Electron syntax checks passed; `npm test` passed **233/233** with 0 failures; Renderer build and generated-renderer step succeeded. The new end-to-end Trigger scenario passed.
 - Latest successful Windows Runtime/Launcher workflow: [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367). Mod loader tests, Renderer build, minimal Electron app preparation, Windows Electron Runtime build, dependency sync, generated-file commit and Launcher EXE upload all succeeded.
 - Launcher artifact: `Market-Simulator-Launcher-EXE`, Artifact ID `14726491849`, about 92.7 MB, expires 2026-12-05 21:50 UTC. This confirms CI packaging/upload, not user-device launch verification.
 - No local full test suite/build was run. User-side Windows GUI acceptance remains outstanding.
@@ -27,9 +27,9 @@ Files use `YYYY-MM-DD_NN_topic.txt`. NN is one shared chronological sequence for
 
 - 2026-11-20: 01
 - 2026-11-21: 01–08
-- 2026-11-22: 01–15
+- 2026-11-22: 01–16
 
-Latest focused record: `Astra/WORKFLOWS/2026-11-22_15_effect-contract-audit-and-mod-state-null-fix.txt`.
+Latest focused record: `Astra/WORKFLOWS/2026-11-22_16_trigger-functional-test-and-defect-fixes.txt`.
 
 ## Current foundation state
 
@@ -66,6 +66,8 @@ Recurring systems run annual → monthly → weekly → daily. Existing consumer
 - Approved Mod Effects currently perform immediate state transitions through one shared `applyModEffect()` executor; they do not create active, source-tracked or reversible modifier instances. The enabled `example-market` Mod currently consumes only `mod.state.increment`; other approved types are contract/test-covered but not used by shipped Mod scripts. Timed-effect expiry therefore remains unimplemented.
 
 Not yet implemented: condition/threshold sources; Command Resolution; generic numeric modifiers and temporary-effect lifecycle; random result pools; Presentation/UI for committed facts.
+
+The current Trigger implementation has a real Mod-loader + daily-settlement integration scenario under `tests/fixtures/trigger-test/` (not shipped under `mods/`). It exercises all 13 approved Effect types, all three current Resolution types, all three due sources, deterministic random selection, Domain Event chaining and save/restore of a matched source snapshot. Windows source CI [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324) passed 233/233. This is automated Engine/Mod/storage validation, not user-device GUI acceptance.
 
 ## Next Engine foundation step
 

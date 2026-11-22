@@ -11,3 +11,5 @@ Mod packages use a mixed INI + optional JavaScript format. Read [MOD_API.md](../
 - Hooks receive detached read-only input and return approved effect/event data. They cannot write arbitrary world fields or call Node/Electron services.
 - JSON Mod files and inline JSON values are rejected.
 - The current vm runner reduces exposed capabilities but is not a hardened boundary against deliberately hostile code. Enable only trusted JS Mods.
+
+- `trigger-test/` is an optional automated/manual validation scenario for Trigger, Resolution and Effect contracts. It is disabled by default and can be enabled temporarily for a fresh test campaign; it is not part of baseline Core gameplay.

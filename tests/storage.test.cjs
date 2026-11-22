@@ -46,6 +46,7 @@ test("initializes root setting, save and Logs directories with default INI files
   assert.equal(settings.graphics.ui_scale, 100);
   assert.equal(settings.simulation.base_day_seconds, 60);
   assert.equal(settings.mods.enabled.core, true);
+  assert.equal(settings.mods.enabled["trigger-test"], false);
   for (const file of ["general.ini", "graphics.ini", "audio.ini", "simulation.ini", "mods.ini"]) {
     assert.ok(await fs.stat(path.join(root, "setting", file)));
   }

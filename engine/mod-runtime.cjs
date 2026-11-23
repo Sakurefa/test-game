@@ -6,6 +6,7 @@ const {
   applyPopulationGroupSplit,
   applyPopulationGroupMerge,
   applyPopulationGroupDimensionSet
+  matchPopulationDimensionCategories
 } = require("./population.cjs");
 const { CALCULATION_AUDIT_LIMIT } = require("./formulas.cjs");
 
@@ -138,6 +139,7 @@ function executeScript({
     "const __baseSeed = " + seed + ";",
     "const __randomStates = Object.create(null);",
     "const __hostRandom = globalThis.__hostRandom; delete globalThis.__hostRandom;",
+    "const __hostMatchPopulationTag = globalThis.__hostMatchPopulationTag; delete globalThis.__hostMatchPopulationTag;",
     "const __steps = [], __modifiers = [], __randomDraws = [];",
     "function __seedFor(scope) { let hash = 2166136261; const value = __baseSeed + ':' + scope; for (const character of value) { hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16777619); } return hash >>> 0 || 1; }",
     "Object.defineProperty(globalThis.Math, 'random', { value: undefined, writable: false, configurable: false });",
@@ -153,7 +155,8 @@ function executeScript({
     "clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); },",
     "round(value, digits = 2) { const factor = 10 ** digits; return Math.round((value + Number.EPSILON) * factor) / factor; },",
     "recordStep(id, value, detail = '') { __steps.push({ id: String(id), value, detail: String(detail) }); },",
-    "recordModifier(id, value, reason = '') { __modifiers.push({ id: String(id), value, reason: String(reason) }); }",
+    "recordModifier(id, value, reason = '') { __modifiers.push({ id: String(id), value, reason: String(reason) }); },",
+    "matchPopulationTag(colonyId, groupId, tagId) { if (typeof __hostMatchPopulationTag !== 'function') throw new Error('Population Tag matching is unavailable in this execution'); return __hostMatchPopulationTag(colonyId, groupId, tagId); }",
     "});",
     "const __handler = (function () {",
     '"use strict";',
@@ -172,6 +175,24 @@ function executeScript({
     sandbox.__hostRandom = (scope) => randomSource(scope);
   } else if (randomSource && typeof randomSource.next === "function") {
     sandbox.__hostRandom = () => randomSource.next();
+  }
+  if (resultMode === "hook") {
+    sandbox.__hostMatchPopulationTag = (colonyId, groupId, tagId) => {
+      if ([colonyId, groupId, tagId].some((value) => typeof value !== "string")) {
+        throw new TypeError("matchPopulationTag requires colony, group and Tag IDs");
+      }
+      const world = safeInput.value.world;
+      const colony = world?.colonies?.[colonyId];
+      const group = colony?.populationGroups?.[groupId];
+      if (!group) {
+        throw new Error("matchPopulationTag cannot find population group "
+          + colonyId + "/" + groupId);
+      }
+      const tags = safeInput.value.catalog?.populationTags;
+      const tag = Array.isArray(tags) ? tags.find((item) => item.id === tagId) : null;
+      if (!tag) throw new Error("matchPopulationTag cannot find population Tag " + tagId);
+      return matchPopulationDimensionCategories(group, tag.dimensionId, tag.categoryIds);
+    };
   }
   const context = vm.createContext(sandbox, {
     name: "mod:" + modId + ":" + hookId,

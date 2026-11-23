@@ -33,6 +33,7 @@ const TYPE_FILES = {
   wealth_tier: "wealthTiers",
   population_group: "populationGroups",
   population_tag: "populationTags",
+  population_need_rule: "populationNeedRules",
   currency: "currencies",
   financial_account: "financialAccounts"
 };

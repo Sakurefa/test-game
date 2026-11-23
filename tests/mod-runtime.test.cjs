@@ -38,6 +38,55 @@ test("executes declared hooks with deterministic input and a small pure helper A
   assert.equal(first[0].events[0].payload.globalRandomType, "undefined");
 });
 
+test("API v4 Mod scripts can exactly match a population Tag from the detached colony snapshot", () => {
+  const runtime = createModExtensionRuntime([mod(
+    "function onHook(input, api) { const match = api.matchPopulationTag('colony-a', 'residents', 'tag.humanoid'); return { events: [{ type: 'population-match', payload: match }] }; }"
+  )]);
+  const input = {
+    day: 4,
+    world: {
+      colonies: {
+        "colony-a": {
+          populationGroups: {
+            residents: {
+              id: "residents",
+              population: 200,
+              dimensions: { species: { human: 0.65, xenari: 0.35 } }
+            }
+          }
+        }
+      }
+    },
+    catalog: {
+      populationTags: [{
+        id: "tag.humanoid",
+        dimensionId: "species",
+        categoryIds: ["human"]
+      }]
+    }
+  };
+  const result = runtime.run("campaign.after-day", input);
+  assert.deepEqual(result[0].events[0].payload, {
+    groupId: "residents",
+    dimensionId: "species",
+    categoryIds: ["human"],
+    dimensionPresent: true,
+    matchedProportion: 0.65,
+    matchedPopulation: 130
+  });
+
+  const unknownDimension = structuredClone(input);
+  unknownDimension.world.colonies["colony-a"].populationGroups.residents.dimensions = {};
+  const unknown = runtime.run("campaign.after-day", unknownDimension);
+  assert.equal(unknown[0].events[0].payload.dimensionPresent, false);
+  assert.equal(unknown[0].events[0].payload.matchedPopulation, null);
+
+  assert.throws(() => runtime.run("campaign.after-day", {
+    ...input,
+    catalog: { populationTags: [] }
+  }), { code: "MOD_HOOK_FAILURE" });
+});
+
 test("separates deterministic random sequences by entity scope and freezes hook input", () => {
   const scoped = createModExtensionRuntime([mod(
     "function onHook(input, api) { return { events: [{ type: 'roll', payload: { roll: api.random(), globalRandomType: typeof globalThis.Math.random } }] }; }"

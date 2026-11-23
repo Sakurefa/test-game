@@ -21,6 +21,7 @@ const DEFINITION_TYPES = Object.freeze({
   wealth_tier: "wealthTiers",
   population_group: "populationGroups",
   population_tag: "populationTags",
+  population_need_rule: "populationNeedRules",
   currency: "currencies",
   financial_account: "financialAccounts"
 });
@@ -177,6 +178,16 @@ function validateCatalog(catalog, registryEntries) {
         throw new Error("Population tag " + tag.id + " has an invalid categoryId: " + String(categoryId));
       }
     }
+  }
+
+  for (const rule of catalog.populationNeedRules.values()) {
+    requireReference(catalog.populationTags, rule.populationTagId,
+      "population Need rule Tag " + rule.id);
+    requireReference(catalog.commodities, rule.commodityId,
+      "population Need rule commodity " + rule.id);
+    requireFinite(rule.dailyNeedPerThousand,
+      "population Need rule " + rule.id + " dailyNeedPerThousand",
+      { min: 0, exclusiveMin: true });
   }
 
   const populationGroupsByColony = new Map();
@@ -386,7 +397,7 @@ function validateLocalizationReferences(catalog, localizations, locale) {
     for (const entity of catalog[collectionName].values()) {
       for (const field of ["nameKey", "descriptionKey", "governmentKey", "unitKey"]) {
         const key = entity[field];
-        if (field === "nameKey" && !["population_group", "population_tag"].includes(type) && (typeof key !== "string" || !key.trim())) {
+        if (field === "nameKey" && !["population_group", "population_tag", "population_need_rule"].includes(type) && (typeof key !== "string" || !key.trim())) {
           throw new Error(`Definition ${entity.id} requires a localization nameKey`);
         }
         if (key !== undefined && (typeof key !== "string" || !Object.hasOwn(strings, key))) {
@@ -456,7 +467,7 @@ function compileCatalog(modPackages) {
     validateLocalizationReferences(catalog, localizations, defaultLocale);
     const serializable = {};
     for (const [name, collection] of Object.entries(catalog)) {
-      if (["populationGroups", "populationTags"].includes(name) && collection.size === 0) continue;
+      if (["populationGroups", "populationTags", "populationNeedRules"].includes(name) && collection.size === 0) continue;
       serializable[name] = [...collection.values()].map(({ _type, _source, ...entity }) => entity);
     }
     const extensions = enabled

@@ -66,6 +66,63 @@ test("catalog rejects malformed population Tag mappings", async () => {
  assert.match(invalidDimension.error, /valid dimensionId/);
 });
 
+test("catalog exposes Mod-defined population Need rules and validates their references", async () => {
+ const packages = await mods();
+ const core = packages.find(item => item.id === "core");
+ core.data.content["population.ini"].populationTags = [{
+  id: "tag.humanoid", dimensionId: "species", categoryIds: ["human", "xenari"]
+ }];
+ core.data.registry["definitions.ini"].entries.push({ id: "tag.humanoid", type: "population_tag" });
+ core.data.content["population.ini"].populationNeedRules = [{
+  id: "need.humanoid-food",
+  populationTagId: "tag.humanoid",
+  commodityId: "food",
+  dailyNeedPerThousand: 0.25
+ }];
+ core.data.registry["definitions.ini"].entries.push({ id: "need.humanoid-food", type: "population_need_rule" });
+
+ const result = compileCatalog(packages);
+ assert.equal(result.ok, true, result.error);
+ assert.equal(result.catalog.populationNeedRules.get("need.humanoid-food").dailyNeedPerThousand, 0.25);
+ assert.deepEqual(result.catalog.serializable.populationNeedRules, [{
+  id: "need.humanoid-food",
+  populationTagId: "tag.humanoid",
+  commodityId: "food",
+  dailyNeedPerThousand: 0.25
+ }]);
+});
+
+test("catalog rejects invalid population Need rule references and rates", async () => {
+ const packages = await mods();
+ const core = packages.find(item => item.id === "core");
+ core.data.content["population.ini"].populationTags = [{
+  id: "tag.humanoid", dimensionId: "species", categoryIds: ["human"]
+ }];
+ core.data.registry["definitions.ini"].entries.push({ id: "tag.humanoid", type: "population_tag" });
+ core.data.content["population.ini"].populationNeedRules = [{
+  id: "need.humanoid-food",
+  populationTagId: "missing-tag",
+  commodityId: "food",
+  dailyNeedPerThousand: 0.25
+ }];
+ core.data.registry["definitions.ini"].entries.push({ id: "need.humanoid-food", type: "population_need_rule" });
+ const missingTag = compileCatalog(packages);
+ assert.equal(missingTag.ok, false);
+ assert.match(missingTag.error, /population Need rule Tag/);
+
+ core.data.content["population.ini"].populationNeedRules[0].populationTagId = "tag.humanoid";
+ core.data.content["population.ini"].populationNeedRules[0].commodityId = "missing-commodity";
+ const missingCommodity = compileCatalog(packages);
+ assert.equal(missingCommodity.ok, false);
+ assert.match(missingCommodity.error, /population Need rule commodity/);
+
+ core.data.content["population.ini"].populationNeedRules[0].commodityId = "food";
+ core.data.content["population.ini"].populationNeedRules[0].dailyNeedPerThousand = 0;
+ const invalidRate = compileCatalog(packages);
+ assert.equal(invalidRate.ok, false);
+ assert.match(invalidRate.error, /dailyNeedPerThousand/);
+});
+
 test("catalog rejects unresolved production references",async()=>{const m=await mods(),core=m.find(x=>x.id==="core");core.data.content["universe.ini"].colonies[0].industries[0].recipeId="missing-recipe";const r=compileCatalog(m);assert.equal(r.ok,false);assert.match(r.error,/industry recipe/);});
 test("daily needs settle before market pricing while colony production remains weekly",async()=>{
  const c=await catalog(),w=createWorld(c,{seed:42,createdAt:"2478-04-01T00:00:00.000Z"});

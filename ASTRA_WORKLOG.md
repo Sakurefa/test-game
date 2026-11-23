@@ -6,9 +6,9 @@
 
 - Repository: https://github.com/Sakurefa/test-game
 - Branch: main
-- Latest inspected baseline before this documentation update: a5cf718a137a5af1681b2c791aade2bba5b3451b.
-- Latest documentation result commit: [4cba5ca74d85b0cf7601dc0a06f1d18ac38d9acb](https://github.com/Sakurefa/test-game/commit/4cba5ca74d85b0cf7601dc0a06f1d18ac38d9acb); CI for this commit is not yet checked in this worklog.
-- Latest source CI for baseline: [45112925012](https://github.com/Sakurefa/test-game/actions/runs/45112925012), success on baseline a5cf718a137a5af1681b2c791aade2bba5b3451b.
+- Latest inspected main baseline before this documentation update: 7cc72429e9dcd31f9abca8b31e7bfe5bbea03b3d.
+- Latest inspected documentation result before this update: [7cc72429e9dcd31f9abca8b31e7bfe5bbea03b3d](https://github.com/Sakurefa/test-game/commit/7cc72429e9dcd31f9abca8b31e7bfe5bbea03b3d).
+- Latest CI for inspected main: [45116399485](https://github.com/Sakurefa/test-game/actions/runs/45116399485), success on 7cc72429e9dcd31f9abca8b31e7bfe5bbea03b3d.
 - Last explicitly counted full Trigger integration suite: [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324), 233/233 tests passed. Documentation CI [44988145049](https://github.com/Sakurefa/test-game/actions/runs/44988145049) succeeded.
 - Latest successful Runtime/Launcher workflow: [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367). Launcher artifact Market-Simulator-Launcher-EXE (~92.7 MB) was uploaded; this confirms CI packaging only, not user-device launch.
 - No local full test/build and no user-side Windows GUI acceptance have been performed in this review.
@@ -27,12 +27,13 @@ Files use YYYY-MM-DD_NN_topic.txt; NN is one shared chronological sequence per d
 - 2026-11-20: 01
 - 2026-11-21: 01–08
 - 2026-11-22: 01–17
-- 2026-11-23: 01–03
+- 2026-11-23: 01–04
 
 Latest records:
 - Astra/WORKFLOWS/2026-11-23_01_victoria3-population-economy-production-research.txt
 - Astra/WORKFLOWS/2026-11-23_02_repository-state-and-population-foundation-review.txt
 - Astra/WORKFLOWS/2026-11-23_03_class-needs-and-market-quality-design.txt
+- Astra/WORKFLOWS/2026-11-23_04_tag-based-population-needs-design.txt
 
 ## Current engine snapshot
 
@@ -63,3 +64,12 @@ Deferred: cross-colony migration/robot transfer, origin distributions, ownership
 ## Verification and acceptance boundary
 
 The latest inspected source CI is successful. This documentation review did not run local tests/builds. Windows GUI acceptance remains outstanding. CI Runtime packaging is not equivalent to user-device testing.
+
+
+## Current design decision — Tag-based population needs (2026-11-23)
+
+The user chose a unified Tag approach: no dedicated NeedProfile runtime entity/content type. Need rules match Mod-defined population Tags; goods and processing characteristics also use Tags. Species remains a Mod-defined population dimension and Engine continues to treat organic, synthetic, alien and mechanical populations as generic Pop Groups.
+
+Important constraint: Tag membership is not automatically a population share. Existing population dimensions remain independent marginals; joint matching conditions require explicitly represented cohort shares and must never multiply independent proportions. Next design work is the minimum Tag/matching contract, overlapping-rule semantics, and shared-stock allocation. Pro-rata allocation per commodity is the current candidate, not yet a final user-approved rule. Quantity satisfaction remains separate from quality/lifestyle satisfaction.
+
+Latest inspected source CI: run 45116399485 succeeded on 7cc72429e9dcd31f9abca8b31e7bfe5bbea03b3d. This session is documentation/design only; no Engine, Mod, tests, save schema or local build changed.

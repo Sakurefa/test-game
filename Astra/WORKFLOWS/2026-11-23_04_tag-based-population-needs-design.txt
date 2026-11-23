@@ -1,0 +1,57 @@
+【工作流记录】Tag 驱动的人口 Need 设计
+=====================================
+
+工作日期：2026-11-23
+当日序号：04
+工作基线：7cc72429e9dcd31f9abca8b31e7bfe5bbea03b3d
+范围：设计决议整理与工作区更新；未修改 Engine、Mod 内容、测试或存档结构。
+
+目标
+----
+1. 记录用户对 Need Profile 归属问题的明确选择。
+2. 将人口需求与商品属性统一纳入 Tag 思路。
+3. 继续推进共享库存分配契约，明确当前建议与未决边界。
+
+仓库与 CI
+---------
+- 重新检查 main，基线 HEAD 为 7cc72429e9dcd31f9abca8b31e7bfe5bbea03b3d。
+- 最新 Actions run 45116399485 对应该提交，结论 success。
+- 已阅读 AGENTS.md、Astra/README.txt、WORKING_MEMORY、AK/MOD 最高优先级原则、人口/经济/下一步讨论、相关现状与工作流记录。
+- 复核 engine/catalog.cjs：现有 population_group 支持 dimension.<id> 分类比例，每个维度独立且比例总和为 1；profession 与 wealth_tier 有 Catalog 引用校验，其他维度使用通用稳定 ID。当前没有通用 Tag Catalog/Tag 运行时系统。
+- 复核 engine/simulation.cjs：settlePopulationNeeds() 仍按殖民地总人口与 commodity.dailyNeedPerThousand 计算请求，读取共享 stockpile，记录 requested/consumed/unmet/satisfaction；不存在群体级需求或群体间库存分配。
+- 当前 Core population.ini 只有 profession.unassigned 与 wealth_tier.unclassified 中性分类，没有真实人口构成。
+
+用户确认
+--------
+- Need 不需要被建模成一种特殊 NeedProfile 人口实体/内容类型。
+- 采用统一 Tag 思路：万物皆可 Tag 化。
+- 继续沿用现有 Mod-defined species 人口维度，兼容人类与外星人。机械劳工/奴隶劳工的劳动身份不应自动成为新物种；仿生人与有机生命在 Engine 中仍采用通用 Pop Group。
+- 商品可以拥有多个 Tag，例如碳水、蛋白质；标签可参与品质贡献，建筑/工艺与负面加工标签也可影响商品最终品质。
+- 阶级、职业、物种、财富、法律身份等仍是不同语义，不能互相替代。
+
+设计边界
+--------
+1. Need 规则由 Mod 定义适用的 Tag 条件、需求类别、数量和档次标准；Engine 提供通用匹配与结算机制，不硬编码具体种族/阶级/商品。
+2. Tag 存在与人口份额是两回事。现有 dimension.<id> 是独立边际比例。多维交集需要人口数据显式表达联合份额/细分群体，禁止把独立边际比例相乘。
+3. 不新增专用 NeedProfile 类型；优先研究复用现有 Pop Group 分类比例表达明确的需求相关人口份额。
+4. 多条 Need 规则同时命中时，必须有明确的累加、修正或冲突语义；不得依赖文件顺序。
+5. 商品品质、市场相对档次、阶级期望、数量满足与最终满意度分层处理。商品品质批次库存仍延后。
+
+共享库存分配候选
+----------------
+- 按商品汇总所有人口需求份额的请求量。
+- 每种商品分别根据当前殖民地共享库存进行分配。
+- 建议第一版按请求量比例分配（pro-rata）：库存充足则全额分配；短缺时各请求方对该商品获得相同数量满足率，避免隐含优先级。
+- 分别记录各需求份额的 requested、allocated/consumed、unmet 与 quantity satisfaction，再汇总为殖民地报告。
+- 不引入财富支付、阶级优先、替代品或市场撮合。
+- 该分配规则目前是设计建议，尚待用户确认；浮点余数、跨需求类别复用同一商品和规则重叠仍需闭合。
+
+下一步
+------
+继续设计最小 Tag 匹配/人口份额表达，以及共享库存短缺分配规则。优先采用已有数据结构能表达的最小契约；没有真实消费者前不新增全局 Tag 框架。设计闭合后再决定 Engine 与测试 Mod fixture 的实现。商品品质市场档次、能源基础设施、购买力与物流不进入当前实现。
+
+验证
+----
+- 本次只检查仓库代码与更新文档；未运行本地测试或构建。
+- 最新 CI run 45116399485 在本轮基线提交上成功；本轮文档提交后的 CI 尚待 GitHub Actions 运行。
+- 未进行用户 Windows GUI 验收；本轮没有运行时变更。

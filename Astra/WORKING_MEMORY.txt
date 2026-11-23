@@ -160,3 +160,12 @@ END
 - A Need Profile must have explicit population assignment. Never infer a class × species or other joint population by multiplying independent marginal dimensions. An explicit need_profile dimension is a candidate for representing exact need-cohort shares, pending final contract design.
 - If production can create different quality batches under the same commodity ID, a quantity-only stockpile loses quality provenance. Future inventory design must explicitly preserve variants/batches or choose another clear representation; do not implement it in the current design phase.
 - Engine mechanisms remain generic; Need Profiles, class standards, tags, product mappings, modifiers and values belong to Mod INI.
+
+
+14. TAG-BASED POPULATION NEED DESIGN (2026-11-23)
+-------------------------------------------------
+- User decision: use Tags as the unified descriptive/matching vocabulary; do not create a special NeedProfile runtime entity or dedicated NeedProfile content type merely to classify Pops.
+- Species remains a Mod-defined population dimension/category, compatible with humans, aliens and future intelligent life. Mechanical laborers and slaves are not automatically separate species; synthetic and organic populations remain generic Pop Groups in Engine.
+- Need rules should be selected through Mod-defined Tags and matching rules. Goods may carry multiple Tags (e.g. carbohydrate/protein); processing/building effects and negative Tags may affect quality; market grade remains contextual.
+- Tag presence and population share are different facts. Existing population dimensions are independent marginal distributions. A Tag rule that needs a joint cohort must use explicitly represented population membership/shares or a directly classified cohort; never multiply independent dimension proportions to invent a joint count.
+- The exact INI representation and matching operators remain to be designed. Reuse existing population-group dimension distributions where they express explicit population shares; do not add a broad Tag framework or new runtime layer without a concrete consumer.

@@ -82,3 +82,12 @@
 - CI [45161571754](https://github.com/Sakurefa/test-game/actions/runs/45161571754) 成功：250/250 tests passed；语法检查、Simulation/Mod Loader 测试、Renderer 构建和生成文件步骤全部通过。
 - 中间提交 8794830 的多次 CI 尝试在不同既有 Hook 上遇到 50ms 超时；未修改时限。最终的条件注入提交完整 CI 一次通过。
 - 本地 Node 测试/构建未运行；未进行 Windows GUI 验收。World schema 仍为 9，Core 未添加种族、人口比例或群体 Need 规则。
+
+## 2026-11-23：Population Need Mod 请求与库存审计端到端验证
+
+- 测试提交：[14477c8](https://github.com/Sakurefa/test-game/commit/14477c8acc1f4c34edf06e749ba0f3e598f27e02)，仅新增/修正 `tests/mod-runtime.test.cjs` 集成测试。
+- 临时测试 Mod 从 Need Rule × Pop Group 需求行生成独立请求，并将 groupId 写入 requesterId、ruleId 写入 sourceId；同商品两条规则保留为两条请求。
+- 完整验证了 Hook 输出、`colony.stockpile.allocate` 执行和 `mod.effect-applied` 审计回传。测试夹具选择未知份额即失败；这不是 Engine 或 Core 的默认政策。测试库存充足，不涉及短缺分配策略。
+- CI [45163818200](https://github.com/Sakurefa/test-game/actions/runs/45163818200) 成功：251/251 tests passed；语法检查、Simulation/Mod Loader 测试、Renderer 构建与生成文件步骤全部通过。
+- 首次集成测试尝试包含一个严格浮点断言错误，并碰到既有 Core 市场 Hook 的 50ms 压力测试超时；修正断言为容差比较后，最终 CI 一次通过。未修改 Hook 时限。
+- 没有本地 Node 测试/构建；没有 Windows GUI 验收。Core 需求行为与 World schema 9 均未改变。

@@ -179,3 +179,13 @@ requested = matchedPopulation / 1000 × daily_need_per_thousand；不进行显�
 - 相关人口辅助方法只在 detached Catalog 含有对应的非空人口 Tag / Need Rule 定义时注入 Hook；不相关的 Mod 不承担额外 API 方法与宿主回调设置。
 
 当前没有 Core 群体 Need 消费者；Core 仍使用殖民地总人口聚合需求。多规则重叠、未知份额如何处理和 Core 的群体分配制度都没有被本次 Engine 实现替用户决定。
+
+Need Rule → 库存请求 → 审计的端到端 Mod 测试夹具（2026-11-23）
+----------------------------------------------------------------
+新增集成测试以验证 API v4 Hook 到共享库存 Effect 的完整路径。测试中的临时 Mod 明确采用一套示例策略：
+- 按稳定 ID 顺序遍历 Pop Groups 与 Need Rules。
+- 每条 Rule × Group 需求行独立生成一个库存请求；requesterId = groupId，sourceId = ruleId，request ID 由 Mod 生成。
+- 对未知人口份额采取严格失败策略：requested 为 null 时中止 Hook；失败的 Hook 不会应用它尚未返回的 Effects。
+- 本测试库存足够，因此将每条请求全额分配，只验证请求、执行和审计链路，不测试短缺时的分配政策。
+
+测试确认同一 Tag、同一群体、同一商品的两条规则仍产生两条独立请求；库存 Effect 的逐请求结果保留两个 sourceId，库存扣减按商品合计。该测试策略只是一个可行的 Mod 实现样例，不是项目已确认的规则重叠语义，也不是 Engine/Core 默认。

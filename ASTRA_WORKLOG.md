@@ -11,7 +11,7 @@
 - Astra current-state/worklog archive commit: [e13b901c476da2b2c11459d0424ecde02e73874d](https://github.com/Sakurefa/test-game/commit/e13b901c476da2b2c11459d0424ecde02e73874d).
 - Latest Engine code commit: [e49c0b2c5955d979ecfd56fea928f38c93495faf](https://github.com/Sakurefa/test-game/commit/e49c0b2c5955d979ecfd56fea928f38c93495faf), adding per-rule/per-group population Need evaluation, optional request sourceId provenance and conditional population helper injection; prior [11226f0](https://github.com/Sakurefa/test-game/commit/11226f0af016db4f13679d5066a6ad5d2e3f287a) established Need Rule content and Tag matching.
 - Latest species-direction documentation commit: [b19df9ce7c706b91b82363e063ff32e98a195403](https://github.com/Sakurefa/test-game/commit/b19df9ce7c706b91b82363e063ff32e98a195403).
-- Latest source CI: [45161571754](https://github.com/Sakurefa/test-game/actions/runs/45161571754), success; 250/250 tests passed, Electron/Simulation syntax, Simulation/Mod Loader tests, Renderer build and generated-renderer steps all succeeded. Intermediate attempts on the prior source commit encountered 50ms timeouts in different existing Hooks; final conditional-injection commit passed without changing the timeout. Local Node tests/build were not run.
+- Latest source CI: [45163818200](https://github.com/Sakurefa/test-game/actions/runs/45163818200), success; 251/251 tests passed, Electron/Simulation syntax, Simulation/Mod Loader tests, Renderer build and generated-renderer steps all succeeded. The first integration-test attempt had one strict floating-point assertion error plus an intermittent existing Core market Hook 50ms timeout; the assertion now uses tolerance, and no timeout was changed. Local Node tests/build were not run.
 - Direction-documentation CI: [45155199026](https://github.com/Sakurefa/test-game/actions/runs/45155199026), success; syntax check, all tests and Renderer build succeeded.
 - CI-generated follow-up commit a2d90f5 only updates dist/assets/index-BU1AwfrZ.js and dist/index.html; it contains generated Renderer output, not additional simulation source changes.
 - No local tests/build were executed in this session. User-side Windows GUI acceptance remains outstanding. CI results do not prove user-device launch behavior.
@@ -30,7 +30,7 @@ Files use YYYY-MM-DD_NN_topic.txt; NN is one shared chronological sequence per d
 - 2026-11-20: 01
 - 2026-11-21: 01–08
 - 2026-11-22: 01–17
-- 2026-11-23: 01–11
+- 2026-11-23: 01–12
 
 Latest 2026-11-23 records:
 - Astra/WORKFLOWS/2026-11-23_04_tag-based-population-needs-design.txt
@@ -41,6 +41,7 @@ Latest 2026-11-23 records:
 - Astra/WORKFLOWS/2026-11-23_09_population-tag-mapping-foundation.txt
 - Astra/WORKFLOWS/2026-11-23_10_population-need-rule-contract-foundation.txt
 - Astra/WORKFLOWS/2026-11-23_11_population-need-line-and-request-provenance.txt
+- Astra/WORKFLOWS/2026-11-23_12_population-need-mod-request-integration-test.txt
 
 Key boundary discussion:
 - Astra/DISCUSSIONS/Engine 与 Mod 边界清单.txt
@@ -64,7 +65,7 @@ Key boundary discussion:
 
 - Core currently keeps the transitional colony-aggregate daily-need rule: population × commodity.daily_need_per_thousand, stock-limited shared inventory consumption, requested/consumed/unmet/satisfaction reporting. It is not group Tag Need or a group-level allocation policy.
 - Shared-stock execution is implemented as the generic Mod Effect `colony.stockpile.allocate`. Mod submits the allocation plan; Engine validates complete request coverage, per-request bounds and per-commodity inventory conservation, then applies and audits the result. No Engine allocation policy or fallback exists.
-- The generic population module provides exact matching within one Mod-defined dimension; Catalog supports population_tag and population_need_rule. API v4 Hooks can evaluate one rule against one group as an independent demand line; unknown shares remain null. Allocation requests may carry optional sourceId; the allocator retains per-request results and aggregates only stockpile subtraction by commodity. Helpers are injected only when relevant Catalog content exists. Core still uses colony-aggregate Needs; overlap policy, aggregation of multiple source rules into one request, unknown-share policy, explicit joint shares and Core group-level consumer remain unresolved. Allocation policy stays Mod-owned.
+- The generic population module provides exact matching within one Mod-defined dimension; Catalog supports population_tag and population_need_rule. API v4 Hooks evaluate one rule against one group as an independent demand line; unknown shares remain null. Allocation requests may carry optional sourceId; per-request outcomes preserve provenance and same-commodity requests remain separate. A test Mod now verifies the full Hook → demand line → request → allocation Effect → audit path, with an explicitly fixture-only policy (separate request per rule/group and fail on unknown). Core still uses colony-aggregate Needs; formal overlap/unknown/shortage policy, explicit joint shares and a Core group-level consumer remain unresolved.
 - No full cargo logistics, energy generation/capacity/storage/scheduling, cross-colony migration/robot transfer, ownership/lease framework.
 - engine/queries.cjs retains read-only data projections for the current Core world model. Effect whitelist remains a bounded state-transition interface, not an arbitrary World patch.
 
@@ -76,7 +77,7 @@ Key boundary discussion:
 - Interstellar travel, gates and mixed transport exist; inhospitable colonies are possible but local self-sufficiency may be very expensive.
 - Population location, political jurisdiction, origin, employment and ownership are separate relations. Employment references resident groups; it must not create a second population ledger.
 
-Next work: define Mod-owned semantics for overlapping rules (accumulate / duplicate / modifier / conflict / exclusive), and define handling of unknown population shares. If a Mod aggregates multiple rule sources into one request, it must retain the full source mapping; one sourceId represents one source. Then connect Core group requests only after actual Core population data and its allocation policy are defined. Never infer joint population from marginal dimensions; Engine adds no rationing default.
+Next work: define actual Mod-owned semantics for overlapping Need rules (accumulate / duplicate / modifier / conflict / exclusive), handling unknown population shares, and what happens under stock shortage. The test fixture's separate-request / fail-on-unknown behavior is illustrative only, not a project default. Only connect Core group requests after actual Core population data and its allocation policy are defined. Never infer joint population from marginal dimensions; Engine adds no rationing default.
 
 ## Verification and acceptance
 
@@ -84,3 +85,5 @@ Code commits: [0b253ab](https://github.com/Sakurefa/test-game/commit/0b253ab23ea
 
 
 Latest population Need implementation: [e49c0b2](https://github.com/Sakurefa/test-game/commit/e49c0b2c5955d979ecfd56fea928f38c93495faf). API v4 evaluates one Need Rule per Pop Group; shared-stock requests retain optional sourceId provenance and separate same-commodity request outcomes. CI [45161571754](https://github.com/Sakurefa/test-game/actions/runs/45161571754) passed 250/250 tests. See Astra/WORKFLOWS/2026-11-23_11_population-need-line-and-request-provenance.txt. Local Node tests/build were not run; Windows GUI acceptance remains outstanding.
+
+Latest Need integration-test commit: [14477c8](https://github.com/Sakurefa/test-game/commit/14477c8acc1f4c34edf06e749ba0f3e598f27e02), adding an end-to-end test fixture for Rule × Group evaluation, provenance-bearing stockpile requests and allocation audit. CI [45163818200](https://github.com/Sakurefa/test-game/actions/runs/45163818200) passed 251/251 tests. The test's separate-request and fail-on-unknown choices are fixture-only. See Astra/WORKFLOWS/2026-11-23_12_population-need-mod-request-integration-test.txt.

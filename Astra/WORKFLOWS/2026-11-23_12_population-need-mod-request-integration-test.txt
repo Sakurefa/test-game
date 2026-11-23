@@ -1,0 +1,79 @@
+【工作流记录】Population Need Mod 请求链路端到端测试
+==================================================
+
+工作日期：2026-11-23
+当日序号：12
+代码基线：4614e4d5840ac39677bd19bb191b0c1a433f3285
+测试提交：8cb22b16718a15040535fba49bbbaa331a082c27
+修正提交：14477c8acc1f4c34edf06e749ba0f3e598f27e02
+目标：验证已有 Need Rule × Pop Group 需求行、Mod 自主请求生成与共享库存审计能够贯通；不决定正式游戏的规则重叠、未知份额或短缺配给政策。
+
+一、起点与现状
+--------------
+- main 基线 4614e4d；此前代码 CI 45161571754 success，250/250 tests。
+- 已有 api.evaluatePopulationNeedRule(colonyId, groupId, ruleId)，每次返回一条独立需求行；unknown 保持 null。
+- 已有 colony.stockpile.allocate 多请求计划和可选 sourceId；执行后逐请求返回 requested / allocated / unmet / satisfaction，按商品汇总库存扣减。
+- 正式 Core 仍是殖民地总人口聚合 Needs；没有实际种族人口构成或 population_need_rule。
+- 正式规则重叠语义和 unknown 处理尚未由用户/游戏 Mod 确认，Engine 不得擅自决定。
+
+二、端到端测试 Mod 夹具
+----------------------
+仅在 tests/mod-runtime.test.cjs 新增测试夹具，不创建实际 Mod 包或 Core 内容。
+
+测试夹具明确选择以下示例行为：
+1. 对群体 ID 与 Need Rule ID 按稳定 ID 排序，逐个评估 Rule × Group。
+2. 每条需求行生成独立库存请求；requesterId = groupId，sourceId = ruleId，request ID 由 Mod 生成。
+3. 若 requested 为 null，则该测试 Mod 选择抛错/中止 Hook（unknown = fail）。
+4. 测试库存足够，因此将每条请求全额分配。此测试不表达或测试短缺情况下的配给政策。
+
+此策略仅是验证 Mod 可自己组织行为的测试样例，不是正式项目规则、Engine 默认或 Core 默认。
+
+三、验证内容
+------------
+- 两条规则命中同一 Pop Group 的同一 Tag，且指向同一 Commodity；测试 Mod 选择保留为两个独立请求。
+- 请求 ID、requesterId、sourceId 与 requested 都符合预期。
+- applyModHookResults 实际执行 colony.stockpile.allocate；mod.effect-applied 审计结果逐条保留来源 ruleId 和群体 requesterId。
+- 商品库存扣减按请求分配总量执行；库存初值 0.2，需求行数量 0.0325 与 0.065，最终余额在浮点容差内为 0.1025。
+- 当群体缺失目标人口维度时，评估返回 null；示例 Mod 决定中止 Hook，验证没有通过该失败 Hook 返回可被应用的库存 Effect。
+
+四、代码修改
+------------
+最终提交 14477c8：
+- tests/mod-runtime.test.cjs：新增端到端测试；修正浮点余额断言为 1e-12 容差。
+- 未修改 Engine 运行时代码、Catalog、Mod Loader 或 mods/core。
+- 未新增 World 字段、Catalog 内容类型、存档迁移；World schema 仍为 9。
+
+五、测试与 CI
+-------------
+最终 CI [45163818200](https://github.com/Sakurefa/test-game/actions/runs/45163818200)：success，251/251 tests passed；Electron/Simulation syntax、Simulation/Mod Loader tests、Renderer build 与 generated-renderer steps 全部成功。
+
+过程记录：
+- 首次 CI [45163494769](https://github.com/Sakurefa/test-game/actions/runs/45163494769) 251 项中 249 通过、2 项失败：新增测试的严格浮点比较将 0.10250000000000001 与 0.1025 作严格相等比较；另有既有经济存档测试中的 Core 市场 Hook 遇到 50ms timeout。
+- 修正只改测试断言为浮点容差比较；没有更改库存计算和 50ms Hook timeout。
+- 最终提交 14477c8 的完整 CI 首次运行即成功，251/251。
+- 未运行本地 Node tests/build；未进行 Windows GUI 验收。
+
+六、记录文件
+------------
+- tests/mod-runtime.test.cjs
+- ASTRA_WORKLOG.md
+- Astra/DISCUSSIONS/人口系统设计.txt
+- Astra/DISCUSSIONS/经济系统设计.txt
+- Astra/DISCUSSIONS/关于现状.txt
+- Astra/DISCUSSIONS/关于接下来的工作.txt
+- Astra/WORKFLOWS/2026-11-23_12_population-need-mod-request-integration-test.txt
+
+七、仍未决定 / 下一步
+--------------------
+1. 正式 Mod 如何定义两条规则命中同一人口份额时的累加、重复、修正、互斥或冲突语义。
+2. 正式 Mod 遇到 unknown/null 人口份额时采用失败、跳过还是其他显式行为。
+3. 多条规则如果合并为一个请求，Mod 应保留完整来源集合；单个 sourceId 仍只代表一个来源。
+4. 库存不足时采用何种配给与优先级，是 Mod 游戏政策；本测试库存充足，不涉及该政策。
+5. 跨独立维度联合人群仍必须由明确人口数据表达，不可相乘独立边际。
+6. Core 当前没有真实种族人口与群体 Need 数据；在这些政策被确认前，不接入 Core 群体消费。
+
+验收状态
+--------
+- CI：45163818200 success，251/251 tests。
+- 本地 Node tests/build：未执行。
+- Windows GUI：未验收。

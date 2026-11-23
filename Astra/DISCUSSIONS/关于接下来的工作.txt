@@ -366,3 +366,12 @@ Trigger 完成检查点（2026-11-22_17）建议下一步推进人口群体级�
 3. Mod 对人口份额 unknown 应明确选择失败、跳过或其他处理。
 4. 跨 species/class 等独立维度的 AND 仍必须有显式联合人口份额，不能相乘独立边际。
 5. 在实际 Core 人口组成与分配政策确定前，不接入 Core 群体需求；不添加 Engine 默认配给制度。
+
+### 2026-11-23_12：Need Rule → Group → 请求 → 库存审计端到端验证
+
+- 新增测试 Mod 夹具，按稳定 ID 顺序逐条评估 Need Rule × Pop Group，生成独立 stockpile 请求，并将 groupId / ruleId 分别写入 requesterId / sourceId。
+- 两条规则即使命中同一人口份额、同一商品，在该测试 Mod 明确选择的策略下仍保留为两条独立请求；Engine 逐请求返回分配结果，库存扣减按商品汇总。
+- 测试夹具明确选择 unknown = fail，验证未知时 Hook 中止且未返回/执行库存 Effect。该选择仅属于测试夹具，不成为 Engine/Core 默认。
+- CI [45163818200](https://github.com/Sakurefa/test-game/actions/runs/45163818200) success，251/251 tests；语法检查、Simulation/Mod Loader 与 Renderer 构建均通过。
+
+这一轮证明现有 API 足以承载 Mod 自己定义的规则组合和未知处理，不需要再增加 Engine 默认组合器。仍未决定的是正式游戏 Mod 的重叠规则语义、unknown 政策和短缺分配规则；在用户确认具体内容前，不把测试夹具策略提升成项目政策。

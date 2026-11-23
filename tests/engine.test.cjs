@@ -6,7 +6,16 @@ async function mods(){return readModPackages(path.join(__dirname,"..","mods"));}
 async function catalog(){const r=compileCatalog(await mods());if(!r.ok)throw new Error(r.error);return r.catalog;}
 test("game clock handles month boundaries and leap years",()=>{assert.equal(addDays("2478-04-30",1),"2478-05-01");assert.equal(addDays("2480-02-28",1),"2480-02-29");assert.equal(addDays("2480-02-28",2),"2480-03-01");assert.throws(()=>addDays("2480-02-30",1),/Invalid game date/);});
 test("seeded random generator can be resumed",()=>{const a=new SeededRandom("frontier-test"),v=[a.next(),a.next(),a.next()],s=a.snapshot(),b=new SeededRandom(s.seed,s.state);assert.deepEqual([b.next(),b.next()],[a.next(),a.next()]);assert.notDeepEqual(v,[0,0,0]);});
-test("Core and community Mod INI definitions compile",async()=>{const c=await catalog();assert.equal(c.universe.name,undefined);assert.equal(c.localizations["zh-CN"][c.universe.nameKey],"赫利俄斯边境");assert.equal(c.systems.size,4);assert.equal(c.colonies.size,3);assert.equal(c.fleets.size,2);assert.equal(c.wars.size,1);assert.ok(c.events.has("supply-rumor"));assert.ok(c.events.has("example-positive-news"));assert.equal(c.commodities.get("food").dailyNeedPerThousand,.001);assert.equal(c.commodities.get("water").dailyNeedPerThousand,.0015);});
+test("Core and community Mod INI definitions compile",async()=>{const c=await catalog();assert.equal(c.universe.name,undefined);assert.equal(c.localizations["zh-CN"][c.universe.nameKey],"赫利俄斯边境");assert.equal(c.systems.size,4);assert.equal(c.colonies.size,3);assert.equal(c.fleets.size,2);assert.equal(c.wars.size,1);assert.equal(c.simulationSystems.length,4);assert.equal(c.formulaDefinitions.size,4);assert.equal(c.currencies.get("credits").code,"CR");assert.equal(c.financialAccounts.get("player-main").openingBalanceMinor,25000000);assert.ok(c.events.has("supply-rumor"));assert.ok(c.events.has("example-positive-news"));assert.equal(c.commodities.get("food").dailyNeedPerThousand,.001);assert.equal(c.commodities.get("water").dailyNeedPerThousand,.0015);});
+test("location kinds and war states remain Mod-extensible identifiers",async()=>{
+ const packages=await mods(),core=packages.find(item=>item.id==="core");
+ core.data.content["universe.ini"].locations.find(item=>item.id==="new-dawn").type="orbital-habitat";
+ core.data.content["military.ini"].wars[0].status="mobilizing";
+ const result=compileCatalog(packages);
+ assert.equal(result.ok,true,result.error);
+ assert.equal(result.catalog.locations.get("new-dawn").type,"orbital-habitat");
+ assert.equal(result.catalog.wars.get("cinder-conflict").status,"mobilizing");
+});
 test("catalog rejects unresolved production references",async()=>{const m=await mods(),core=m.find(x=>x.id==="core");core.data.content["universe.ini"].colonies[0].industries[0].recipeId="missing-recipe";const r=compileCatalog(m);assert.equal(r.ok,false);assert.match(r.error,/industry recipe/);});
 test("daily needs settle before market pricing while colony production remains weekly",async()=>{
  const c=await catalog(),w=createWorld(c,{seed:42,createdAt:"2478-04-01T00:00:00.000Z"});
@@ -164,7 +173,7 @@ test("seeded simulations and resumed saves are deterministic",async()=>{const c=
 test("simulation rejects oversized jumps and mismatched content",async()=>{const c=await catalog(),w=createWorld(c,{seed:7});assert.throws(()=>advanceDays(w,c,31),/between 1 and 30/);assert.throws(()=>advanceDay(w,{...c,contentHash:"different"}),/different Mod content/);});
 test("catalog rejects invalid recipe quantities and dates",async()=>{const m=await mods(),badRecipe=structuredClone(m);badRecipe.find(x=>x.id==="core").data.content["economy.ini"].recipes[0].outputs[0].quantity=0;let r=compileCatalog(badRecipe);assert.equal(r.ok,false);assert.match(r.error,/Invalid numeric value.*recipe output/);const badDate=structuredClone(m);badDate.find(x=>x.id==="core").data.content["universe.ini"].universe.startDate="2478-02-30";r=compileCatalog(badDate);assert.equal(r.ok,false);assert.match(r.error,/Invalid date.*startDate/);});
 test("catalog rejects routes with invalid risk",async()=>{const m=await mods();m.find(x=>x.id==="core").data.content["universe.ini"].tradeRoutes[0].risk=1.5;const r=compileCatalog(m);assert.equal(r.ok,false);assert.match(r.error,/route.*risk/);});
-test("all display names, descriptions and units resolve from localization INI",async()=>{const c=await catalog();for(const n of ["universes","systems","locations","tradeRoutes","factions","colonies","commodities","recipes","markets","companies","securities","shipClasses","fleets","wars","events","professions","wealthTiers"])for(const e of c[n].values()){assert.equal(e.name,undefined);assert.equal(e.description,undefined);assert.equal(typeof e.nameKey,"string");assert.ok(c.localizations["zh-CN"][e.nameKey]);if(e.descriptionKey)assert.ok(c.localizations["zh-CN"][e.descriptionKey]);if(e.unitKey)assert.ok(c.localizations["zh-CN"][e.unitKey]);}});
+test("all display names, descriptions and units resolve from localization INI",async()=>{const c=await catalog();for(const n of ["universes","systems","locations","tradeRoutes","factions","colonies","commodities","recipes","markets","companies","securities","shipClasses","fleets","wars","events","professions","wealthTiers","currencies","financialAccounts"])for(const e of c[n].values()){assert.equal(e.name,undefined);assert.equal(e.description,undefined);assert.equal(typeof e.nameKey,"string");assert.ok(c.localizations["zh-CN"][e.nameKey]);if(e.descriptionKey)assert.ok(c.localizations["zh-CN"][e.descriptionKey]);if(e.unitKey)assert.ok(c.localizations["zh-CN"][e.unitKey]);}});
 test("Core keeps profession and wealth tier as separate catalog dimensions",async()=>{
  const c=await catalog();
  assert.ok(c.professions.has("unassigned"));
@@ -288,12 +297,13 @@ test("market formula service records inputs, modifiers, steps and actual random 
   assert.ok(records.length>0);
   const commodity=records.find(x=>x.formulaId==="economy.commodity-price");
   assert.ok(commodity);
-  assert.equal(commodity.version,2);
+  assert.equal(commodity.version,3);
   assert.equal(commodity.day,1);
   assert.ok(commodity.steps.some(x=>x.id==="scarcity"));
   assert.ok(commodity.modifiers.some(x=>x.id==="market-volatility"));
   assert.equal(commodity.randomDraws.length,1);
-  assert.match(commodity.randomDraws[0].streamId,/^economy\.market\./);
+  assert.match(commodity.randomDraws[0].streamId,/^commodity:/);
+  assert.ok(Object.keys(w.rng.streams).some(id=>id.startsWith("mod.core.core.simulation.market.core.market-pricing.commodity:")));
   assert.equal(commodity.randomDraws[0].method,"next");
   assert.ok(Object.hasOwn(commodity,"result"));
   assert.ok(records.some(x=>x.formulaId==="economy.security-price"));

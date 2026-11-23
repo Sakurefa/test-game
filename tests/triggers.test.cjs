@@ -269,7 +269,7 @@ test("A Mod Domain Event Trigger waits for a new fact, then settles on the next 
     "  if (input.day !== 1) return {};",
     "  return { triggers: [{",
     '    id: "test-trigger.after-market-settlement",',
-    '    due: { kind: "domain-event", type: "market.prices-settled" },',
+    '    due: { kind: "domain-event", type: "mod.core.market.prices-settled" },',
     '    event: { type: "effect.apply", payload: { effect: {',
     '      type: "colony.stability.delta",',
     '      payload: { colonyId: "new-dawn-colony", delta: 5 }',
@@ -285,7 +285,7 @@ test("A Mod Domain Event Trigger waits for a new fact, then settles on the next 
   assert.equal(world.triggerQueue.pending.length, 1);
   const pending = world.triggerQueue.pending[0];
   assert.equal(pending.dueDay, 2);
-  assert.equal(pending.sourceEvent.type, "market.prices-settled");
+  assert.equal(pending.sourceEvent.type, "mod.core.market.prices-settled");
   assert.ok(world.domainEvents.some((item) => item.sequence === pending.sourceEvent.sequence));
   assert.equal(world.colonies["new-dawn-colony"].stability, initialStability);
 
@@ -293,7 +293,7 @@ test("A Mod Domain Event Trigger waits for a new fact, then settles on the next 
   assert.equal(world.triggerQueue.pending.length, 0);
   assert.equal(world.triggerQueue.receipts.length, 1);
   assert.equal(world.colonies["new-dawn-colony"].stability, initialStability + 5);
-  assert.equal(world.triggerQueue.receipts[0].sourceEvent.type, "market.prices-settled");
+  assert.equal(world.triggerQueue.receipts[0].sourceEvent.type, "mod.core.market.prices-settled");
   const resolved = world.domainEvents.find((item) =>
     item.type === "trigger.resolved" && item.subjectId === "test-trigger.after-market-settlement"
   );
@@ -337,7 +337,14 @@ const formulaHookFactory = (catalog) => {
     `        stock: colony.stockpiles[${literal(instrumentId)}] || 0,`,
     `        priceElasticity: ${literal(commodity.priceElasticity)},`,
     `        volatility: ${literal(commodity.volatility)},`,
-    `        previousPrice: market.prices[${literal(instrumentId)}]`,
+    `        previousPrice: market.prices[${literal(instrumentId)}],`,
+    `        minimumPriceMultiplier: ${literal(commodity.minimumPriceMultiplier)},`,
+    `        maximumPriceMultiplier: ${literal(commodity.maximumPriceMultiplier)},`,
+    `        scarcityMinimum: ${literal(commodity.scarcityMinimum)},`,
+    `        scarcityMaximum: ${literal(commodity.scarcityMaximum)},`,
+    `        fundamentalMinimumMultiplier: ${literal(commodity.fundamentalMinimumMultiplier)},`,
+    `        fundamentalMaximumMultiplier: ${literal(commodity.fundamentalMaximumMultiplier)},`,
+    `        priceAdjustmentRate: ${literal(commodity.priceAdjustmentRate)}`,
     "      },",
     "      effects: [{",
     '        type: "mod.state.set",',

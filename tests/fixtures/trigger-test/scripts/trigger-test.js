@@ -92,7 +92,14 @@ function onBeforeDay(input, api) {
                 stock: colony.stockpiles.ore,
                 priceElasticity: 0.8,
                 volatility: 0.025,
-                previousPrice: market.prices.ore
+                previousPrice: market.prices.ore,
+                minimumPriceMultiplier: 0.1,
+                maximumPriceMultiplier: 10,
+                scarcityMinimum: -1,
+                scarcityMaximum: 1.5,
+                fundamentalMinimumMultiplier: 0.25,
+                fundamentalMaximumMultiplier: 3.5,
+                priceAdjustmentRate: 0.18
               },
               effects: [{
                 type: "mod.state.set",
@@ -115,7 +122,7 @@ function onBeforeDay(input, api) {
         },
         effectTrigger("16-market-event-react", {
           kind: "domain-event",
-          type: "market.prices-settled",
+          type: "mod.core.market.prices-settled",
           scope: "market",
           subjectId: "new-dawn-market"
         }, {

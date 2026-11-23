@@ -1,117 +1,123 @@
-const CALCULATION_AUDIT_LIMIT=200;
-function clamp(v,min,max){return Math.min(max,Math.max(min,v));}
-function round(v,digits=3){const f=10**digits;return Math.round((v+Number.EPSILON)*f)/f;}
-function cloneRecord(v){return v===undefined?undefined:JSON.parse(JSON.stringify(v));}
-function requireNumber(o,k,{min=-Infinity,max=Infinity,exclusiveMin=false}={}){
- const v=o[k];if(!Number.isFinite(v)||(exclusiveMin?v<=min:v<min)||v>max)throw new RangeError("Formula input "+k+" is outside its valid numeric range");return v;
+"use strict";
+
+const CALCULATION_AUDIT_LIMIT = 200;
+const DEFAULT_FORMULAS = Object.freeze([]);
+
+function cloneRecord(value) {
+  if (value === undefined) return undefined;
+  return JSON.parse(JSON.stringify(value));
 }
-function createTracingRandom(random,streamId,draws){
- if(!random||typeof random.next!=="function")throw new TypeError("A formula random stream must provide next()");
- return Object.freeze(Object.fromEntries(["next","nextUint32","int","range","chance","pick"].map(method=>[method,(...args)=>{
-  if(typeof random[method]!=="function")throw new TypeError("Random stream does not support "+method+"()");
-  const value=random[method](...args);draws.push({streamId,method,args:cloneRecord(args),value:cloneRecord(value)});return value;
- }])));
+
+function isRecord(value) {
+  return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
-const DEFAULT_FORMULAS=Object.freeze([
- Object.freeze({id:"economy.population-needs",version:2,calculate:({inputs,recordStep})=>{
-  const population=requireNumber(inputs,"population",{min:0});
-  if(!Array.isArray(inputs.requirements))throw new TypeError("Population needs formula requires a requirements array");
-  const requirements=new Map();
-  for(const item of inputs.requirements){
-   if(!item||typeof item.commodityId!=="string")throw new TypeError("Population needs require commodity IDs");
-   const rate=requireNumber(item,"dailyNeedPerThousand",{min:0});
-   const available=requireNumber(item,"available",{min:0});
-   const prior=requirements.get(item.commodityId);
-   requirements.set(item.commodityId,{
-    dailyNeedPerThousand:(prior?.dailyNeedPerThousand||0)+rate,
-    available
-   });
+
+function createTracingRandom(random, streamId, draws) {
+  if (!random || typeof random.next !== "function") {
+    throw new TypeError("A formula random stream must provide next()");
   }
-  const requested={},consumed={},unmet={},satisfaction={};
-  for(const [commodityId,requirement] of requirements){
-   const quantity=round(population/1000*requirement.dailyNeedPerThousand);
-   const actual=Math.min(quantity,requirement.available);
-   requested[commodityId]=quantity;
-   consumed[commodityId]=actual;
-   unmet[commodityId]=Math.max(0,quantity-actual);
-   satisfaction[commodityId]=quantity>0?round(actual/quantity,4):1;
-  }
-  recordStep("population",population);
-  recordStep("requested-needs",requested,"Daily commodity demand per 1,000 residents");
-  recordStep("consumed-needs",consumed,"Limited by stock available at settlement");
-  recordStep("unmet-needs",unmet);
-  recordStep("needs-satisfaction",satisfaction);
-  return {requested,consumed,unmet,satisfaction};
- }}),
- Object.freeze({id:"economy.colony-production",version:1,calculate:({inputs,recordStep,recordModifier})=>{
-  const level=requireNumber(inputs,"level",{min:0,exclusiveMin:true,max:20}),stability=requireNumber(inputs,"stability",{min:0,max:100});
-  if(!Array.isArray(inputs.recipeInputs)||!Array.isArray(inputs.recipeOutputs)||!inputs.recipeOutputs.length)throw new TypeError("Production formula requires recipeInputs and at least one recipeOutput");
-  const efficiency=clamp(stability/100,.1,1),requestedBatches=level*efficiency,reqs=new Map();
-  for(const item of inputs.recipeInputs){if(!item||typeof item.commodityId!=="string")throw new TypeError("Production inputs require commodity IDs");
-   const q=requireNumber(item,"quantity",{min:0,exclusiveMin:true}),available=requireNumber(item,"available",{min:0}),prior=reqs.get(item.commodityId);
-   reqs.set(item.commodityId,{quantity:(prior?.quantity||0)+q,available});}
-  let batchScale=requestedBatches,limitingInput=null;
-  for(const [id,r] of reqs){const possible=r.available/r.quantity;if(possible<batchScale){batchScale=possible;limitingInput=id;}}
-  batchScale=Math.max(0,batchScale);const consumed={},produced={};
-  for(const [id,r] of reqs)consumed[id]=r.quantity*batchScale;
-  for(const item of inputs.recipeOutputs){if(!item||typeof item.commodityId!=="string")throw new TypeError("Production outputs require commodity IDs");
-   const q=requireNumber(item,"quantity",{min:0,exclusiveMin:true});produced[item.commodityId]=(produced[item.commodityId]||0)+q*batchScale;}
-  recordStep("stability-efficiency",efficiency,"Stability / 100, clamped to 10%–100%");
-  recordStep("requested-batches",requestedBatches,"Industry level × stability efficiency");
-  if(limitingInput)recordModifier("input-stock-limit",batchScale-requestedBatches,"Limited by available "+limitingInput);
-  recordStep("batch-scale",batchScale);recordStep("consumed-inputs",consumed);recordStep("produced-outputs",produced);
-  return {efficiency,requestedBatches,batchScale,limitingInput,consumed,produced};
- }}),
- Object.freeze({id:"economy.commodity-price",version:2,calculate:({inputs,random,recordStep,recordModifier})=>{
-  const base=requireNumber(inputs,"basePrice",{min:0,exclusiveMin:true}),targetStock=requireNumber(inputs,"targetStock",{min:0,exclusiveMin:true});
-  const stock=requireNumber(inputs,"stock",{min:0}),elasticity=requireNumber(inputs,"priceElasticity",{min:0,max:10}),volatility=requireNumber(inputs,"volatility",{min:0,max:1});
-  const supplied=requireNumber(inputs,"previousPrice",{min:0,exclusiveMin:true}),floor=base*.1,ceiling=base*10,previous=clamp(supplied,floor,ceiling);
-  if(previous!==supplied)recordModifier("reference-price-corridor",previous-supplied,"Previous quote corrected to 0.1×–10× base price");
-  const scarcity=clamp((targetStock-stock)/targetStock,-1,1.5);recordStep("scarcity",scarcity);
-  const fundamentals=base*clamp(1+scarcity*elasticity,.25,3.5);recordStep("fundamental-price",fundamentals);
-  const noise=(random.next()-.5)*volatility;recordModifier("market-volatility",noise,"Seeded daily market variation");
-  const rawTarget=fundamentals*(1+noise),target=clamp(rawTarget,floor,ceiling);
-  if(target!==rawTarget)recordModifier("target-price-floor-or-ceiling",target-rawTarget,"Commodity reference corridor");
-  recordStep("target-price",target);
-  const price=round(clamp(previous+(target-previous)*.18,floor,ceiling)),change=round((price-previous)/previous*100,2);
-  recordStep("final-price",price);return {price,change};
- }}),
- Object.freeze({id:"economy.security-price",version:2,calculate:({inputs,random,recordStep,recordModifier})=>{
-  const initial=requireNumber(inputs,"initialPrice",{min:0,exclusiveMin:true}),supplied=requireNumber(inputs,"previousPrice",{min:0,exclusiveMin:true});
-  const output=requireNumber(inputs,"outputValue",{min:0}),volatility=requireNumber(inputs,"volatility",{min:0,max:1}),maxMove=requireNumber(inputs,"maxDailyChange",{min:0,exclusiveMin:true,max:1});
-  const floor=initial*.1,ceiling=initial*10,previous=clamp(supplied,floor,ceiling);
-  if(previous!==supplied)recordModifier("reference-price-corridor",previous-supplied,"Previous quote corrected to 0.1×–10× initial price");
-  const drift=clamp(output*.00001,0,.003);recordStep("operational-drift",drift,"Issuer output signal capped at +0.3% per day");
-  const noise=(random.next()-.5)*volatility;recordModifier("market-volatility",noise,"Seeded daily market variation");
-  const raw=noise+drift,move=clamp(raw,-maxMove,maxMove);
-  if(move!==raw)recordModifier("daily-movement-limit",move-raw,"Daily movement limited to ±"+(maxMove*100)+"%");
-  recordStep("daily-change",move);
-  const rawPrice=previous*(1+move);
-  const lowerQuote=Math.ceil((previous*(1-maxMove)-1e-9)*1000)/1000;
-  const upperQuote=Math.floor((previous*(1+maxMove)+1e-9)*1000)/1000;
-  const price=round(clamp(rawPrice,Math.max(floor,lowerQuote),Math.min(ceiling,upperQuote)));
-  if(price!==round(rawPrice))recordModifier("reference-price-corridor",price-round(rawPrice),"Quote kept inside 0.1×–10× initial price");
-  const change=round((price-previous)/previous*100,2);recordStep("final-price",price);return {price,change};
- }})
-]);
-function createCalculationService({definitions=DEFAULT_FORMULAS,historyLimit=CALCULATION_AUDIT_LIMIT}={}){
- if(!Array.isArray(definitions)||!definitions.length)throw new TypeError("At least one formula definition is required");
- if(!Number.isInteger(historyLimit)||historyLimit<1)throw new RangeError("Calculation audit history limit must be positive");
- const registry=new Map();for(const d of definitions){
-  if(!d||typeof d.id!=="string"||!/^[a-z][a-z0-9._-]{1,95}$/.test(d.id)||!Number.isInteger(d.version)||d.version<1||typeof d.calculate!=="function")throw new TypeError("Formula definitions require stable ID, version and calculate");
-  if(registry.has(d.id))throw new Error("Duplicate formula ID: "+d.id);registry.set(d.id,Object.freeze({...d}));
- }
- const records=[];
- function evaluate(id,inputs,context={}){
-  const d=registry.get(id);if(!d)throw new Error("Unknown calculation formula: "+id);
-  if(!inputs||typeof inputs!=="object"||Array.isArray(inputs))throw new TypeError("Formula inputs must be an object");
-  const steps=[],modifiers=[],randomDraws=[],random=context.random?createTracingRandom(context.random,context.randomStreamId||"unscoped",randomDraws):null;
-  const result=d.calculate({inputs:cloneRecord(inputs),random,recordStep:(id,value,detail="")=>steps.push({id:String(id),value:cloneRecord(value),detail:String(detail)}),recordModifier:(id,value,reason="")=>modifiers.push({id:String(id),value:cloneRecord(value),reason:String(reason)})});
-  if(result&&typeof result.then==="function")throw new TypeError("Formula "+id+" must be synchronous");
-  const record=Object.freeze({day:Number.isInteger(context.day)?context.day:null,formulaId:id,version:d.version,inputs:cloneRecord(inputs),modifiers,steps,randomDraws,result:cloneRecord(result)});
-  records.push(record);if(records.length>historyLimit)records.splice(0,records.length-historyLimit);return {result,record};
- }
- return Object.freeze({evaluate,getDefinition:id=>{const d=registry.get(id);return d?{id:d.id,version:d.version}:null;},
-  listDefinitions:()=>[...registry.values()].map(({id,version})=>({id,version})),getRecords:()=>records.map(cloneRecord),clear:()=>{records.length=0;},get size(){return records.length;}});
+  return Object.freeze(Object.fromEntries(["next", "nextUint32", "int", "range", "chance", "pick"].map((method) => [
+    method,
+    (...args) => {
+      if (typeof random[method] !== "function") {
+        throw new TypeError("Random stream does not support " + method + "()");
+      }
+      const value = random[method](...args);
+      draws.push({ streamId, method, args: cloneRecord(args), value: cloneRecord(value) });
+      return value;
+    }
+  ])));
 }
-module.exports={CALCULATION_AUDIT_LIMIT,DEFAULT_FORMULAS,createCalculationService};
+
+function createCalculationService({ definitions = DEFAULT_FORMULAS, historyLimit = CALCULATION_AUDIT_LIMIT } = {}) {
+  if (!Array.isArray(definitions)) throw new TypeError("Formula definitions must be an array");
+  if (!Number.isInteger(historyLimit) || historyLimit < 1) {
+    throw new RangeError("Calculation audit history limit must be positive");
+  }
+
+  const registry = new Map();
+  for (const definition of definitions) {
+    if (!definition || typeof definition.id !== "string"
+      || !/^[a-z][a-z0-9._-]{1,95}$/.test(definition.id)
+      || !Number.isInteger(definition.version) || definition.version < 1
+      || typeof definition.calculate !== "function") {
+      throw new TypeError("Formula definitions require stable ID, version and calculate");
+    }
+    if (registry.has(definition.id)) throw new Error("Duplicate formula ID: " + definition.id);
+    registry.set(definition.id, Object.freeze({ ...definition }));
+  }
+
+  const records = [];
+
+  function evaluate(id, inputs, context = {}) {
+    const definition = registry.get(id);
+    if (!definition) throw new Error("Unknown calculation formula: " + id);
+    if (!isRecord(inputs)) throw new TypeError("Formula inputs must be an object");
+
+    const steps = [];
+    const modifiers = [];
+    const randomDraws = [];
+    const random = context.random
+      ? createTracingRandom(context.random, context.randomStreamId || "unscoped", randomDraws)
+      : null;
+
+    const raw = definition.calculate({
+      inputs: cloneRecord(inputs),
+      random,
+      day: Number.isInteger(context.day) ? context.day : null,
+      randomStreamId: context.randomStreamId || "unscoped",
+      recordStep: (stepId, value, detail = "") => {
+        steps.push({ id: String(stepId), value: cloneRecord(value), detail: String(detail) });
+      },
+      recordModifier: (modifierId, value, reason = "") => {
+        modifiers.push({ id: String(modifierId), value: cloneRecord(value), reason: String(reason) });
+      }
+    });
+    if (raw && typeof raw.then === "function") {
+      throw new TypeError("Formula " + id + " must be synchronous");
+    }
+
+    let result = raw;
+    if (isRecord(raw) && raw.__formulaTrace === true) {
+      if (!isRecord(raw.result) || !Array.isArray(raw.steps)
+        || !Array.isArray(raw.modifiers) || !Array.isArray(raw.randomDraws)) {
+        throw new TypeError("Formula " + id + " returned an invalid calculation trace");
+      }
+      result = cloneRecord(raw.result);
+      steps.push(...cloneRecord(raw.steps));
+      modifiers.push(...cloneRecord(raw.modifiers));
+      randomDraws.push(...cloneRecord(raw.randomDraws));
+    } else {
+      result = cloneRecord(raw);
+    }
+    if (!isRecord(result)) throw new TypeError("Formula " + id + " must return an object result");
+
+    const record = Object.freeze({
+      day: Number.isInteger(context.day) ? context.day : null,
+      formulaId: id,
+      version: definition.version,
+      inputs: cloneRecord(inputs),
+      modifiers,
+      steps,
+      randomDraws,
+      result: cloneRecord(result)
+    });
+    records.push(record);
+    if (records.length > historyLimit) records.splice(0, records.length - historyLimit);
+    return { result, record };
+  }
+
+  return Object.freeze({
+    evaluate,
+    getDefinition: (id) => {
+      const definition = registry.get(id);
+      return definition ? { id: definition.id, version: definition.version } : null;
+    },
+    listDefinitions: () => [...registry.values()].map(({ id, version }) => ({ id, version })),
+    getRecords: () => records.map(cloneRecord),
+    clear: () => { records.length = 0; },
+    get size() { return records.length; }
+  });
+}
+
+module.exports = { CALCULATION_AUDIT_LIMIT, DEFAULT_FORMULAS, createCalculationService };

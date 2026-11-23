@@ -6,11 +6,17 @@
 目前实现基础：
 - 殖民地以人口群体人数作为权威人口数据；殖民地总人口是群体人数之和。标量 `population` 仅为派生兼容/读取投影，不是独立人口账本。
 - Mod 可通过 INI 的 `population_group` 定义完整初始人口群体；没有群体定义时才由 fallback population 创建单一 `unclassified` 群体。
-- 当前每日需求仍按派生的殖民地总人口聚合结算，需求来自商品定义中的 `daily_need_per_thousand`；它还不是逐群体需求。
-- Core 当前只为食物和水配置基础需求。工业生产按周运行，recipe workforce 仍只是 metadata。
+- 当前每日需求仍按派生的殖民地总人口聚合结算，需求来自 Core 商品定义中的 `daily_need_per_thousand`；它还不是逐群体需求。当前规则由 Core API v4 脚本执行，不属于 Engine 内置规则。
+- Core 目前为食物和水配置基础需求；周度生产、日度需求、商品/证券报价和战争时间线均由 `mods/core/scripts/simulation.js` 提供行为实现，周期、顺序与依赖在 Core manifest 的 `[systems]` 中声明，参数仍在 INI。Recipe workforce 仍只是 metadata。
 - 库存仍是殖民地共享库存；市场主要更新殖民地商品与证券报价，并非完整订单撮合或市场清算。
 
 尚未决定：需求篮子、需求层级、替代商品、收入财富、购买力、商品分配、工资、劳动力供给、职业技能匹配、市场清算、库存所有权、跨殖民地物流，以及短缺对健康/稳定/迁移/出生/死亡的反馈。不得擅自补齐。
+
+## Engine / Mod 边界修整（2026-11-23）
+
+已将具体基线玩法从 Engine 移入 Core Mod：生产、殖民地总人口日需求、商品与证券定价、战争时间线由 Core 的 API v4 脚本负责；公式 ID/版本和 recurring system 的 cadence/order/dependencies/hook 在 Core manifest 声明；公式参数、商品/配方/货币/账户、初始资本和本地化文本保留在 INI。Engine 只提供公式执行与审计、Mod Hook 执行、系统 cadence/依赖调度、批准 Effect 执行、命名随机流和原子日结算。
+
+当前 Core 的总人口日需求是过渡性既有玩法：仍不是群体 Need/Tag 匹配，也没有多个群体竞争共享库存的分配策略。不得将此实现误认为已经完成群体需求或分配接口；后续按已确认方向继续设计，由 Mod 决定短缺配额，Engine 不设置公平或 pro-rata 默认。
 
 原则：群体级需求结算；经济内容与数值由 Mod INI 定义；显示不得改变计算精度；直接源数据优先于频繁变化的派生统计；先建立小而闭合、可验证的供需循环。
 

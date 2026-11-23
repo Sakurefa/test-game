@@ -11,11 +11,72 @@ function isRecord(value){return Boolean(value)&&typeof value==="object"&&!Array.
 function assertIdentifier(value,pattern,label){
  if(typeof value!=="string"||!pattern.test(value))throw new TypeError(label+" must be a stable identifier");
 }
-function createFinancialLedger({playerFactionId,startDate,openingDay=0,startingBalanceMinor=25000000,positions={}}={}){
+function createFinancialLedger({
+ playerFactionId,startDate,openingDay=0,currencies,accounts,playerAccountId
+}={}){
  assertIdentifier(playerFactionId,/^[a-z0-9][a-z0-9._-]{1,63}$/,"Player faction ID");
  if(typeof startDate!=="string"||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(startDate))throw new TypeError("A valid ledger start date is required");
  if(!Number.isInteger(openingDay)||openingDay<0)throw new RangeError("Opening ledger day must be a non-negative integer");
- if(!Number.isSafeInteger(startingBalanceMinor)||startingBalanceMinor<0)throw new RangeError("Starting balance must be a non-negative safe integer in minor units");
+ if(!Array.isArray(currencies)||currencies.length===0||!Array.isArray(accounts)||accounts.length===0){
+  throw new TypeError("Fresh-world finance requires Mod-defined currencies and accounts");
+ }
+ const currencyTable={};
+ for(const definition of currencies){
+  if(!isRecord(definition)||typeof definition.code!=="string"||!CURRENCY_PATTERN.test(definition.code)
+   ||!Number.isInteger(definition.minorUnitDigits)||definition.minorUnitDigits<0||definition.minorUnitDigits>6
+   ||Object.hasOwn(currencyTable,definition.code))throw new TypeError("Invalid or duplicate Mod-defined currency");
+  currencyTable[definition.code]={id:definition.code,minorUnitDigits:definition.minorUnitDigits};
+ }
+ const accountTable={};
+ for(const definition of accounts){
+  if(!isRecord(definition)||typeof definition.id!=="string"||!ACCOUNT_ID_PATTERN.test(definition.id)
+   ||RESERVED_ACCOUNT_IDS.has(definition.id)||Object.hasOwn(accountTable,definition.id)
+   ||typeof definition.ownerType!=="string"||!OWNER_TYPE_PATTERN.test(definition.ownerType)
+   ||typeof definition.ownerId!=="string"||!/^[a-z0-9][a-z0-9._-]{0,63}$/.test(definition.ownerId)
+   ||typeof definition.currencyCode!=="string"||!Object.hasOwn(currencyTable,definition.currencyCode)
+   ||!Number.isSafeInteger(definition.openingBalanceMinor)
+   ||!Number.isSafeInteger(definition.overdraftLimitMinor??0)||(definition.overdraftLimitMinor??0)<0
+   ||typeof definition.allowNegative!=="boolean"||!["open","closed"].includes(definition.status)){
+   throw new TypeError("Invalid or duplicate Mod-defined financial account");
+  }
+  accountTable[definition.id]={
+   id:definition.id,owner:{type:definition.ownerType,id:definition.ownerId},
+   currency:definition.currencyCode,balanceMinor:definition.openingBalanceMinor,
+   overdraftLimitMinor:definition.overdraftLimitMinor??0,allowNegative:definition.allowNegative,
+   status:definition.status,positions:{}
+  };
+ }
+ const perCurrency=new Map();
+ for(const account of Object.values(accountTable)){
+  perCurrency.set(account.currency,(perCurrency.get(account.currency)||0)+account.balanceMinor);
+ }
+ for(const [currency,total] of perCurrency)if(total!==0)throw new Error("Opening account balances are not balanced in "+currency);
+ const nonZeroAccounts=Object.values(accountTable).filter(account=>account.balanceMinor!==0);
+ if(nonZeroAccounts.length>MAX_TRANSACTION_ENTRIES)throw new RangeError("Mod-defined opening capital exceeds the transaction entry limit");
+ const ledger={
+  currencies:currencyTable,accounts:accountTable,
+  sequence:nonZeroAccounts.length?1:0,
+  transactions:nonZeroAccounts.length?[{
+   id:"ledger-1",sequence:1,day:openingDay,date:startDate,type:"finance.opening-capital",
+   commandId:null,reference:"world-genesis",
+   entries:nonZeroAccounts.map(account=>({accountId:account.id,deltaMinor:account.balanceMinor}))
+  }]:[]
+ };
+ const player=ledger.accounts[playerAccountId];
+ if(!player||player.owner.type!=="player"||player.owner.id!==playerFactionId){
+  throw new Error("Mod-defined player account does not match the player faction");
+ }
+ validateFinancialLedger(ledger);
+ return ledger;
+}
+
+function createLegacyFinancialLedger({
+ playerFactionId,startDate,openingDay=0,startingBalanceMinor=25000000,positions={}
+}={}){
+ assertIdentifier(playerFactionId,/^[a-z0-9][a-z0-9._-]{1,63}$/,"Legacy player faction ID");
+ if(typeof startDate!=="string"||!/^[0-9]{4}-[0-9]{2}-[0-9]{2}$/.test(startDate))throw new TypeError("A valid legacy ledger start date is required");
+ if(!Number.isInteger(openingDay)||openingDay<0)throw new RangeError("Legacy opening day must be a non-negative integer");
+ if(!Number.isSafeInteger(startingBalanceMinor)||startingBalanceMinor<0)throw new RangeError("Legacy starting balance must be a non-negative safe integer in minor units");
  if(!isRecord(positions))throw new TypeError("Legacy positions must be an object");
  const ledger={
   currencies:{CR:{id:"CR",minorUnitDigits:2}},
@@ -62,7 +123,7 @@ function createLedgerCurrency(ledger, { id, minorUnitDigits = 2 } = {}) {
   ledger.currencies[id] = { id, minorUnitDigits };
   return structuredClone(ledger.currencies[id]);
 }
-function createLedgerAccount(ledger, { id, owner, currency = "CR", overdraftLimitMinor = 0, allowNegative = false, positions = {} } = {}) {
+function createLedgerAccount(ledger, { id, owner, currency = Object.keys(ledger.currencies)[0], overdraftLimitMinor = 0, allowNegative = false, positions = {} } = {}) {
   if (typeof id !== "string" || !ACCOUNT_ID_PATTERN.test(id) || RESERVED_ACCOUNT_IDS.has(id)) throw new TypeError("Account requires a valid non-reserved ID");
   if (Object.hasOwn(ledger.accounts, id)) throw new Error("Financial account already exists: " + id);
   if (!isRecord(owner) || !OWNER_TYPE_PATTERN.test(owner.type) || typeof owner.id !== "string"
@@ -158,6 +219,6 @@ function validateWorldFinancialState(world){
  return true;
 }
 module.exports={
- MAX_FINANCIAL_TRANSACTIONS,MAX_TRANSACTION_ENTRIES,createFinancialLedger,validateFinancialLedger,
+ MAX_FINANCIAL_TRANSACTIONS,MAX_TRANSACTION_ENTRIES,createFinancialLedger,createLegacyFinancialLedger,validateFinancialLedger,
  createLedgerCurrency,createLedgerAccount,recordBalancedTransaction,getAccountBalance,createTransferCommand,validateWorldFinancialState
 };

@@ -3,7 +3,7 @@
 The game uses two different Mod layers:
 
 - **INI is the content format.** Manifests, registry declarations, entity definitions, balance data and localization remain INI.
-- **JavaScript is optional executable behavior.** A Mod may declare small hook functions that receive detached snapshots and return a bounded list of approved effects and events.
+- **JavaScript is optional executable behavior.** A Mod may declare small hook functions, versioned formulas and recurring simulation systems. Hooks receive detached snapshots and return bounded approved Effects, Domain Events, Triggers and calculation records.
 
 The engine remains authoritative. A hook cannot hand the engine an arbitrary world object patch, call arbitrary command handlers or import Node/Electron modules. Every returned effect must use a registered effect type.
 
@@ -62,7 +62,7 @@ Registry declarations use INI section suffixes:
     [entry.my-colony]
     type = colony
 
-Supported content types currently include universe, star_system, location, trade_route, faction, colony, commodity, recipe, market, company, security, ship_class, fleet, war, event, profession, wealth_tier and population_group.
+Supported content types currently include universe, star_system, location, trade_route, faction, colony, commodity, recipe, market, company, security, ship_class, fleet, war, event, profession, wealth_tier, population_group, currency and financial_account.
 
 Population classification is defined on two independent axes. A profession describes an occupation; a wealth tier describes an economic position. A population group can later reference one of each, so the model does not need a hard-coded profession/wealth combination.
 
@@ -151,7 +151,7 @@ A script is an ordinary JavaScript file containing named functions. Do not use i
 A hook receives two arguments:
 
 - input: a detached, recursively frozen JSON snapshot for that hook point. Editing it does not edit the live game. The input includes modState, a snapshot of only this Mod's own persistent state.
-- api: a small helper object with deterministic random(), clamp(value, min, max) and round(value, digits).
+- api: a small helper object with deterministic random(scope), clamp(value, min, max), round(value, digits), recordStep(id, value, detail) and recordModifier(id, value, reason). Random scopes are deterministic and isolated within the invoking Mod hook.
 
 Each Mod owns a persistent key/value state namespace stored in the world save. Use it for counters, event-chain stages, mission progress or Mod-specific rules:
 
@@ -201,7 +201,7 @@ A direct approved Effect request uses `effect.apply`:
 
 A Resolution receives a detached snapshot of the current candidate world and returns a bounded plan. It does not mutate authoritative state or write Domain Event history itself. Its plan may contain a JSON-safe `result`, up to 16 approved `effects`, and optionally up to 16 `domainEvents`. The shared Settlement runner (`engine/settlement.cjs`) applies planned Effects through the registered Effect executor and returns the result, applied Effect outcomes and Domain Event descriptors. It does not own the Trigger Queue or write the event history.
 
-The `formula.effect` Resolution evaluates an existing Engine-registered versioned formula and maps selected top-level result fields into approved Effect payloads:
+The `formula.effect` Resolution evaluates a versioned formula registered by an enabled Mod and maps selected top-level result fields into approved Effect payloads:
 
 ```js
 {
@@ -232,7 +232,7 @@ The `formula.effect` Resolution evaluates an existing Engine-registered versione
 ```
 
 For `formula.effect`:
-- `formulaId` must already exist in the Engine formula registry. Mods cannot register formulas or execute arbitrary calculation callbacks through this request.
+- `formulaId` must already exist in the loaded Mod formula registry. A Mod must explicitly declare the formula in its API v4 manifest; arbitrary calculation callbacks are not accepted through this request.
 - `inputs` are a JSON-safe snapshot captured when the Trigger is scheduled; they are not silently refreshed when the Trigger becomes due.
 - Each Effect template contains a registered Effect `type`, static `payload`, and `resultFields` mapping top-level formula result keys to Effect payload fields. This is field binding, not an expression language.
 - The formula uses a deterministic random stream derived from the Trigger ID. Its calculation record and random-stream state are retained by the normal candidate-world day commit.
@@ -345,7 +345,7 @@ Current limits are intentionally small and explicit:
 - 50 ms execution timeout by default; configured timeout cannot exceed 100 ms.
 - 2 MiB maximum serialized hook input.
 - 128 KiB maximum serialized hook output.
-- Up to 128 effects and 64 custom events per hook invocation.
+- Up to 128 Effects, 64 custom events and 32 Triggers per hook invocation. Calculation records are separately bounded.
 - Inline JSON remains forbidden in Mod INI.
 - Symlinked package files and undeclared JavaScript files are rejected.
 
@@ -353,7 +353,7 @@ Do not make a long-running loop, schedule background work or perform asynchronou
 
 ## Capability and trust boundary
 
-Hooks receive no Node require, process, module, exports, network fetch, timers, filesystem handle, Electron API, DOM object or mutable engine service. Global Date and Math.random are disabled; use the deterministic api.random() helper.
+Hooks receive no Node require, process, module, exports, network fetch, timers, filesystem handle, Electron API, DOM object or mutable engine service. Global Date and Math.random are disabled; use the deterministic `api.random(scope)` helper (scope defaults to `default`).
 
 The present Node vm wrapper reduces capabilities and bounds synchronous execution, but Node vm is **not a hardened security boundary against deliberately hostile JavaScript**. Do not treat arbitrary downloaded code as safe. Community JS Mods should be trusted/opt-in until the project adds a separately permissioned OS process or Electron utility-process sandbox. The absence of a supplied filesystem API is not a guarantee against every possible JavaScript engine escape.
 
@@ -375,3 +375,53 @@ Never add native modules, executable binaries, arbitrary host callbacks or direc
 Schema 1–6 saves retain their existing one-time INI-only fingerprint upgrade when the current INI content is byte-for-byte equivalent; the upgraded fingerprint includes the enabled API v4 script sources and hook declarations. Schema 7 saves migrate to schema 8 by adding neutral persisted population groups from their existing scalar colony totals. This schema migration does not relax content-fingerprint checks for changed Mod data or scripts.
 
 One narrow additive-content exception also exists for the population classification catalog addition: a Schema-7 save from the immediately previous catalog can be upgraded when all prior content and the exact enabled JavaScript extension set match. Only the two new classification collections are excluded when computing that one compatibility fingerprint. This does not authorize arbitrary Schema-7 content changes; changes to existing definitions, enabled scripts or hook declarations still cause a fingerprint mismatch.
+
+
+## Mod-defined financial initialization
+
+Fresh-world finance is defined by Mod content. A currency has a stable content ID, a public currency code and a minor-unit precision. Financial accounts reference the currency content ID and declare their owner, opening balance and overdraft policy.
+
+    [currency.credits]
+    code = "CR"
+    minor_unit_digits = 2
+    name_key = currency.cr.name
+
+    [financial_account.player-main]
+    owner_type = player
+    owner_id = free-haven-league
+    currency_id = credits
+    opening_balance_minor = 25000000
+    overdraft_limit_minor = 0
+    allow_negative = false
+    status = open
+    name_key = finance.account.player.name
+
+Opening balances must balance to zero per currency. The Engine provides integer-minor-unit accounting, balanced transaction execution, account validation and transfer mechanics; currency names, starting accounts, opening balances and owner categories are Mod content. The legacy CR/player-main opening ledger is retained only as a migration adapter for old saves and is not used to create new worlds.
+
+## Mod-defined formulas and recurring simulation systems
+
+API v4 Mods may declare versioned formulas and recurring systems. These are **game behaviour owned by the Mod**; the Engine still owns the calculation recorder, schedule registry, dependency checks, deterministic invocation boundary, Effect execution and atomic settlement.
+
+Formula declarations use the [formulas] section. Each target is script-file.js:functionName:version:
+
+    [files]
+    scripts = simulation.js
+
+    [formulas]
+    economy.example-price = simulation.js:calculateExamplePrice:1
+
+A formula function receives an input object with inputs, day and randomScope, plus api. It returns an object result. The helper API includes deterministic random(scope), recordStep and recordModifier. Formula ID/version and the full input/result trace are recorded by the Engine calculation service. A Trigger's formula.effect may reference only a formula registered by an enabled Mod; the Engine supplies no built-in gameplay formulas.
+
+Recurring system declarations use the [systems] section. Values use cadence:order:dependencies:hook-id; dependencies are semicolon-separated system IDs, or - when there are none. The Engine prefixes each local system ID with the owning Mod ID.
+
+    [hooks]
+    my-mod.simulation.daily = simulation.js:onDailySimulation
+
+    [systems]
+    daily-update = daily:20:-:my-mod.simulation.daily
+
+Supported cadence names are annual, monthly, weekly, daily and manual. Order and dependency resolution are handled by the Engine's generic registry. A system hook receives a detached snapshot containing day, date, systemId, world and the serializable Mod catalog.
+
+A system hook may return effects, events, triggers and calculations. Effects are still restricted to the Engine's approved transition API. Events may optionally specify scope and subjectId; their type is namespaced to the owning Mod. Calculation entries are bounded JSON records and are appended to the normal calculation audit. No Mod may return an arbitrary world patch or register a raw Engine callback.
+
+API v3 remains INI-only and cannot declare scripts, hooks, formulas or simulation systems. The required Core package may use API v4 scripts for actual baseline gameplay behaviour; those scripts are Mod content, not Engine implementation.

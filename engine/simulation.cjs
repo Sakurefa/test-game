@@ -6,7 +6,7 @@ const {
   createDomainEventEmitter, normalizeDomainEventDescriptor, validateDomainEventState
 } = require("./domain-events.cjs");
 const { validateCommandReceiptState } = require("./commands.cjs");
-const { createFinancialLedger, validateWorldFinancialState } = require("./ledger.cjs");
+const { createFinancialLedger, createLegacyFinancialLedger, validateWorldFinancialState } = require("./ledger.cjs");
 const { createModExtensionRuntime, applyModHookResults, validateModState, applyModEffect } = require("./mod-runtime.cjs");
 const { createPopulationGroups, getPopulationTotal, validatePopulationGroups } = require("./population.cjs");
 const { createResolutionRegistry, MAX_RESOLUTION_EFFECTS } = require("./resolutions.cjs");
@@ -20,7 +20,6 @@ function isRecord(value) {
   return Boolean(value) && typeof value === "object" && !Array.isArray(value);
 }
 
-const formulaDefinitions = createCalculationService();
 const FORMULA_EFFECT_FIELD_PATTERN = /^[a-z][a-zA-Z0-9]*$/;
 const FORMULA_EFFECT_TYPE_PATTERN = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
 const MAX_FORMULA_EFFECTS = MAX_RESOLUTION_EFFECTS;
@@ -62,7 +61,7 @@ function validateFormulaEffectRequest({ event, catalog }) {
   validateSystemEventSource(event, catalog);
   const payload = event.payload;
   if (!isRecord(payload) || Object.keys(payload).some((key) => !["formulaId", "inputs", "effects"].includes(key))
-    || typeof payload.formulaId !== "string" || !formulaDefinitions.getDefinition(payload.formulaId)
+    || typeof payload.formulaId !== "string" || !catalog?.formulaDefinitions?.has(payload.formulaId)
     || !isRecord(payload.inputs) || !Array.isArray(payload.effects)
     || payload.effects.length < 1 || payload.effects.length > MAX_FORMULA_EFFECTS) {
     throw new TypeError("formula.effect requires a registered formula, input object and 1–" + MAX_FORMULA_EFFECTS + " Effect templates");
@@ -173,10 +172,17 @@ function getModRuntime(catalog) {
   return modRuntimeCache.get(catalog);
 }
 
-function runModHook(modRuntime, hookId, input, { world, catalog, day, subjectKey = "world", emitDomainEvent }) {
+function runModHook(modRuntime, hookId, input, {
+  world, catalog, day, subjectKey = "world", emitDomainEvent, randomStreams
+}) {
+  const randomSource = randomStreams && typeof randomStreams.get === "function"
+    ? (modId, declaredHookId, randomScope, scope) =>
+      randomStreams.get(["mod", modId, declaredHookId, randomScope, scope].join(".")).next()
+    : null;
   const outcomes = modRuntime.run(hookId, input, {
     randomScope: subjectKey,
-    modStateById: world.modState || {}
+    modStateById: world.modState || {},
+    randomSource
   });
   return applyModHookResults(outcomes, {
     world, catalog, day, hookId, subjectKey, emitDomainEvent,
@@ -192,12 +198,11 @@ const MAX_ADVANCE_DAYS = 30;
 const MAX_CAMPAIGN_CATCH_UP_DAYS = 3650;
 const LOG_LIMIT = 100;
 
-function localized(catalog, key) {
-  return catalog.localizations?.[catalog.defaultLocale]?.[key] || `[${key || "missing-localization-key"}]`;
-}
-
-function clamp(value, min, max) {
-  return Math.min(max, Math.max(min, value));
+function localized(catalog, key, values = {}) {
+  const template = catalog.localizations?.[catalog.defaultLocale]?.[key] || "[" + (key || "missing-localization-key") + "]";
+  return template.replace(/\{([a-z][a-z0-9_]*)\}/g, (match, name) =>
+    Object.hasOwn(values, name) ? String(values[name]) : match
+  );
 }
 
 function validateCampaignClock(clock, startDate, label) {
@@ -261,9 +266,9 @@ function createWorld(catalog, options = {}) {
       locationId: definition.locationId,
       factionId: definition.factionId,
       ships: definition.ships.map((ship) => ({ ...ship })),
-      readiness: definition.readiness ?? 100,
-      morale: definition.morale ?? 70,
-      stance: definition.stance || "patrol",
+      readiness: definition.readiness,
+      morale: definition.morale,
+      stance: definition.stance,
       orders: []
     };
   }
@@ -272,22 +277,34 @@ function createWorld(catalog, options = {}) {
   for (const definition of catalog.wars.values()) {
     wars[definition.id] = {
       id: definition.id,
-      status: definition.status || "cold",
+      status: definition.status,
       participants: [...definition.participants],
-      startedOn: definition.startedOn || catalog.universe.startDate,
-      daysActive: Math.max(0, Math.floor((Date.parse(catalog.universe.startDate + "T00:00:00Z") - Date.parse((definition.startedOn || catalog.universe.startDate) + "T00:00:00Z")) / 86400000)),
+      startedOn: definition.startedOn,
+      daysActive: Math.max(0, Math.floor((Date.parse(catalog.universe.startDate + "T00:00:00Z")
+        - Date.parse(definition.startedOn + "T00:00:00Z")) / 86400000)),
       warWeariness: Object.fromEntries(definition.participants.map((id) => [id, 0]))
     };
   }
 
   const playerFactionId = options.playerFactionId || catalog.universe.defaultPlayerFactionId;
-  const finance = createFinancialLedger({ playerFactionId, startDate: catalog.universe.startDate });
+  const playerAccountId = catalog.universe.playerAccountId;
+  const finance = createFinancialLedger({
+    playerFactionId,
+    playerAccountId,
+    startDate: catalog.universe.startDate,
+    currencies: [...catalog.currencies.values()],
+    accounts: [...catalog.financialAccounts.values()].map((account) => ({
+      ...account,
+      currencyCode: catalog.currencies.get(account.currencyId).code
+    }))
+  });
+
 
   return {
     schemaVersion: GAME_STATE_SCHEMA_VERSION,
     contentHash: catalog.contentHash,
     metadata: {
-      name: options.name || `${catalog.localizations?.[catalog.defaultLocale]?.[catalog.universe.nameKey] || catalog.universe.id} — 新航程`,
+      name: options.name || localized(catalog, "simulation.world_name", { universe: localized(catalog, catalog.universe.nameKey) }),
       seed,
       createdAt: options.createdAt || new Date().toISOString()
     },
@@ -301,7 +318,7 @@ function createWorld(catalog, options = {}) {
     domainEvents: [],
     commandReceipts: [],
     modState: {},
-    player: { factionId: playerFactionId, accountId: "player-main" },
+    player: { factionId: playerFactionId, accountId: playerAccountId },
     finance,
     colonies,
     markets,
@@ -312,263 +329,43 @@ function createWorld(catalog, options = {}) {
       day: 0,
       date: catalog.universe.startDate,
       type: "system",
-      text: `新航程在${localized(catalog, catalog.universe.nameKey)}展开。`
+      text: localized(catalog, "simulation.world_founded", { universe: localized(catalog, catalog.universe.nameKey) })
     }]
   };
 }
 
-function produceForColony(catalog, colonyState, calculations, day, emitDomainEvent, world, modRuntime) {
-  runModHook(modRuntime, "colony.before-production", {
-    day, colonyId: colonyState.id, colony: colonyState
-  }, { world, catalog, day, subjectKey: colonyState.id, emitDomainEvent });
-  const output = {};
-  const industryReports = [];
-  let activeIndustryCount = 0;
-  for (let industryIndex = 0; industryIndex < colonyState.industries.length; industryIndex += 1) {
-    const industry = colonyState.industries[industryIndex];
-    const recipe = catalog.recipes.get(industry.recipeId);
-    const recipeInputs = (recipe.inputs || []).map((input) => ({
-      commodityId: input.commodityId,
-      quantity: input.quantity,
-      available: colonyState.stockpiles[input.commodityId] || 0
+const simulationRegistryCache = new WeakMap();
+
+function getSimulationRegistry(catalog) {
+  if (!simulationRegistryCache.has(catalog)) {
+    const modRuntime = getModRuntime(catalog);
+    const definitions = (catalog.simulationSystems || []).map((definition) => ({
+      id: definition.id,
+      cadence: definition.cadence,
+      order: definition.order,
+      dependsOn: definition.dependsOn,
+      update: (context) => {
+        const result = runModHook(modRuntime, definition.hookId, {
+          day: context.day,
+          date: context.date,
+          systemId: definition.id,
+          world: context.world,
+          catalog: catalog.serializable
+        }, {
+          world: context.world,
+          catalog,
+          day: context.day,
+          subjectKey: definition.id,
+          emitDomainEvent: context.emitDomainEvent,
+          randomStreams: context.randomStreams
+        });
+        context.summary.systems[definition.id] = result;
+      }
     }));
-    const { result } = calculations.evaluate("economy.colony-production", {
-      level: industry.level, stability: colonyState.stability,
-      recipeInputs, recipeOutputs: recipe.outputs || []
-    }, { day });
-
-    const inputTotals = new Map();
-    for (const input of recipeInputs) {
-      const prior = inputTotals.get(input.commodityId);
-      inputTotals.set(input.commodityId, {
-        quantity: (prior?.quantity || 0) + input.quantity,
-        available: input.available
-      });
-    }
-    const requestedOutput = {};
-    for (const item of recipe.outputs || []) {
-      requestedOutput[item.commodityId] = round(
-        (requestedOutput[item.commodityId] || 0) + item.quantity * result.requestedBatches, 3
-      );
-    }
-    const consumed = { ...result.consumed };
-    const produced = Object.fromEntries(Object.entries(result.produced)
-      .map(([commodityId, quantity]) => [commodityId, round(quantity, 3)]));
-    const limitingStock = result.limitingInput ? inputTotals.get(result.limitingInput) : null;
-    const status = result.batchScale <= 0 ? "no-output"
-      : result.batchScale + 1e-9 < result.requestedBatches ? "limited" : "normal";
-
-    industryReports.push({
-      industryIndex,
-      recipeId: industry.recipeId,
-      level: industry.level,
-      requestedBatches: result.requestedBatches,
-      actualBatches: result.batchScale,
-      efficiency: result.efficiency,
-      status,
-      limitingInput: result.limitingInput,
-      limitingAvailable: limitingStock?.available ?? null,
-      limitingRequired: limitingStock ? round(limitingStock.quantity * result.requestedBatches, 3) : null,
-      requestedOutput,
-      consumed,
-      produced
-    });
-
-    if (result.batchScale <= 0) continue;
-    activeIndustryCount += 1;
-    for (const [commodityId, quantity] of Object.entries(result.consumed)) {
-      colonyState.stockpiles[commodityId] = round(Math.max(0, (colonyState.stockpiles[commodityId] || 0) - quantity), 3);
-    }
-    for (const [commodityId, quantity] of Object.entries(result.produced)) {
-      const actualQuantity = round(quantity, 3);
-      colonyState.stockpiles[commodityId] = round((colonyState.stockpiles[commodityId] || 0) + actualQuantity, 3);
-      output[commodityId] = round((output[commodityId] || 0) + actualQuantity, 3);
-    }
+    simulationRegistryCache.set(catalog, createSystemRegistry(definitions));
   }
-  colonyState.lastProduction = output;
-  colonyState.lastProductionReport = { day, industries: industryReports };
-  runModHook(modRuntime, "colony.after-production", {
-    day, colonyId: colonyState.id, colony: colonyState, production: output
-  }, { world, catalog, day, subjectKey: colonyState.id, emitDomainEvent });
-  emitDomainEvent({ type: "colony.production-settled", scope: "colony", subjectId: colonyState.id,
-    idempotencyKey: `campaign-day:${day}:colony.production-settled:${colonyState.id}`,
-    payload: { industryCount: colonyState.industries.length, activeIndustryCount, production: output } });
-  return output;
+  return simulationRegistryCache.get(catalog);
 }
-
-function settlePopulationNeeds(catalog, colonyState, calculations, day, emitDomainEvent) {
-  const requirements = [...catalog.commodities.values()]
-    .filter((commodity) => Number.isFinite(commodity.dailyNeedPerThousand) && commodity.dailyNeedPerThousand > 0)
-    .map((commodity) => ({
-      commodityId: commodity.id,
-      dailyNeedPerThousand: commodity.dailyNeedPerThousand,
-      available: Math.max(0, colonyState.stockpiles[commodity.id] || 0)
-    }));
-
-  const population = getPopulationTotal(colonyState.populationGroups);
-  if (population !== colonyState.population) {
-    throw new Error("Colony population projection does not match its population groups: " + colonyState.id);
-  }
-
-  if (requirements.length === 0) {
-    colonyState.lastNeedsReport = { day, population, needs: [] };
-    return colonyState.lastNeedsReport;
-  }
-
-  const { result } = calculations.evaluate("economy.population-needs", {
-    population,
-    requirements
-  }, { day });
-
-  const needs = requirements.map((requirement) => {
-    const commodityId = requirement.commodityId;
-    const requested = result.requested[commodityId] || 0;
-    const consumed = result.consumed[commodityId] || 0;
-    const unmet = result.unmet[commodityId] || 0;
-    if (consumed > 0) {
-      colonyState.stockpiles[commodityId] = Math.max(0, requirement.available - consumed);
-    }
-    return {
-      commodityId,
-      available: requirement.available,
-      requested,
-      consumed,
-      unmet,
-      satisfaction: result.satisfaction[commodityId] ?? 1,
-      status: unmet > 0 ? "shortage" : "met"
-    };
-  });
-
-  const shortageCount = needs.filter((item) => item.unmet > 0).length;
-  colonyState.lastNeedsReport = {
-    day,
-    population,
-    needs,
-    shortageCount
-  };
-  emitDomainEvent({
-    type: "colony.needs-settled",
-    scope: "colony",
-    subjectId: colonyState.id,
-    idempotencyKey: `campaign-day:${day}:colony.needs-settled:${colonyState.id}`,
-    payload: {
-      needCount: needs.length,
-      shortageCount,
-      needs
-    }
-  });
-  return colonyState.lastNeedsReport;
-}
-
-function updateMarket(catalog, marketState, colonyState, allColonyStates, randomStreams, calculations, day, emitDomainEvent, world, modRuntime) {
-  const market = catalog.markets.get(marketState.id);
-  runModHook(modRuntime, "market.before-pricing", {
-    day, marketId: marketState.id, market: marketState, colony: colonyState
-  }, { world, catalog, day, subjectKey: marketState.id, emitDomainEvent });
-  const changes = {};
-  for (const commodityId of market.commodityIds || []) {
-    const commodity = catalog.commodities.get(commodityId);
-    const stock = colonyState.stockpiles[commodityId] || 0;
-    const previous = marketState.prices[commodityId] ?? commodity.basePrice;
-    const streamId = "economy.market." + marketState.id + "." + commodityId;
-    const { result } = calculations.evaluate("economy.commodity-price", {
-      basePrice: commodity.basePrice,
-      targetStock: commodity.targetStock,
-      stock,
-      priceElasticity: commodity.priceElasticity,
-      volatility: commodity.volatility,
-      previousPrice: previous
-    }, { random: randomStreams.get(streamId), randomStreamId: streamId, day });
-    marketState.prices[commodityId] = result.price;
-    changes[commodityId] = result.change;
-  }
-
-  for (const securityId of market.securityIds || []) {
-    const security = catalog.securities.get(securityId);
-    const issuer = catalog.companies.get(security.issuerId);
-    const outputValue = issuer.colonyIds.reduce((sum, colonyId) => {
-      const production = allColonyStates[colonyId]?.lastProduction || {};
-      return sum + Object.values(production).reduce((total, quantity) => total + quantity, 0);
-    }, 0);
-    const previous = marketState.prices[securityId] ?? security.initialPrice;
-    const streamId = "economy.market." + marketState.id + "." + securityId;
-    const { result } = calculations.evaluate("economy.security-price", {
-      outputValue,
-      volatility: security.volatility,
-      previousPrice: previous,
-      initialPrice: security.initialPrice,
-      maxDailyChange: 0.12
-    }, { random: randomStreams.get(streamId), randomStreamId: streamId, day });
-    marketState.prices[securityId] = result.price;
-    changes[securityId] = result.change;
-  }
-  marketState.lastChanges = changes;
-  runModHook(modRuntime, "market.after-pricing", {
-    day, marketId: marketState.id, market: marketState, colony: colonyState, changes
-  }, { world, catalog, day, subjectKey: marketState.id, emitDomainEvent });
-  emitDomainEvent({ type: "market.prices-settled", scope: "market", subjectId: marketState.id,
-    idempotencyKey: `campaign-day:${day}:market.prices-settled:${marketState.id}`,
-    payload: { instrumentCount: Object.keys(changes).length, changes } });
-  return changes;
-}
-
-
-const simulationSystems = createSystemRegistry([
-  {
-    id: "colonies.production",
-    cadence: "weekly",
-    order: 10,
-    update: ({ world, catalog, summary, calculations, day, emitDomainEvent, modRuntime }) => {
-      for (const [colonyId, colonyState] of Object.entries(world.colonies)) {
-        summary.production[colonyId] = produceForColony(catalog, colonyState, calculations, day, emitDomainEvent, world, modRuntime);
-      }
-    }
-  },
-  {
-    id: "population.needs-consumption",
-    cadence: "daily",
-    order: 15,
-    dependsOn: ["colonies.production"],
-    update: ({ world, catalog, calculations, summary, day, emitDomainEvent }) => {
-      for (const colonyState of Object.values(world.colonies)) {
-        summary.needs[colonyState.id] = settlePopulationNeeds(
-          catalog, colonyState, calculations, day, emitDomainEvent
-        );
-      }
-    }
-  },
-  {
-    id: "economy.market-pricing",
-    cadence: "daily",
-    order: 20,
-    dependsOn: ["population.needs-consumption"],
-    update: ({ world, catalog, randomStreams, calculations, summary, day, emitDomainEvent, modRuntime }) => {
-      for (const marketState of Object.values(world.markets)) {
-        const definition = catalog.markets.get(marketState.id);
-        summary.market[marketState.id] = updateMarket(
-          catalog, marketState, world.colonies[definition.colonyId], world.colonies, randomStreams, calculations, day, emitDomainEvent, world, modRuntime
-        );
-      }
-    }
-  },
-  {
-    id: "military.war-chronology",
-    cadence: "daily",
-    order: 30,
-    update: ({ world, emitDomainEvent, modRuntime, catalog, day }) => {
-      for (const war of Object.values(world.wars)) {
-        if (war.status !== "active") continue;
-        war.daysActive += 1;
-        emitDomainEvent({ type: "war.chronology-advanced", scope: "war", subjectId: war.id,
-          idempotencyKey: `campaign-day:${world.clock.day}:war.chronology-advanced:${war.id}`,
-          payload: { daysActive: war.daysActive } });
-        runModHook(modRuntime, "war.after-chronology", {
-          day, war
-        }, { world, catalog, day, subjectKey: war.id, emitDomainEvent });
-      }
-    }
-  }
-]);
 
 function appendEvent(world, event) {
   world.events.push(event);
@@ -646,10 +443,10 @@ function validateWorldState(world, catalog) {
 
 function settleDay(world, catalog) {
   const randomStreams = new NamedRandomStreams(world.rng.seed, world.rng.streams);
-  const calculations = createCalculationService();
   const modRuntime = getModRuntime(catalog);
+  const calculations = createCalculationService({ definitions: modRuntime.formulaDefinitions() });
   world.clock = advanceClock(world.clock, 1);
-  const summary = { production: {}, needs: {}, market: {} };
+  const summary = { systems: {} };
   const recordDomainEvent = createDomainEventEmitter(world, world.clock);
   const emitDomainEvent = (input) => {
     const previousSequence = world.domainEventSequence;
@@ -686,15 +483,15 @@ function settleDay(world, catalog) {
   });
   runModHook(modRuntime, "campaign.before-day", {
     day: world.clock.day, date: world.clock.date, world
-  }, { world, catalog, day: world.clock.day, emitDomainEvent });
-  const systemsRun = simulationSystems.runDue({
+  }, { world, catalog, day: world.clock.day, emitDomainEvent, randomStreams });
+  const systemsRun = getSimulationRegistry(catalog).runDue({
     world, day: world.clock.day,
     context: { catalog, randomStreams, calculations, summary, emitDomainEvent, modRuntime }
   });
 
   runModHook(modRuntime, "campaign.after-day", {
     day: world.clock.day, date: world.clock.date, world, summary, systemsRun
-  }, { world, catalog, day: world.clock.day, emitDomainEvent });
+  }, { world, catalog, day: world.clock.day, emitDomainEvent, randomStreams });
 
   world.rng = randomStreams.snapshot();
   if (!world.audit || typeof world.audit !== "object") world.audit = { calculations: [] };
@@ -705,16 +502,13 @@ function settleDay(world, catalog) {
     world.audit.calculations.splice(0, world.audit.calculations.length - CALCULATION_AUDIT_LIMIT);
   }
 
-  const productionCount = Object.keys(summary.production).length;
-  const needsCount = Object.keys(summary.needs).length;
-  const marketCount = Object.keys(summary.market).length;
-  const report = productionCount > 0
-    ? `第 ${world.clock.day} 天结束：${productionCount} 个殖民地完成每周生产，${needsCount} 个殖民地结算日常需求，${marketCount} 个市场更新报价。`
-    : `第 ${world.clock.day} 天结束：${needsCount} 个殖民地结算日常需求，${marketCount} 个市场更新报价。`;
+  const report = localized(catalog, "simulation.day_report", {
+    day: world.clock.day,
+    system_count: systemsRun.length
+  });
   appendEvent(world, {
     id: `day-${world.clock.day}`, day: world.clock.day, date: world.clock.date,
-    type: "daily-report", text: report, production: summary.production,
-    marketChanges: summary.market, systemsRun
+    type: "daily-report", text: report, systemsRun
   });
   return { day: world.clock.day, date: world.clock.date, summary, systemsRun, triggersProcessed, calculations: calculationRecords };
 }
@@ -855,7 +649,7 @@ function migrateWorldState(world) {
     const legacyAccount = world.player?.account || { cash: 0, holdings: {} };
     if (!Number.isFinite(legacyAccount.cash) || legacyAccount.cash < 0 || legacyAccount.cash * 100 > Number.MAX_SAFE_INTEGER) throw new Error("Legacy player cash cannot be migrated safely");
     const positions = legacyAccount.holdings && typeof legacyAccount.holdings === "object" && !Array.isArray(legacyAccount.holdings) ? legacyAccount.holdings : {};
-    world.finance = createFinancialLedger({ playerFactionId: world.player.factionId, startDate: world.clock.date, openingDay: world.clock.day, startingBalanceMinor: Math.round(legacyAccount.cash * 100), positions });
+    world.finance = createLegacyFinancialLedger({ playerFactionId: world.player.factionId, startDate: world.clock.date, openingDay: world.clock.day, startingBalanceMinor: Math.round(legacyAccount.cash * 100), positions });
     world.player.accountId = "player-main";
     delete world.player.account;
     world.schemaVersion = 6;

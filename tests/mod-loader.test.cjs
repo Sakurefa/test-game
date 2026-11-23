@@ -100,3 +100,36 @@ test("rejects undeclared JavaScript files and oversized script files",async t=>{
  [mod]=await readModPackages(root);
  assert.match(mod.error,/exceeds 256 KiB/);
 });
+
+
+test("loads Mod-defined versioned formulas and cadence-bound simulation systems",async t=>{
+ const root=await fixture(t);
+ const api4=manifest("scripted","").replace("api_version = 3","api_version = 4")
+  .replace("localization =","localization =\nscripts = logic.js")
+  .concat("\n[hooks]\nscripted.sim.daily = logic.js:onDaily\n")
+  .concat("\n[formulas]\neconomy.example-price = logic.js:calculatePrice:3\n")
+  .concat("\n[systems]\ndaily-update = daily:20:-:scripted.sim.daily\n");
+ await write(root,"scripted",api4,{scripts:{
+  "logic.js":"function onDaily(){return{};} function calculatePrice(input){return {price:input.inputs.basePrice};}"
+ }});
+ const [mod]=await readModPackages(root);
+ assert.equal(mod.error,undefined);
+ assert.deepEqual(mod.formulas,{"economy.example-price":{file:"logic.js",handler:"calculatePrice",version:3}});
+ assert.deepEqual(mod.systems,[{
+  id:"scripted.daily-update",modId:"scripted",cadence:"daily",order:20,dependsOn:[],hookId:"scripted.sim.daily"
+ }]);
+});
+
+test("rejects formula and simulation declarations without their API v4 hook/script contract",async t=>{
+ const root=await fixture(t);
+ const old=manifest("old","").concat("\n[formulas]\neconomy.example = logic.js:calculate:1\n");
+ await write(root,"old",old);
+ const missing=manifest("missing","").replace("api_version = 3","api_version = 4")
+  .replace("localization =","localization =\nscripts = logic.js")
+  .concat("\n[hooks]\nmissing.other = logic.js:onOther\n")
+  .concat("\n[systems]\ndaily-update = daily:10:-:missing.missing\n");
+ await write(root,"missing",missing,{scripts:{"logic.js":"function onOther(){return{};}"}});
+ const mods=await readModPackages(root);
+ assert.match(mods.find(item=>item.id==="old").error,/API version 4/);
+ assert.match(mods.find(item=>item.id==="missing").error,/own-namespaced-hook/);
+});

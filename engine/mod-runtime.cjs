@@ -7,10 +7,13 @@ const {
   applyPopulationGroupMerge,
   applyPopulationGroupDimensionSet
 } = require("./population.cjs");
+const { CALCULATION_AUDIT_LIMIT } = require("./formulas.cjs");
 
 const MOD_HOOK_PATTERN = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
 const MOD_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{1,63}$/;
 const MOD_EVENT_PATTERN = /^[a-z][a-z0-9]*(?:[.-][a-z0-9]+)*$/;
+const MOD_EVENT_SCOPE_PATTERN = /^[a-z][a-z0-9_-]{0,31}$/;
+const MOD_EVENT_SUBJECT_PATTERN = /^[a-z0-9][a-z0-9._-]{1,63}$/;
 const MAX_MOD_HOOKS = 64;
 const MAX_MOD_EFFECTS = 128;
 const MAX_MOD_EVENTS = 64;
@@ -58,12 +61,14 @@ function cloneJson(value, label) {
 function normalizeHookResult(value, modId, hookId) {
   if (value === undefined || value === null) value = {};
   if (!isRecord(value)) throw new TypeError("Mod " + modId + " hook " + hookId + " must return an object");
-  if (Object.keys(value).some((key) => key !== "effects" && key !== "events" && key !== "triggers")) {
+  const allowed = ["effects", "events", "triggers", "calculations"];
+  if (Object.keys(value).some((key) => !allowed.includes(key))) {
     throw new TypeError("Mod " + modId + " hook " + hookId + " returned an unsupported result field");
   }
   const effects = value.effects ?? [];
   const events = value.events ?? [];
   const triggers = value.triggers ?? [];
+  const calculations = value.calculations ?? [];
   if (!Array.isArray(triggers) || triggers.length > MAX_MOD_TRIGGERS) {
     throw new RangeError("Mod " + modId + " hook " + hookId + " exceeded the trigger limit");
   }
@@ -73,15 +78,23 @@ function normalizeHookResult(value, modId, hookId) {
   if (!Array.isArray(events) || events.length > MAX_MOD_EVENTS) {
     throw new RangeError("Mod " + modId + " hook " + hookId + " exceeded the event limit");
   }
+  if (!Array.isArray(calculations) || calculations.length > 512) {
+    throw new RangeError("Mod " + modId + " hook " + hookId + " exceeded the calculation record limit");
+  }
   for (const [index, effect] of effects.entries()) {
-    if (!isRecord(effect) || typeof effect.type !== "string" || !MOD_HOOK_PATTERN.test(effect.type)
-      || !isRecord(effect.payload)) {
+    if (!isRecord(effect) || Object.keys(effect).some((key) => key !== "type" && key !== "payload")
+      || typeof effect.type !== "string" || !MOD_HOOK_PATTERN.test(effect.type) || !isRecord(effect.payload)) {
       throw new TypeError("Mod " + modId + " hook " + hookId + " returned an invalid effect at index " + index);
     }
   }
   for (const [index, event] of events.entries()) {
-    if (!isRecord(event) || typeof event.type !== "string" || event.type.length > 48
-      || !MOD_EVENT_PATTERN.test(event.type) || !isRecord(event.payload ?? {})) {
+    if (!isRecord(event) || Object.keys(event).some((key) =>
+      !["type", "payload", "scope", "subjectId"].includes(key))
+      || typeof event.type !== "string" || event.type.length > 48
+      || !MOD_EVENT_PATTERN.test(event.type) || !isRecord(event.payload ?? {})
+      || (event.scope !== undefined && (typeof event.scope !== "string" || !MOD_EVENT_SCOPE_PATTERN.test(event.scope)))
+      || (event.subjectId !== undefined && event.subjectId !== null
+        && (typeof event.subjectId !== "string" || !MOD_EVENT_SUBJECT_PATTERN.test(event.subjectId)))) {
       throw new TypeError("Mod " + modId + " hook " + hookId + " returned an invalid event at index " + index);
     }
   }
@@ -91,10 +104,24 @@ function normalizeHookResult(value, modId, hookId) {
       throw new TypeError("Mod " + modId + " hook " + hookId + " returned an invalid trigger at index " + index);
     }
   }
-  return { effects, events, triggers };
+  for (const [index, calculation] of calculations.entries()) {
+    if (!isRecord(calculation) || Object.keys(calculation).some((key) =>
+      !["formulaId", "version", "inputs", "steps", "modifiers", "randomDraws", "result"].includes(key))
+      || typeof calculation.formulaId !== "string" || !MOD_HOOK_PATTERN.test(calculation.formulaId)
+      || !Number.isInteger(calculation.version) || calculation.version < 1
+      || !isRecord(calculation.inputs) || !Array.isArray(calculation.steps)
+      || !Array.isArray(calculation.modifiers) || !Array.isArray(calculation.randomDraws)
+      || !isRecord(calculation.result)) {
+      throw new TypeError("Mod " + modId + " hook " + hookId + " returned an invalid calculation record at index " + index);
+    }
+    cloneJson(calculation, "Mod calculation record");
+  }
+  return { effects, events, triggers, calculations };
 }
 
-function executeScript({ modId, hookId, source, handler, input, timeoutMs, randomScope = "world" }) {
+function executeScript({
+  modId, hookId, source, handler, input, timeoutMs, randomScope = "world", resultMode = "hook", randomSource = null
+}) {
   if (typeof source !== "string" || Buffer.byteLength(source, "utf8") > 256 * 1024) {
     throw new RangeError("Mod " + modId + " script is missing or exceeds 256 KiB");
   }
@@ -106,7 +133,11 @@ function executeScript({ modId, hookId, source, handler, input, timeoutMs, rando
     "const __input = JSON.parse(" + JSON.stringify(safeInput.serialized) + ");",
     "const __freeze = (value) => { if (!value || typeof value !== 'object' || Object.isFrozen(value)) return value; for (const key of Object.keys(value)) __freeze(value[key]); return Object.freeze(value); };",
     "__freeze(__input);",
-    "let __randomState = " + seed + ";",
+    "const __baseSeed = " + seed + ";",
+    "const __randomStates = Object.create(null);",
+    "const __hostRandom = globalThis.__hostRandom; delete globalThis.__hostRandom;",
+    "const __steps = [], __modifiers = [], __randomDraws = [];",
+    "function __seedFor(scope) { let hash = 2166136261; const value = __baseSeed + ':' + scope; for (const character of value) { hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16777619); } return hash >>> 0 || 1; }",
     "Object.defineProperty(globalThis.Math, 'random', { value: undefined, writable: false, configurable: false });",
     "Object.defineProperty(globalThis, 'Date', { value: undefined, writable: false, configurable: false });",
     "const __safeMath = Object.create(globalThis.Math);",
@@ -116,33 +147,55 @@ function executeScript({ modId, hookId, source, handler, input, timeoutMs, rando
     "const Date = undefined, process = undefined, require = undefined, module = undefined, exports = undefined;",
     "const fetch = undefined, console = undefined, setTimeout = undefined, setInterval = undefined, queueMicrotask = undefined, performance = undefined;",
     "const api = Object.freeze({",
-    "random() { __randomState ^= __randomState << 13; __randomState ^= __randomState >>> 17; __randomState ^= __randomState << 5; return (__randomState >>> 0) / 4294967296; },",
+    "random(scope = 'default') { const key = String(scope); let value; if (typeof __hostRandom === 'function') { value = __hostRandom(key); } else { let state = Object.hasOwn(__randomStates, key) ? __randomStates[key] : __seedFor(key); state ^= state << 13; state ^= state >>> 17; state ^= state << 5; state >>>= 0; __randomStates[key] = state; value = state / 4294967296; } __randomDraws.push({ streamId: key, method: 'next', args: [], value }); return value; },,
     "clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); },",
-    "round(value, digits = 2) { const factor = 10 ** digits; return Math.round((value + Number.EPSILON) * factor) / factor; }",
+    "round(value, digits = 2) { const factor = 10 ** digits; return Math.round((value + Number.EPSILON) * factor) / factor; },",
+    "recordStep(id, value, detail = '') { __steps.push({ id: String(id), value, detail: String(detail) }); },",
+    "recordModifier(id, value, reason = '') { __modifiers.push({ id: String(id), value, reason: String(reason) }); }",
     "});",
     "const __handler = (function () {",
     '"use strict";',
     source,
     "return typeof " + handler + " === 'function' ? " + handler + " : null;",
     "})();",
-    "if (!__handler) throw new Error('Declared Mod hook function was not found');",
+    "if (!__handler) throw new Error('Declared Mod function was not found');",
     "const __result = __handler(__input, api);",
-    "if (__result && typeof __result.then === 'function') throw new TypeError('Mod hooks must be synchronous');",
-    "return JSON.stringify(__result === undefined ? {} : __result);",
+    "if (__result && typeof __result.then === 'function') throw new TypeError('Mod scripts must be synchronous');",
+    "return JSON.stringify({ value: __result === undefined ? {} : __result, steps: __steps, modifiers: __modifiers, randomDraws: __randomDraws });",
     "})()"
   ].join("\n");
 
-  const context = vm.createContext(Object.create(null), {
+  const sandbox = Object.create(null);
+  if (typeof randomSource === "function") {
+    sandbox.__hostRandom = (scope) => randomSource(scope);
+  } else if (randomSource && typeof randomSource.next === "function") {
+    sandbox.__hostRandom = () => randomSource.next();
+  }
+  const context = vm.createContext(sandbox, {
     name: "mod:" + modId + ":" + hookId,
     codeGeneration: { strings: false, wasm: false },
     microtaskMode: "afterEvaluate"
   });
   const output = vm.runInContext(invocation, context, { timeout: timeoutMs });
-  if (typeof output !== "string") throw new TypeError("Mod hook did not return a JSON result");
+  if (typeof output !== "string") throw new TypeError("Mod script did not return a JSON result");
   if (Buffer.byteLength(output, "utf8") > MAX_MOD_OUTPUT_BYTES) {
-    throw new RangeError("Mod " + modId + " hook " + hookId + " exceeded the output size limit");
+    throw new RangeError("Mod " + modId + " script " + hookId + " exceeded the output size limit");
   }
-  return normalizeHookResult(JSON.parse(output), modId, hookId);
+  const envelope = JSON.parse(output);
+  if (!isRecord(envelope) || !Array.isArray(envelope.steps)
+    || !Array.isArray(envelope.modifiers) || !Array.isArray(envelope.randomDraws)) {
+    throw new TypeError("Mod script returned an invalid execution envelope");
+  }
+  if (resultMode === "formula") {
+    if (!isRecord(envelope.value)) throw new TypeError("Mod formula must return an object result");
+    return {
+      result: cloneJson(envelope.value, "Mod formula result").value,
+      steps: cloneJson(envelope.steps, "Mod formula steps").value,
+      modifiers: cloneJson(envelope.modifiers, "Mod formula modifiers").value,
+      randomDraws: cloneJson(envelope.randomDraws, "Mod formula random draws").value
+    };
+  }
+  return normalizeHookResult(envelope.value, modId, hookId);
 }
 
 function createModExtensionRuntime(modPackages = [], options = {}) {
@@ -153,6 +206,7 @@ function createModExtensionRuntime(modPackages = [], options = {}) {
   }
 
   const hooks = new Map();
+  const formulas = new Map();
   const packages = modPackages.filter((mod) => mod && mod.enabled !== false)
     .slice().sort((a, b) => String(a.id).localeCompare(String(b.id)));
 
@@ -160,7 +214,24 @@ function createModExtensionRuntime(modPackages = [], options = {}) {
     if (!MOD_ID_PATTERN.test(mod.id || "")) throw new TypeError("Mod extension package has an invalid ID");
     const scripts = mod.scripts || {};
     const declarations = mod.hooks || {};
-    if (!isRecord(scripts) || !isRecord(declarations)) throw new TypeError("Mod " + mod.id + " has invalid script declarations");
+    const formulaDeclarations = mod.formulas || {};
+    if (!isRecord(scripts) || !isRecord(declarations) || !isRecord(formulaDeclarations)) {
+      throw new TypeError("Mod " + mod.id + " has invalid script declarations");
+    }
+    for (const [formulaId, target] of Object.entries(formulaDeclarations).sort(([a], [b]) => a.localeCompare(b))) {
+      if (!MOD_HOOK_PATTERN.test(formulaId) || !isRecord(target)
+        || typeof target.file !== "string" || typeof target.handler !== "string"
+        || !Number.isInteger(target.version) || target.version < 1
+        || typeof scripts[target.file] !== "string"
+        || !/^[A-Za-z_$][A-Za-z0-9_$]{0,63}$/.test(target.handler)) {
+        throw new TypeError("Mod " + mod.id + " has an invalid formula declaration: " + formulaId);
+      }
+      if (formulas.has(formulaId)) throw new Error("Duplicate Mod formula ID: " + formulaId);
+      formulas.set(formulaId, {
+        id: formulaId, modId: mod.id, version: target.version,
+        source: scripts[target.file], handler: target.handler
+      });
+    }
     const entries = Object.entries(declarations).sort(([a], [b]) => a.localeCompare(b));
     if (entries.length > MAX_MOD_HOOKS) throw new RangeError("Mod " + mod.id + " declares too many hooks");
     for (const [hookId, target] of entries) {
@@ -187,6 +258,9 @@ function createModExtensionRuntime(modPackages = [], options = {}) {
     const modStateById = isRecord(options.modStateById) ? options.modStateById : {};
     const outcomes = [];
     for (const definition of hooks.get(hookId) || []) {
+      const randomSource = typeof options.randomSource === "function"
+        ? (scope) => options.randomSource(definition.modId, hookId, randomScope, scope)
+        : null;
       try {
         const modState = isRecord(modStateById[definition.modId]) ? modStateById[definition.modId] : {};
         const hookInput = { ...input, modState };
@@ -194,7 +268,7 @@ function createModExtensionRuntime(modPackages = [], options = {}) {
           hookInput.world = { ...hookInput.world };
           delete hookInput.world.modState;
         }
-        const result = executeScript({ ...definition, hookId, input: hookInput, timeoutMs, randomScope });
+        const result = executeScript({ ...definition, hookId, input: hookInput, timeoutMs, randomScope, randomSource });
         outcomes.push({ modId: definition.modId, hookId, ...result });
       } catch (error) {
         const failure = new Error("Mod " + definition.modId + " hook " + hookId + " failed: " + error.message, { cause: error });
@@ -207,8 +281,50 @@ function createModExtensionRuntime(modPackages = [], options = {}) {
     return outcomes;
   }
 
+  function runFormula(formulaId, inputs = {}, context = {}) {
+    const definition = formulas.get(formulaId);
+    if (!definition) throw new Error("Unknown Mod formula: " + formulaId);
+    if (!isRecord(inputs)) throw new TypeError("Mod formula inputs must be an object");
+    try {
+      return executeScript({
+        ...definition,
+        hookId: "formula." + formulaId,
+        input: {
+          inputs,
+          day: Number.isInteger(context.day) ? context.day : null,
+          randomScope: typeof context.randomScope === "string" ? context.randomScope : "world"
+        },
+        timeoutMs,
+        randomScope: typeof context.randomScope === "string" ? context.randomScope : "world",
+        resultMode: "formula",
+        randomSource: context.randomSource
+      });
+    } catch (error) {
+      const failure = new Error("Mod " + definition.modId + " formula " + formulaId + " failed: " + error.message, { cause: error });
+      failure.code = "MOD_FORMULA_FAILURE";
+      failure.modId = definition.modId;
+      failure.formulaId = formulaId;
+      throw failure;
+    }
+  }
+
+  function formulaDefinitions() {
+    return [...formulas.values()].map((definition) => ({
+      id: definition.id,
+      version: definition.version,
+      calculate: ({ inputs, day, randomStreamId, random }) => ({
+        __formulaTrace: true,
+        ...runFormula(definition.id, inputs, { day, randomScope: randomStreamId, randomSource: random }),
+        randomDraws: []
+      })
+    }));
+  }
+
   return Object.freeze({
     run,
+    runFormula,
+    formulaDefinitions,
+    formulaIds: () => [...formulas.keys()].sort(),
     hookIds: () => [...hooks.keys()].sort(),
     count: (hookId) => (hooks.get(hookId) || []).length
   });
@@ -380,27 +496,104 @@ function applyModEffect(effect, world, catalog, modId) {
       colony.stockpiles[payload.commodityId] = after;
       return { colonyId: colony.id, commodityId: payload.commodityId, before, after };
     }
+    case "colony.production.report.set": {
+      requireKeys(payload, ["colonyId", "day", "production", "industries"], effect.type);
+      const colony = world.colonies?.[payload.colonyId];
+      if (!colony) throw new Error("Missing colony " + String(payload.colonyId));
+      if (!Number.isInteger(payload.day) || payload.day < 0 || !isRecord(payload.production)
+        || !Array.isArray(payload.industries)) throw new TypeError("Invalid colony production report");
+      const production = cloneJson(payload.production, "Colony production report").value;
+      for (const [commodityId, quantity] of Object.entries(production)) {
+        getRequired(catalog.commodities, commodityId, "commodity");
+        requireFinite(quantity, "Colony production report quantity", 1e12);
+        if (quantity < 0) throw new RangeError("Colony production report quantities cannot be negative");
+      }
+      const industries = cloneJson(payload.industries, "Colony production report industries").value;
+      colony.lastProduction = production;
+      colony.lastProductionReport = { day: payload.day, industries };
+      return { colonyId: colony.id, day: payload.day, production, industryCount: industries.length };
+    }
+    case "colony.needs.report.set": {
+      requireKeys(payload, ["colonyId", "day", "population", "needs", "shortageCount"], effect.type);
+      const colony = world.colonies?.[payload.colonyId];
+      if (!colony) throw new Error("Missing colony " + String(payload.colonyId));
+      if (!Number.isInteger(payload.day) || payload.day < 0
+        || !Number.isFinite(payload.population) || payload.population < 0
+        || !Array.isArray(payload.needs) || !Number.isInteger(payload.shortageCount) || payload.shortageCount < 0) {
+        throw new TypeError("Invalid colony needs report");
+      }
+      const needs = cloneJson(payload.needs, "Colony needs report").value;
+      for (const item of needs) {
+        if (!isRecord(item) || typeof item.commodityId !== "string") throw new TypeError("Invalid colony need report entry");
+        getRequired(catalog.commodities, item.commodityId, "commodity");
+        for (const key of ["available", "requested", "consumed", "unmet", "satisfaction"]) {
+          requireFinite(item[key], "Colony needs report " + key, 1e12);
+        }
+      }
+      colony.lastNeedsReport = {
+        day: payload.day,
+        population: payload.population,
+        needs,
+        shortageCount: payload.shortageCount
+      };
+      return { colonyId: colony.id, day: payload.day, needCount: needs.length, shortageCount: payload.shortageCount };
+    }
+    case "market.price.set": {
+      requireKeys(payload, ["marketId", "instrumentId", "price"], effect.type);
+      const market = world.markets?.[payload.marketId];
+      if (!market) throw new Error("Missing market " + String(payload.marketId));
+      const commodity = catalog.commodities.get(payload.instrumentId);
+      const security = catalog.securities.get(payload.instrumentId);
+      if ((!commodity && !security) || !Object.hasOwn(market.prices, payload.instrumentId)) {
+        throw new Error("Market effect references an unlisted instrument: " + payload.marketId + "." + payload.instrumentId);
+      }
+      const price = requireFinite(payload.price, effect.type + ".price", 1e15);
+      if (price <= 0) throw new RangeError("Market price must be positive");
+      const before = market.prices[payload.instrumentId];
+      const priorChange = market.lastChanges[payload.instrumentId];
+      market.prices[payload.instrumentId] = price;
+      if (Number.isFinite(priorChange)) {
+        const priorQuote = before / (1 + priorChange / 100);
+        if (priorQuote > 0) market.lastChanges[payload.instrumentId] = Math.round(((price - priorQuote) / priorQuote) * 10000) / 100;
+      } else {
+        market.lastChanges[payload.instrumentId] = Math.round(((price - before) / before) * 10000) / 100;
+      }
+      return { marketId: market.id, instrumentId: payload.instrumentId, before, after: price, change: market.lastChanges[payload.instrumentId] };
+    }
     case "market.price.multiplier": {
       requireKeys(payload, ["marketId", "instrumentId", "multiplier"], effect.type);
       const market = world.markets?.[payload.marketId];
       if (!market) throw new Error("Missing market " + String(payload.marketId));
-      const multiplier = requireFinite(payload.multiplier, effect.type + ".multiplier", 100);
+      const multiplier = requireFinite(payload.multiplier, effect.type + ".multiplier", 1e12);
       if (multiplier <= 0) throw new RangeError("Market price multiplier must be positive");
       const commodity = catalog.commodities.get(payload.instrumentId);
       const security = catalog.securities.get(payload.instrumentId);
-      const basePrice = commodity?.basePrice ?? security?.initialPrice;
-      if (!Number.isFinite(basePrice) || !Object.hasOwn(market.prices, payload.instrumentId)) {
+      if ((!commodity && !security) || !Object.hasOwn(market.prices, payload.instrumentId)) {
         throw new Error("Market effect references an unlisted instrument: " + payload.marketId + "." + payload.instrumentId);
       }
       const before = market.prices[payload.instrumentId];
-      const after = Math.min(basePrice * 10, Math.max(basePrice * 0.1, before * multiplier));
+      const after = requireFinite(before * multiplier, "Market price result", 1e15);
+      if (after <= 0) throw new RangeError("Market price result must be positive");
       market.prices[payload.instrumentId] = after;
       const priorChange = market.lastChanges[payload.instrumentId];
       if (Number.isFinite(priorChange)) {
         const priorQuote = before / (1 + priorChange / 100);
         if (priorQuote > 0) market.lastChanges[payload.instrumentId] = Math.round(((after - priorQuote) / priorQuote) * 10000) / 100;
+      } else {
+        market.lastChanges[payload.instrumentId] = Math.round(((after - before) / before) * 10000) / 100;
       }
-      return { marketId: market.id, instrumentId: payload.instrumentId, before, after, change: market.lastChanges[payload.instrumentId] ?? null };
+      return { marketId: market.id, instrumentId: payload.instrumentId, before, after, change: market.lastChanges[payload.instrumentId] };
+    }
+    case "war.days-active.delta": {
+      requireKeys(payload, ["warId", "delta"], effect.type);
+      const war = world.wars?.[payload.warId];
+      if (!war) throw new Error("Missing war " + String(payload.warId));
+      if (!Number.isSafeInteger(payload.delta) || payload.delta < 0) {
+        throw new RangeError("War days-active delta must be a non-negative integer");
+      }
+      const before = war.daysActive;
+      war.daysActive += payload.delta;
+      return { warId: war.id, before, after: war.daysActive };
     }
     case "war.weariness.delta": {
       requireKeys(payload, ["warId", "factionId", "delta"], effect.type);
@@ -435,6 +628,7 @@ function applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey
   let effectCount = 0;
   let eventCount = 0;
   let triggerCount = 0;
+  let calculationCount = 0;
   for (const outcome of outcomes) {
     for (const [index, effect] of outcome.effects.entries()) {
       const result = applyModEffect(effect, world, catalog, outcome.modId);
@@ -450,12 +644,32 @@ function applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey
     for (const [index, event] of outcome.events.entries()) {
       emitDomainEvent({
         type: "mod." + outcome.modId.replace(/_/g, "-") + "." + event.type,
-        scope: "mod",
-        subjectId: outcome.modId,
+        scope: event.scope || "mod",
+        subjectId: event.subjectId ?? outcome.modId,
         idempotencyKey: "mod:" + outcome.modId + ":" + day + ":" + hashSeed(hookId + ":" + subjectKey) + ":event:" + index,
         payload: { ...(event.payload ?? {}), modId: outcome.modId, eventType: event.type }
       });
       eventCount += 1;
+    }
+    for (const calculation of outcome.calculations || []) {
+      if (!isRecord(world.audit)) world.audit = { calculations: [] };
+      if (!Array.isArray(world.audit.calculations)) world.audit.calculations = [];
+      world.audit.calculations.push({
+        day,
+        modId: outcome.modId,
+        formulaId: calculation.formulaId,
+        version: calculation.version,
+        inputs: calculation.inputs,
+        modifiers: calculation.modifiers,
+        steps: calculation.steps,
+        randomDraws: calculation.randomDraws,
+        result: calculation.result
+      });
+      calculationCount += 1;
+    }
+    if (isRecord(world.audit) && Array.isArray(world.audit.calculations)
+      && world.audit.calculations.length > CALCULATION_AUDIT_LIMIT) {
+      world.audit.calculations.splice(0, world.audit.calculations.length - CALCULATION_AUDIT_LIMIT);
     }
     for (const trigger of outcome.triggers || []) {
       if (typeof scheduleTrigger !== "function") {
@@ -465,7 +679,7 @@ function applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey
       triggerCount += 1;
     }
   }
-  return { effectCount, eventCount, triggerCount };
+  return { effectCount, eventCount, triggerCount, calculationCount };
 }
 
 module.exports = {

@@ -212,3 +212,17 @@ Trigger System 的本阶段核心实现已完成，并通过自动化模拟验�
 状态：核心实现完成；233/233 自动化测试通过；Windows 用户设备 GUI 验收待进行。后续不为覆盖面继续扩展 Trigger/Resolution/Effect，等待真实消费者或缺陷。
 
 边界提醒：条件/阈值 due source、Command Resolution、临时效果生命周期、通用数值 Modifier 与 Presentation 仍未实现，但它们不是本阶段未完成的缺陷清单。应在出现真实消费者并明确语义后分别设计。
+
+
+## 2026-11-23 Engine / Mod 公式与周期系统边界修整
+
+此前记录中“`formula.effect` 只调用 Engine 内注册公式、周期性游戏系统在 Engine 静态注册”的描述已被本次边界修整取代。
+
+- Engine 的 `createCalculationService` 现在是通用的版本化公式执行与审计器，默认不含任何游戏公式。API v4 Mod 通过 manifest `[formulas]` 声明公式 ID、脚本目标和版本；重复公式 ID 或无效脚本目标在加载/编译阶段拒绝。
+- `formula.effect` 仍是 Engine 注册的通用 Resolution，但公式实现必须由已启用 Mod 注册。Engine 负责保存输入快照、调用 Mod 公式、注入 Trigger 派生的命名随机流、记录版本/步骤/修正/随机抽取/结果，并映射输出到批准的 Effect 模板。
+- Engine 的 `createSystemRegistry` 只负责通用 cadence、依赖排序、顺序执行和上次运行日记录。实际周期系统不再静态写在 `engine/simulation.cjs`；Mod 通过 manifest `[systems]` 声明 local system ID、cadence、order、dependencies 和自己命名空间内的 Hook。
+- Core 当前显式声明四个基线系统：周度生产、日度总人口需求、日度市场定价、日度战争时间线。其行为实现位于 `mods/core/scripts/simulation.js`；商品/配方/价格/效率等参数仍在 Core INI。该脚本是 Core 的游戏行为，不是 Engine 底层脚本。
+- Mod Hook 受限返回项现在包含 `effects`、`events`、`triggers` 和有界 `calculations` 记录。Domain Event type 自动命名空间为 `mod.<mod-id>.<event-type>`；Hook 可提供具体 scope/subjectId，Engine 保留来源 Mod 和事件类型元数据。
+- Core 的商品需求仍是过渡性的“殖民地总人口 × daily_need_per_thousand”模型。它不代表群体 Tag Need、群体间共享库存分配或任何默认公平策略已经实现。
+
+Engine 仍保留通用 Formula、System Registry、Mod Runtime、批准 Effect 执行、随机流、Trigger、Domain Event、Settlement 和候选世界原子提交。不要把这些底层机制迁入 Core。

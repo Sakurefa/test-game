@@ -11,7 +11,10 @@ function safePayload(event) {
 
 export function summarizeDomainEvent(event) {
   const payload = safePayload(event);
-  switch (event?.type) {
+  const eventType = typeof event?.type === "string" && event.type.startsWith("mod.core.")
+    ? event.type.slice("mod.core.".length)
+    : event?.type;
+  switch (eventType) {
     case "market.prices-settled":
       return {
         kind: "market-settled",

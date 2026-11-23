@@ -191,7 +191,7 @@ test("applies only registered colony, market, fleet and war effects and records 
       { type: "colony.population.delta", payload: { colonyId: "colonyOne", delta: 5 } },
       { type: "colony.stability.delta", payload: { colonyId: "colonyOne", delta: 2 } },
       { type: "colony.stockpile.delta", payload: { colonyId: "colonyOne", commodityId: "ore", delta: 3 } },
-      { type: "market.price.multiplier", payload: { marketId: "marketOne", instrumentId: "ore", multiplier: 2 } },
+      { type: "market.price.multiplier", payload: { marketId: "marketOne", instrumentId: "ore", multiplier: 20 } },
       { type: "fleet.readiness.delta", payload: { fleetId: "fleetOne", delta: 5 } },
       { type: "fleet.morale.delta", payload: { fleetId: "fleetOne", delta: -5 } },
       { type: "war.weariness.delta", payload: { warId: "warOne", factionId: "factionOne", delta: 4 } }
@@ -208,8 +208,8 @@ test("applies only registered colony, market, fleet and war effects and records 
   assert.equal(world.colonies.colonyOne.populationGroups.unclassified.population, 105);
   assert.equal(world.colonies.colonyOne.stability, 52);
   assert.equal(world.colonies.colonyOne.stockpiles.ore, 13);
-  assert.equal(world.markets.marketOne.prices.ore, 10);
-  assert.equal(world.markets.marketOne.lastChanges.ore, 100);
+  assert.equal(world.markets.marketOne.prices.ore, 100);
+  assert.equal(world.markets.marketOne.lastChanges.ore, 1900);
   assert.equal(world.fleets.fleetOne.readiness, 75);
   assert.equal(world.fleets.fleetOne.morale, 75);
   assert.equal(world.wars.warOne.warWeariness.factionOne, 14);

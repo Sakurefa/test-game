@@ -7,10 +7,23 @@ const {createCommandDispatcher}=require("../engine/commands.cjs");
 const {createWorldCommandRuntime}=require("../engine/command-runtime.cjs");
 const {createDomainEventBus}=require("../engine/event-bus.cjs");
 
+function financeForBalance(startingBalanceMinor){
+ const currencies=[{code:"CR",minorUnitDigits:2}];
+ const accounts=[
+  {id:"player-main",ownerType:"player",ownerId:"free-port-alliance",currencyCode:"CR",
+   openingBalanceMinor:startingBalanceMinor,overdraftLimitMinor:0,allowNegative:false,status:"open"},
+  {id:"system-treasury",ownerType:"system",ownerId:"core",currencyCode:"CR",
+   openingBalanceMinor:-startingBalanceMinor,overdraftLimitMinor:0,allowNegative:true,status:"open"}
+ ];
+ return createFinancialLedger({
+  playerFactionId:"free-port-alliance",playerAccountId:"player-main",
+  startDate:"2478-04-01",currencies,accounts
+ });
+}
 function createWorld(startingBalanceMinor=25000000){
  return {
   schemaVersion:6,clock:{day:4,date:"2478-04-05"},player:{factionId:"free-port-alliance",accountId:"player-main"},
-  finance:createFinancialLedger({playerFactionId:"free-port-alliance",startDate:"2478-04-01",startingBalanceMinor}),
+  finance:financeForBalance(startingBalanceMinor),
   commandReceipts:[],domainEventSequence:0,domainEvents:[]
  };
 }
@@ -24,6 +37,11 @@ function createFinanceRuntime(world,seen=[]){
  return createWorldCommandRuntime({dispatcher,eventBus:bus});
 }
 
+test("fresh-world finance refuses missing Mod-defined currency and account content",()=>{
+ assert.throws(()=>createFinancialLedger({
+  playerFactionId:"free-port-alliance",startDate:"2478-04-01"
+ }),/Mod-defined currencies and accounts/);
+});
 test("financial ledger starts with balanced opening capital and integer minor units",()=>{
  const world=createWorld();
  assert.equal(getAccountBalance(world.finance,"player-main"),25000000);
@@ -31,7 +49,7 @@ test("financial ledger starts with balanced opening capital and integer minor un
  assert.equal(world.finance.sequence,1);
  assert.equal(world.finance.transactions[0].type,"finance.opening-capital");
  assert.equal(validateFinancialLedger(world.finance),true);
- const empty=createFinancialLedger({playerFactionId:"free-port-alliance",startDate:"2478-04-01",startingBalanceMinor:0});
+ const empty=financeForBalance(0);
  assert.equal(empty.sequence,0);assert.equal(empty.transactions.length,0);assert.equal(validateFinancialLedger(empty),true);
 });
 
@@ -129,7 +147,7 @@ test("player finance validation binds the canonical account to the player's fact
 });
 
 test("ledger can register owned accounts and currencies without bypassing balanced funding",()=>{
- const ledger=createFinancialLedger({playerFactionId:"free-port-alliance",startDate:"2478-04-01"});
+ const ledger=financeForBalance(0);
  const company=createLedgerAccount(ledger,{id:"frontier-industries-main",owner:{type:"company",id:"frontier-industries"}});
  assert.equal(company.balanceMinor,0);
  assert.throws(()=>createLedgerAccount(ledger,{id:"frontier-industries-main",owner:{type:"company",id:"frontier-industries"}}),/already exists/);

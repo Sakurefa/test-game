@@ -83,41 +83,40 @@ test("unknown calculation formulas keep a safe generic explanation", () => {
   assert.equal(summary.titleKey, "audit.formula.unknown");
 });
 
-test("population needs formula calculates daily demand and caps consumption at available stock", () => {
+test("Engine calculation registry starts empty and accepts explicitly registered Mod formulas", () => {
   const service = createCalculationService();
-  const { result, record } = service.evaluate("economy.population-needs", {
-    population: 1450000,
-    requirements: [
-      { commodityId: "food", dailyNeedPerThousand: 0.001, available: 10 },
-      { commodityId: "water", dailyNeedPerThousand: 0.0015, available: 1 }
-    ]
+  assert.deepEqual(service.listDefinitions(), []);
+  assert.throws(() => service.evaluate("economy.population-needs", {}), /Unknown calculation formula/);
+
+  const custom = createCalculationService({ definitions: [{
+    id: "economy.population-needs",
+    version: 2,
+    calculate: ({ inputs, recordStep }) => {
+      const requested = inputs.population / 1000 * inputs.rate;
+      const consumed = Math.min(requested, inputs.available);
+      const result = {
+        requested,
+        consumed,
+        unmet: Math.max(0, requested - consumed),
+        satisfaction: requested > 0 ? consumed / requested : 1
+      };
+      recordStep("requested", requested);
+      recordStep("consumed", consumed);
+      return result;
+    }
+  }] });
+  const { result, record } = custom.evaluate("economy.population-needs", {
+    population: 1450000, rate: .0015, available: 1
   }, { day: 3 });
-  assert.deepEqual(result.requested, { food: 1.45, water: 2.175 });
-  assert.deepEqual(result.consumed, { food: 1.45, water: 1 });
-  assert.equal(result.unmet.food, 0);
-  assert.ok(Math.abs(result.unmet.water - 1.175) < 1e-12);
-  assert.equal(result.satisfaction.food, 1);
-  assert.equal(result.satisfaction.water, 0.4598);
+  assert.equal(result.requested, 2.175);
+  assert.equal(result.consumed, 1);
+  assert.equal(result.unmet, 1.1749999999999998);
   assert.equal(record.formulaId, "economy.population-needs");
   assert.equal(record.version, 2);
+  assert.deepEqual(record.steps.map(step => step.id), ["requested", "consumed"]);
 });
 
-test("population needs formula supports no population and duplicate commodity requirements", () => {
-  const service = createCalculationService();
-  const { result } = service.evaluate("economy.population-needs", {
-    population: 0,
-    requirements: [
-      { commodityId: "food", dailyNeedPerThousand: 0.001, available: 0 },
-      { commodityId: "food", dailyNeedPerThousand: 0.002, available: 0 }
-    ]
-  });
-  assert.deepEqual(result.requested, { food: 0 });
-  assert.deepEqual(result.consumed, { food: 0 });
-  assert.deepEqual(result.unmet, { food: 0 });
-  assert.deepEqual(result.satisfaction, { food: 1 });
-});
-
-test("population needs explanation reports daily fulfillment and shortage amounts", () => {
+test("population needs explanation reports daily fulfillment and shortage amounts from a Mod trace", () => {
   const summary = summarizeCalculationRecord({
     formulaId: "economy.population-needs",
     inputs: { population: 1450000, requirements: [{ commodityId: "water", dailyNeedPerThousand: .0015, available: 1 }] },
@@ -132,16 +131,4 @@ test("population needs explanation reports daily fulfillment and shortage amount
   assert.equal(summary.needs[0].commodityId, "water");
   assert.equal(summary.needs[0].unmet, 1.175);
   assert.equal(summary.facts.find((fact) => fact.labelKey === "audit.field.shortage_count").value, 1);
-});
-
-test("population needs calculation does not round the available input quantity up", () => {
-  const service = createCalculationService();
-  const { result } = service.evaluate("economy.population-needs", {
-    population: 1000000,
-    requirements: [{ commodityId: "water", dailyNeedPerThousand: 1, available: 0.12345 }]
-  });
-  assert.equal(result.requested.water, 1000);
-  assert.equal(result.consumed.water, 0.12345);
-  assert.ok(Math.abs(result.unmet.water - 999.87655) < 1e-12);
-  assert.equal(result.satisfaction.water, 0.0001);
 });

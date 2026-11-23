@@ -46,7 +46,7 @@ test("optional Trigger Test Mod runs every current Trigger, Resolution and Effec
   assert.equal(world.triggerQueue.pending.length, 17);
   const marketListener = world.triggerQueue.pending.find((item) => item.id === "trigger-test.16-market-event-react");
   const modListener = world.triggerQueue.pending.find((item) => item.id === "trigger-test.17-mod-event-react");
-  assert.equal(marketListener.sourceEvent.type, "market.prices-settled");
+  assert.equal(marketListener.sourceEvent.type, "mod.core.market.prices-settled");
   assert.equal(marketListener.sourceEvent.subjectId, "new-dawn-market");
   assert.equal(modListener.sourceEvent, null);
 

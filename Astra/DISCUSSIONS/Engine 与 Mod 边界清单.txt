@@ -1,0 +1,82 @@
+Engine 与 Mod 边界清单
+======================
+
+状态：2026-11-23 边界清理基线
+适用范围：Engine、mods/core、API v4、Core 初始世界配置
+
+一、总原则
+----------
+Engine 是通用机制层：负责数据装载/验证、调度、同步执行、确定性随机、状态变更执行、记录、持久化与原子结算。
+Mod 是游戏内容与规则层：负责实体定义、规则参数、具体公式、哪些系统何时运行、初始账户/余额和玩家可见文本。
+Core 是必需的基础游戏内容 Mod，不是 Engine。Core 可以用 API v4 JS 表达确实需要程序行为的基线规则；这不等于把底层 Engine 脚本放进 Core。
+
+二、本轮已处理的明确越界
+------------------------
+
+1. 经济公式
+- 清理前，engine/formulas.cjs 的 DEFAULT_FORMULAS 内置人口需求、殖民地生产、商品定价、证券定价四套具体模型，以及相应生产效率、价格走廊、库存稀缺、价格调整和随机波动规则。
+- 现在 Engine 的 CalculationService 默认公式集为空，只提供版本化公式注册、同步执行、确定性随机注入和 calculation audit。
+- API v4 Mod 在 manifest 的 [formulas] 中声明公式 ID、JS 脚本目标与版本；Engine 只执行启用 Mod 注册的公式。
+- Core 的四个基线公式实现放在 mods/core/scripts/simulation.js。公式数值、上下限和经济参数仍放在 Core INI。
+
+2. 周期性模拟系统
+- 清理前，engine/simulation.cjs 静态注册殖民地生产、人口需求、市场定价、战争时间线四套具体游戏系统。
+- 现在 Engine 只根据 Mod 提供的系统声明创建通用 System Registry；它负责 annual/monthly/weekly/daily/manual cadence、order、依赖拓扑、同步执行和 lastRunDay 记录。
+- API v4 Mod 在 manifest 的 [systems] 中声明系统 ID、周期、顺序、依赖与自身命名空间下的 Hook。
+- Core 当前声明周度生产、日度总人口需求、日度市场定价与日度战争时间线。它们的行为属于 Core 内容，实际代码在 mods/core/scripts/simulation.js。
+
+3. 经济参数与库存消费规则
+- 生产效率范围、稳定度缩放、工业等级上限、商品价格走廊、稀缺区间、基本价格调整速度、证券日变动上限和产出漂移系数，均改为 Core INI 参数。
+- Engine Catalog 不再专门认识 commodity.dailyNeedPerThousand 这一 Core 需求字段；当前总人口需求由 Core 行为读取并按自身契约校验。
+- 当前仍保留的是 Core 的过渡性 aggregate population 需求规则：需求按殖民地总人口聚合，单一商品请求受库存限制消费。这不是群体 Tag Need，也没有群体间库存分配。
+
+4. 新世界财务与开局数据
+- 新世界的货币、最小货币单位精度、账户、账户所有者、开局余额、透支政策和玩家账户引用均由 Core/其他 Mod 的 INI 定义。
+- Engine 新世界财务入口要求提供 Mod-defined currencies/accounts，并验证每种货币的开局账户余额守恒。
+- 旧 CR、player-main、system-treasury 与历史开局余额仅保留在 createLegacyFinancialLedger，专供旧存档迁移；它不是新世界默认初始化入口。
+- 财务 Engine 仍负责整数最小货币单位、账本校验、复式交易平衡、账户创建和转账运算。
+
+5. 初始世界状态、内容分类与本地化
+- Engine 不再为缺省舰队 readiness/morale/stance 或战争 status/startedOn 填充具体游戏默认值；对应 Mod 定义必须明确提供。
+- 地点 type 与战争 status 采用 Mod 可扩展的稳定 ID，不再由 Engine 限定为固定枚举。
+- 新世界名称、世界创建提示和每日结算摘要使用 Core localization INI；Engine 只提供数据并按 key 呈现。
+
+三、Core 脚本的边界说明
+----------------------
+mods/core/scripts/simulation.js 是本轮迁移后有意存在的 Core API v4 行为脚本，不是底层 Engine 脚本。
+- 它实现 Core 自己选择的基线生产、总人口需求、市场报价和战争时间线行为。
+- 它通过已声明的 Hook、Formula 和 System 接口运行；只能读取脱离权威状态的只读快照，并返回批准的 Effects、Domain Events、Triggers 和有界 calculation records。
+- 它不持有或修改权威 World 对象，不访问 Node/Electron/文件系统/网络，也不替代 INI 内容定义。
+- Core 的商品、配方、生产与价格参数、人口需求数值、市场、金融账户和本地化仍留在 INI。
+- mods/core/ 不含 Engine 调度器、公式执行器、随机流、Trigger Queue、Event Bus 或底层状态存储实现。
+
+四、明确保留在 Engine 的通用机制
+------------------------------
+- Campaign clock、日期推进与命名随机流。
+- Mod INI 读取/注册/引用验证、稳定 ID、内容指纹和本地化 key 检查。
+- Aggregate Pop Group 的通用存储、人数守恒、split/merge/dimension update；不推导独立维度的联合比例。
+- CalculationService 的公式注册执行与输入/步骤/修正/随机/结果审计。
+- Mod Runtime、Hook 调用、快照隔离、受限返回校验与 Mod state。
+- System Registry 的 cadence/依赖/顺序调度。
+- Command/Domain Event/Trigger/Resolution/Settlement 的通用生命周期。
+- 批准 Effect 的输入校验与状态变更执行。
+- 候选 World 日结算与原子提交、save validation/migration。
+
+Effect allowlist 仍是明确且受限的状态转换 API，不是通用可变 World patch。殖民地稳定度、舰队 readiness/morale 等字段自身的 0–100 约束属于当前数据不变量；market.price.multiplier 不再强制套用基础价格 0.1–10 倍的游戏价格走廊，价格策略由 Mod 决定。
+
+五、保留的低优先级投影/兼容边界
+------------------------------
+- engine/queries.cjs 的默认查询仍是只读 UI 数据投影，不负责模拟状态变化。其 world.overview 仍使用当前 Core 的 active 战争状态语义；若未来自定义战争状态需要不同的汇总展示，应扩展表现查询，不把它变成模拟规则。
+- legacy finance 初始化里的 CR/账户 ID/历史开局资本只用于存档迁移，禁止用于新世界创建。
+- API v3 INI-only Mod 继续可用；API v4 新功能须显式声明脚本/Hook/Formula/System。Mod JS 不是抵御恶意代码的安全沙箱，仍按可信/用户主动启用内容处理。
+
+六、当前没有因此实现的功能
+------------------------
+- 没有完成群体 Tag/Need 匹配、重叠规则去重或联合人口份额表达。
+- 没有群体间共享库存分配策略接口；不设 pro-rata、公平配给、阶级优先或其他 Engine 默认。未来由 Mod 决定配额，Engine 执行守恒与记录。
+- 没有购买力、工资、劳动力分配、市场清算、商品品质批次、能源调度、储能或跨殖民地物流。
+- 不因为未来可能需要而提前建立相关抽象。
+
+七、后续方向
+------------
+继续先设计群体 Tag/Need 最小契约与共享库存分配策略接口。复用当前 Population Group、Mod Hook、Formula、System Registry 和 Effect 边界；不建立无消费者的新规则框架。具体人口标签、需求规则、配给制度与经济参数继续由 Mod 定义。

@@ -10,6 +10,8 @@ const MAX_MANIFEST_BYTES = 64 * 1024;
 const MAX_SCRIPT_BYTES = 256 * 1024;
 const MAX_MOD_SCRIPTS = 16;
 const MAX_MOD_HOOKS = 64;
+const MAX_MOD_SYSTEMS = 64;
+const MAX_MOD_FORMULAS = 64;
 const CATEGORIES = ["registry", "content", "localization"];
 const TYPE_FILES = {
   universe: "universes",
@@ -29,7 +31,9 @@ const TYPE_FILES = {
   event: "events",
   profession: "professions",
   wealth_tier: "wealthTiers",
-  population_group: "populationGroups"
+  population_group: "populationGroups",
+  currency: "currencies",
+  financial_account: "financialAccounts"
 };
 const LIST_FIELDS = new Set([
   "links", "location_ids", "colony_ids", "commodity_ids", "security_ids",
@@ -205,6 +209,52 @@ function parseHookDeclarations(section, scriptFiles, apiVersion, modId) {
   return output;
 }
 
+function parseFormulaDeclarations(section, scriptFiles, apiVersion, modId) {
+  const entries = Object.entries(section || {});
+  if (apiVersion < 4 && entries.length) throw new Error("Mod " + modId + " must use API version 4 for formulas");
+  if (entries.length > MAX_MOD_FORMULAS) throw new Error("Mod " + modId + " declares too many formulas");
+  const output = {};
+  for (const [formulaId, target] of entries) {
+    if (!isSafeHookId(formulaId) || typeof target !== "string") {
+      throw new Error("Mod " + modId + " has an invalid formula declaration: " + formulaId);
+    }
+    const [file, handler, rawVersion, ...extra] = target.split(":");
+    const version = Number(rawVersion);
+    if (extra.length || !isSafeModScript(file) || !scriptFiles.includes(file)
+      || !/^[A-Za-z_$][A-Za-z0-9_$]{0,63}$/.test(handler)
+      || !/^\d+$/.test(rawVersion || "") || !Number.isSafeInteger(version) || version < 1) {
+      throw new Error("Mod " + modId + " formula " + formulaId + " must target a declared script function and positive version");
+    }
+    output[formulaId] = { file, handler, version };
+  }
+  return output;
+}
+
+function parseSimulationSystems(section, hooks, apiVersion, modId) {
+  const entries = Object.entries(section || {});
+  if (apiVersion < 4 && entries.length) throw new Error("Mod " + modId + " must use API version 4 for simulation systems");
+  if (entries.length > MAX_MOD_SYSTEMS) throw new Error("Mod " + modId + " declares too many simulation systems");
+  const cadences = new Set(["annual", "monthly", "weekly", "daily", "manual"]);
+  const output = [];
+  for (const [localId, declaration] of entries) {
+    if (!isSafeHookId(localId) || typeof declaration !== "string") {
+      throw new Error("Mod " + modId + " has an invalid simulation-system declaration: " + localId);
+    }
+    const [cadence, rawOrder, rawDependencies, hookId, ...extra] = declaration.split(":");
+    const order = Number(rawOrder);
+    const dependsOn = rawDependencies === "-" ? [] : splitList(rawDependencies);
+    if (extra.length || !cadences.has(cadence) || !/^-?\d+$/.test(rawOrder || "")
+      || !Number.isSafeInteger(order) || !isSafeHookId(hookId)
+      || !hookId.startsWith(modId + ".") || !Object.hasOwn(hooks, hookId)
+      || dependsOn.some((id) => !isSafeHookId(id)) || new Set(dependsOn).size !== dependsOn.length) {
+      throw new Error("Mod " + modId + " simulation system " + localId
+        + " requires cadence:order:dependencies:own-namespaced-hook");
+    }
+    output.push({ id: modId + "." + localId, modId, cadence, order, dependsOn, hookId });
+  }
+  return output;
+}
+
 async function readCategory(directory, category, declared) {
   if (!Array.isArray(declared) || declared.some((file) => !isSafeModFile(file))) {
     throw new Error("Invalid " + category + " file declaration: only .ini files are supported");
@@ -309,6 +359,8 @@ async function readModPackages(root, options = {}) {
         scripts: files.scripts === undefined ? [] : fileList(files.scripts, "scripts")
       };
       const hooks = parseHookDeclarations(parsed.hooks, declarations.scripts, apiVersion, entry.name);
+      const formulas = parseFormulaDeclarations(parsed.formulas, declarations.scripts, apiVersion, entry.name);
+      const systems = parseSimulationSystems(parsed.systems, hooks, apiVersion, entry.name);
       if (apiVersion < 4 && declarations.scripts.length) {
         throw new Error("Mod " + entry.name + " must use API version 4 for JavaScript scripts");
       }
@@ -338,7 +390,9 @@ async function readModPackages(root, options = {}) {
         enabled,
         data,
         scripts,
-        hooks
+        hooks,
+        formulas,
+        systems
       });
     } catch (error) {
       mods.push({
@@ -370,6 +424,8 @@ module.exports = {
   MAX_INI_BYTES,
   MAX_MOD_SCRIPTS,
   MAX_MOD_HOOKS,
+  MAX_MOD_SYSTEMS,
+  MAX_MOD_FORMULAS,
   CATEGORIES,
   isSafeModId,
   isSafeModFile,

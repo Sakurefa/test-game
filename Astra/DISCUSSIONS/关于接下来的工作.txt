@@ -1,7 +1,7 @@
 关于接下来的工作
 ==================
 
-当前阶段是通用 Engine 开发，不是直接实现人口经济玩法。所有可运行的游戏内容都由 `mods/` 下的 Mod 提供；`mods/core` 是必需的基础内容 Mod，本身不属于 Engine。Engine 负责可复用的数据表示、装载、验证、结算、持久化与扩展接口；具体分类、规则、效果配置和数值由 Core/可选 Mod 通过 INI 提供。
+当前阶段是通用 Engine 地基与 Mod 边界建设，不是直接扩张具体人口经济玩法。所有可运行的游戏内容都由 `mods/` 下的 Mod 提供；`mods/core` 是必需的基础内容 Mod，本身不属于 Engine。Engine 负责可复用的数据表示、装载、验证、调度、结算、持久化与扩展接口；具体分类、实体定义、规则参数和玩家文本由 Mod INI 提供，需要程序化表达的行为由 API v4 明确声明的 JS Hooks、Formulas 与 Simulation Systems 提供。
 
 已完成的 Engine 地基：
 1. World schema 9 的通用聚合人口群体存储。**人口群体的人数是权威人口记录；殖民地总人口等于所有群体人数之和。**标量 `population` 仅作为兼容/读取投影，由 Engine 从群体重新汇总，不是另一份人口账本。每组包含稳定 ID、人口数量和独立统计维度；每个维度内部比例合计为 1，不同维度不生成隐含联合分布。
@@ -290,3 +290,17 @@ Trigger 完成检查点（2026-11-22_17）建议下一步推进人口群体级�
 6. Pro-rata 只能是 Mod 可选择的一种策略，不是 Engine 默认。
 
 仍先设计后实现。不要在此阶段实现财富系统、支付、阶级配额、市场清算或具体分配策略。
+
+
+## 2026-11-23：Engine 与 Mod 边界修整结果
+
+此前“当前四个公式由 Engine 代码实现”“实际 recurring systems 固定注册在 Engine”的描述属于修整前状态。现行边界如下：
+
+1. Engine 的公式服务只负责注册公式、同步执行、确定性随机注入和计算审计；默认公式集为空。API v4 Mod 在 manifest `[formulas]` 中声明版本化公式及脚本目标。
+2. Engine 的模拟系统 registry 只负责 annual/monthly/weekly/daily/manual cadence、order、依赖拓扑、执行记录和同步执行。实际 recurring systems 由 Mod manifest `[systems]` 声明并绑定自身 Hook。
+3. Core 是基础游戏内容 Mod，现已使用 API v4，并在 `mods/core/scripts/simulation.js` 实现基线生产、总人口日需求、市场报价和战争时间线。Core INI 保存实体内容、商品/配方/市场/货币/账户、所有数值参数和本地化；脚本只承担实际行为计算与返回批准结果。
+4. 新世界的货币、初始账户、玩家账户归属和开局资金由 Mod INI 定义。通用账本只做整数最小货币单位、交易平衡、账户和转账机制。旧 CR/player-main/系统财政初始化已隔离为专用 legacy-save migration 路径，不用于新世界创建。
+5. 玩家可见的新世界名称、世界创建文本和每日系统结算摘要来自 Core localization INI。地点类型与战争状态使用 Mod 稳定 ID，不再使用 Engine 的封闭枚举；舰队状态与战争状态不在 Engine 内填充游戏默认值。
+6. Mod 的 Domain Event type 使用 `mod.<mod-id>.<local-event-type>` 命名空间。Core UI 只在表现层去除自身 Mod 前缀以复用既有文案映射。
+
+本次不是把底层代码塞进 Core：`engine/` 仍提供调度、公式执行与审计、Effect 执行、随机流、Trigger、Domain Event 和原子 Settlement；Core 脚本属于可替换的具体基线游戏行为。现阶段 Core 的人口需求仍为总人口聚合模型，不是群体 Tag Need，也没有群体间库存分配。下一阶段继续完善 Tag/Need 与 Mod 分配策略接口的设计，不加入 Engine 默认分配意识形态。

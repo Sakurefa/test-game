@@ -19,7 +19,9 @@ const DEFINITION_TYPES = Object.freeze({
   event: "events",
   profession: "professions",
   wealth_tier: "wealthTiers",
-  population_group: "populationGroups"
+  population_group: "populationGroups",
+  currency: "currencies",
+  financial_account: "financialAccounts"
 });
 
 function isRecord(value) {
@@ -116,7 +118,7 @@ function validateCatalog(catalog, registryEntries) {
   }
   for (const location of catalog.locations.values()) {
     requireReference(catalog.systems, location.systemId, `location system ${location.id}`);
-    if (!["star", "planet", "station", "moon", "asteroid", "gate"].includes(location.type)) {
+    if (typeof location.type !== "string" || !/^[a-z][a-z0-9._-]{0,63}$/.test(location.type)) {
       throw new Error(`Invalid location type for ${location.id}`);
     }
     if (location.factionId) requireReference(catalog.factions, location.factionId, `location faction ${location.id}`);
@@ -151,7 +153,12 @@ function validateCatalog(catalog, registryEntries) {
     }
     for (const industry of colony.industries) {
       requireReference(catalog.recipes, industry.recipeId, `industry recipe ${colony.id}`);
-      requireFinite(industry.level, `industry level ${colony.id}.${industry.recipeId}`, { min: 1, max: 20, integer: true });
+      const recipe = catalog.recipes.get(industry.recipeId);
+      requireFinite(industry.level, `industry level ${colony.id}.${industry.recipeId}`, {
+        min: 1,
+        max: recipe.maximumIndustryLevel ?? Infinity,
+        integer: true
+      });
       if (industry.companyId) requireReference(catalog.companies, industry.companyId, `industry operator ${colony.id}`);
     }
   }
@@ -198,11 +205,17 @@ function validateCatalog(catalog, registryEntries) {
   for (const commodity of catalog.commodities.values()) {
     requireFinite(commodity.basePrice, `commodity ${commodity.id} basePrice`, { min: 0, exclusiveMin: true });
     requireFinite(commodity.targetStock, `commodity ${commodity.id} targetStock`, { min: 0, exclusiveMin: true });
-    requireFinite(commodity.priceElasticity, `commodity ${commodity.id} priceElasticity`, { min: 0, max: 10 });
-    requireFinite(commodity.volatility, `commodity ${commodity.id} volatility`, { min: 0, max: 1 });
-    if (commodity.dailyNeedPerThousand !== undefined) {
-      requireFinite(commodity.dailyNeedPerThousand, `commodity ${commodity.id} dailyNeedPerThousand`, { min: 0 });
+    requireFinite(commodity.priceElasticity, `commodity ${commodity.id} priceElasticity`, { min: 0 });
+    requireFinite(commodity.volatility, `commodity ${commodity.id} volatility`, { min: 0 });
+    for (const field of ["minimumPriceMultiplier", "maximumPriceMultiplier", "scarcityMinimum", "scarcityMaximum", "fundamentalMinimumMultiplier", "fundamentalMaximumMultiplier", "priceAdjustmentRate"]) {
+      if (commodity[field] !== undefined) requireFinite(commodity[field], `commodity ${commodity.id} ${field}`);
     }
+    if (commodity.minimumPriceMultiplier !== undefined && commodity.minimumPriceMultiplier <= 0) throw new Error(`Commodity ${commodity.id} minimumPriceMultiplier must be positive`);
+    if (commodity.maximumPriceMultiplier !== undefined && commodity.maximumPriceMultiplier <= 0) throw new Error(`Commodity ${commodity.id} maximumPriceMultiplier must be positive`);
+    if (commodity.priceAdjustmentRate !== undefined && (commodity.priceAdjustmentRate < 0 || commodity.priceAdjustmentRate > 1)) throw new Error(`Commodity ${commodity.id} priceAdjustmentRate must be between 0 and 1`);
+    if (commodity.minimumPriceMultiplier !== undefined && commodity.maximumPriceMultiplier !== undefined && commodity.minimumPriceMultiplier > commodity.maximumPriceMultiplier) throw new Error(`Commodity ${commodity.id} price range is invalid`);
+    if (commodity.scarcityMinimum !== undefined && commodity.scarcityMaximum !== undefined && commodity.scarcityMinimum > commodity.scarcityMaximum) throw new Error(`Commodity ${commodity.id} scarcity range is invalid`);
+    if (commodity.fundamentalMinimumMultiplier !== undefined && commodity.fundamentalMaximumMultiplier !== undefined && commodity.fundamentalMinimumMultiplier > commodity.fundamentalMaximumMultiplier) throw new Error(`Commodity ${commodity.id} fundamental multiplier range is invalid`);
     if (typeof commodity.unitKey !== "string" || !commodity.unitKey.trim()) throw new Error(`Commodity ${commodity.id} requires a localization unitKey`);
   }
   for (const recipe of catalog.recipes.values()) {
@@ -218,6 +231,10 @@ function validateCatalog(catalog, registryEntries) {
       requireFinite(output.quantity, `recipe output ${recipe.id} quantity`, { min: 0, exclusiveMin: true });
     }
     if (recipe.workforce !== undefined) requireFinite(recipe.workforce, `recipe ${recipe.id} workforce`, { min: 0 });
+    for (const field of ["minimumEfficiency", "maximumEfficiency", "stabilityScale", "maximumIndustryLevel"]) {
+      if (recipe[field] !== undefined) requireFinite(recipe[field], `recipe ${recipe.id} ${field}`, { min: 0, exclusiveMin: field !== "minimumEfficiency" && field !== "maximumEfficiency", integer: field === "maximumIndustryLevel" });
+    }
+    if (recipe.minimumEfficiency !== undefined && recipe.maximumEfficiency !== undefined && recipe.minimumEfficiency > recipe.maximumEfficiency) throw new Error(`Recipe ${recipe.id} efficiency range is invalid`);
   }
   for (const company of catalog.companies.values()) {
     requireReference(catalog.factions, company.factionId, `company faction ${company.id}`);
@@ -228,7 +245,10 @@ function validateCatalog(catalog, registryEntries) {
   for (const security of catalog.securities.values()) {
     requireReference(catalog.companies, security.issuerId, `security issuer ${security.id}`);
     requireFinite(security.initialPrice, `security ${security.id} initialPrice`, { min: 0, exclusiveMin: true });
-    requireFinite(security.volatility, `security ${security.id} volatility`, { min: 0, max: 1 });
+    requireFinite(security.volatility, `security ${security.id} volatility`, { min: 0 });
+    for (const field of ["minimumPriceMultiplier", "maximumPriceMultiplier", "maximumDailyChange", "outputDriftPerUnit", "maximumOutputDrift"]) {
+      if (security[field] !== undefined) requireFinite(security[field], `security ${security.id} ${field}`, { min: 0, max: field === "maximumDailyChange" ? 1 : Infinity, exclusiveMin: field === "maximumDailyChange" });
+    }
   }
   for (const market of catalog.markets.values()) {
     requireReference(catalog.colonies, market.colonyId, `market colony ${market.id}`);
@@ -249,8 +269,9 @@ function validateCatalog(catalog, registryEntries) {
     requireReference(catalog.factions, fleet.factionId, `fleet faction ${fleet.id}`);
     requireReference(catalog.locations, fleet.locationId, `fleet location ${fleet.id}`);
     requireArray(fleet.ships, `fleet ${fleet.id} ships`);
-    requireFinite(fleet.readiness ?? 100, `fleet ${fleet.id} readiness`, { min: 0, max: 100 });
-    requireFinite(fleet.morale ?? 70, `fleet ${fleet.id} morale`, { min: 0, max: 100 });
+    requireFinite(fleet.readiness, `fleet ${fleet.id} readiness`, { min: 0, max: 100 });
+    requireFinite(fleet.morale, `fleet ${fleet.id} morale`, { min: 0, max: 100 });
+    if (typeof fleet.stance !== "string" || !/^[a-z][a-z0-9._-]{0,63}$/.test(fleet.stance)) throw new Error(`Invalid fleet stance for ${fleet.id}`);
     for (const ship of fleet.ships) {
       requireReference(catalog.shipClasses, ship.shipClassId, `fleet ship ${fleet.id}`);
       requireFinite(ship.quantity, `fleet ${fleet.id} ship quantity`, { min: 1, integer: true });
@@ -264,12 +285,48 @@ function validateCatalog(catalog, registryEntries) {
       if (event.tags.some((tag) => typeof tag !== "string")) throw new Error(`Event ${event.id} tags must be strings`);
     }
   }
+  for (const currency of catalog.currencies.values()) {
+    if (typeof currency.code !== "string" || !/^[A-Z][A-Z0-9]{1,7}$/.test(currency.code)) {
+      throw new Error("Currency " + currency.id + " requires a stable uppercase code");
+    }
+    requireFinite(currency.minorUnitDigits, "currency " + currency.id + " minorUnitDigits", { min: 0, max: 6, integer: true });
+    if (typeof currency.nameKey !== "string" || !currency.nameKey.trim()) throw new Error("Currency " + currency.id + " requires a localization nameKey");
+  }
+  for (const account of catalog.financialAccounts.values()) {
+    if (typeof account.ownerType !== "string" || !/^[a-z][a-z0-9._-]{0,63}$/.test(account.ownerType)
+      || typeof account.ownerId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(account.ownerId)) {
+      throw new Error("Financial account " + account.id + " requires a stable owner type and ID");
+    }
+    requireReference(catalog.currencies, account.currencyId, "financial account currency " + account.id);
+    requireFinite(account.openingBalanceMinor, "financial account " + account.id + " openingBalanceMinor", { integer: true });
+    requireFinite(account.overdraftLimitMinor ?? 0, "financial account " + account.id + " overdraftLimitMinor", { min: 0, integer: true });
+    if (typeof account.allowNegative !== "boolean" || !["open", "closed"].includes(account.status)) {
+      throw new Error("Financial account " + account.id + " has an invalid account policy");
+    }
+    if (typeof account.nameKey !== "string" || !account.nameKey.trim()) throw new Error("Financial account " + account.id + " requires a localization nameKey");
+  }
+  const openingTotals = new Map();
+  for (const account of catalog.financialAccounts.values()) {
+    openingTotals.set(account.currencyId, (openingTotals.get(account.currencyId) || 0) + account.openingBalanceMinor);
+  }
+  for (const [currencyId, total] of openingTotals) {
+    if (total !== 0) throw new Error("Opening financial accounts must balance in currency " + currencyId);
+  }
+  if (catalog.financialAccounts.size === 0) throw new Error("At least one Mod-defined financial account is required");
+  if (typeof universe.playerAccountId !== "string" || !catalog.financialAccounts.has(universe.playerAccountId)) {
+    throw new Error("Universe must reference a registered playerAccountId");
+  }
+  const playerAccount = catalog.financialAccounts.get(universe.playerAccountId);
+  if (playerAccount.ownerType !== "player" || playerAccount.ownerId !== universe.defaultPlayerFactionId) {
+    throw new Error("Universe playerAccountId must belong to the default player faction");
+  }
+
   for (const war of catalog.wars.values()) {
     requireArray(war.participants, `war ${war.id} participants`);
     if (war.participants.length < 2) throw new Error(`War ${war.id} requires at least two participants`);
     requireUnique(war.participants, `war ${war.id} participants`);
-    if (!["active", "cold", "ended"].includes(war.status)) throw new Error(`Invalid status for war ${war.id}`);
-    requireGameDate(war.startedOn || universe.startDate, `war ${war.id} startedOn`);
+    if (typeof war.status !== "string" || !/^[a-z][a-z0-9._-]{0,63}$/.test(war.status)) throw new Error(`Invalid status for war ${war.id}`);
+    requireGameDate(war.startedOn, `war ${war.id} startedOn`);
     for (const factionId of war.participants) requireReference(catalog.factions, factionId, `war participant ${war.id}`);
     requireArray(war.fleetIds || [], `war ${war.id} fleetIds`);
     for (const fleetId of war.fleetIds || []) {
@@ -330,6 +387,8 @@ function compileCatalog(modPackages) {
     const defaultLocale = "zh-CN";
     const catalog = {};
     for (const collectionName of Object.values(DEFINITION_TYPES)) catalog[collectionName] = new Map();
+    catalog.formulaDefinitions = new Map();
+    catalog.simulationSystems = [];
     const registryEntries = [];
     const enabled = modPackages.filter((mod) => mod.enabled !== false && !mod.error)
       .slice().sort((a, b) => a.id === "core" ? -1 : b.id === "core" ? 1 : a.id.localeCompare(b.id));
@@ -360,8 +419,22 @@ function compileCatalog(modPackages) {
           registryEntries.push(...data.entries);
         }
       }
+      for (const [formulaId, formula] of Object.entries(mod.formulas || {})) {
+        if (catalog.formulaDefinitions.has(formulaId)) throw new Error("Duplicate formula ID: " + formulaId);
+        catalog.formulaDefinitions.set(formulaId, { id: formulaId, version: formula.version, modId: mod.id });
+      }
+      for (const system of mod.systems || []) {
+        if (catalog.simulationSystems.some((item) => item.id === system.id)) throw new Error("Duplicate simulation system ID: " + system.id);
+        catalog.simulationSystems.push({ ...system });
+      }
     }
 
+    const systemIds = new Set(catalog.simulationSystems.map((system) => system.id));
+    for (const system of catalog.simulationSystems) {
+      for (const dependency of system.dependsOn) {
+        if (!systemIds.has(dependency)) throw new Error("Simulation system " + system.id + " depends on missing system " + dependency);
+      }
+    }
     const universe = validateCatalog(catalog, registryEntries);
     validateLocalizationReferences(catalog, localizations, defaultLocale);
     const serializable = {};
@@ -370,12 +443,14 @@ function compileCatalog(modPackages) {
       serializable[name] = [...collection.values()].map(({ _type, _source, ...entity }) => entity);
     }
     const extensions = enabled
-      .filter((mod) => Object.keys(mod.hooks || {}).length > 0)
+      .filter((mod) => Object.keys(mod.hooks || {}).length > 0 || Object.keys(mod.formulas || {}).length > 0 || (mod.systems || []).length > 0)
       .map((mod) => ({
         id: mod.id,
         version: mod.version,
         scripts: mod.scripts || {},
-        hooks: mod.hooks || {}
+        hooks: mod.hooks || {},
+        formulas: mod.formulas || {},
+        systems: mod.systems || []
       }))
       .sort((a, b) => a.id.localeCompare(b.id));
     const legacyContentHash = crypto.createHash("sha256").update(JSON.stringify(serializable)).digest("hex");

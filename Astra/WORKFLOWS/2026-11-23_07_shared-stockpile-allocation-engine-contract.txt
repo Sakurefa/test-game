@@ -1,0 +1,83 @@
+【工作流记录】共享库存分配执行契约：Engine Effect 与 Core 接入
+==========================================================
+
+工作日期：2026-11-23
+当日序号：07
+代码基线：ed1250a9555a29febdfbac56f17c839892b2ad6a
+功能提交：0b253ab23eaf8e82cb1b0d0a3ad4222714a54ae2
+修复提交：29945fc7e61bc9def4c03fa72a22ac55c582dea2
+目标：实现“Mod 决定分配、Engine 验证并执行共享库存扣减”的最小通用边界，将 Core 当前聚合需求接入，并以 CI 验证。
+
+一、基线核对
+------------
+- 仓库：Sakurefa/test-game，分支 main。
+- 按项目工作流程检查 AGENTS.md、Astra README、Working Memory、工作日志索引、最高优先级 AK / MOD 化原则及人口、经济、边界讨论。
+- 复核 Engine Mod Runtime、日结算、Core simulation Hook 和既有测试。
+- 当前 Hook Runtime 收集一次 Hook 的全部 Mod 结果，再按 Effect 白名单执行；日结算仍在候选 World 上原子提交。
+- Core 原有需求规则按殖民地派生总人口计算商品需求，并按库存上限生成消费数量。它还不是群体级 Need。
+
+二、实现内容
+------------
+1. Engine 新增通用 Mod Effect：`colony.stockpile.allocate`。
+2. 输入：
+   - colonyId；
+   - requests：每条包含 id、requesterId、commodityId、requested；
+   - allocations：每条包含 requestId、allocated。
+3. Engine 验证：
+   - 殖民地存在、库存结构合法；
+   - 请求数组与结果数组长度一致且受 2048 条上限约束；
+   - 请求与请求方 ID 符合稳定 ID 格式，且请求 ID 唯一；
+   - commodity 必须存在；
+   - requested / allocated 必须为有限、非负数；
+   - allocation 只能引用已提交请求，不能重复或缺失；
+   - 每条 allocated 不超过对应 requested；
+   - 同商品所有 allocation 的合计不超过殖民地现有库存。
+4. 所有商品库存变更先完成验证，再执行写入；非法计划不会造成部分库存扣减。
+5. 返回逐请求 requested / allocated / unmet / satisfaction，以及逐商品库存 before / allocated / after。沿用现有 `mod.effect-applied` Domain Event，不引入第二套审计或状态记录。
+6. 同一 Hook 调用中，同一殖民地只允许一份完整分配计划，防止多个 Mod 基于同一份库存快照提交互相竞争的方案，再由执行顺序或加载顺序隐含决定结果。
+7. Engine 不实现 pro-rata、平等配给、阶级优先或其他公平/分配理念；合法 Mod 方案按其值执行。Pro-rata 仅能由具体 Mod 主动选择。
+8. Core 的每日总人口聚合 Need 已接入该 Effect。当前 requester 暂时为 colony，Core 仍决定原有 aggregate 请求和库存受限分配数量。这是旧规则接入执行边界，不等于完成 Pop Group 级 Need。
+
+三、测试与修复过程
+------------------
+- 在 tests/mod-runtime.test.cjs 增加非均等分配执行测试，确认 Engine 不重写 Mod 的合法配额。
+- 增加重复/未知/缺失请求结果、负数、超请求量、超库存和失败不部分写入测试。
+- 增加同一 Hook 同一 colony 多份策略计划的预检拒绝测试。
+- 在 tests/simulation-economy.test.cjs 现有日结算集成测试中增加 Effect audit、Core 需求报告与真实库存变化核对。
+- 第一轮 CI 45151047812 失败：既有 colony ID 含大写字母，初版新校验过窄；库存差值测试使用严格浮点相等；额外单独运行一天的集成测试还增加了模拟负载，使两个既有 50ms Mod Hook 测试偶发超时。
+- 修复提交 29945fc：稳定 ID 校验兼容大小写；库存差值采用 1e-9 测试容差；集成断言并入已有日结算测试，不额外启动完整模拟日。没有放宽 Mod 沙箱执行时限。
+- 最终 CI 45151414787：238/238 tests passed；Syntax check、Simulation/Mod Loader tests、Renderer build、generated-renderer step 均成功。
+- 本次没有在本地执行 Node 测试/构建；以上为 GitHub Actions 结果。用户 Windows 设备 GUI 验收未执行。
+
+四、实际变更文件
+----------------
+- engine/mod-runtime.cjs
+- mods/core/scripts/simulation.js
+- tests/mod-runtime.test.cjs
+- tests/simulation-economy.test.cjs
+- Astra/WORKING_MEMORY.txt
+- Astra/DISCUSSIONS/人口系统设计.txt
+- Astra/DISCUSSIONS/关于接下来的工作.txt
+- Astra/DISCUSSIONS/Engine 与 Mod 边界清单.txt
+- Astra/DISCUSSIONS/经济系统设计.txt
+- Astra/WORKFLOWS/2026-11-23_07_shared-stockpile-allocation-engine-contract.txt
+- ASTRA_WORKLOG.md
+
+五、架构边界与未完成事项
+------------------------
+- 本次新增的是共享库存的通用执行 Effect，不是 Tag Framework、Need Matcher 或具体配给政策。
+- 不新增 World schema 字段，不需要存档迁移。
+- 当前 Core 请求方仍是 colony aggregate，不是各 Pop Group；尚无群体级 Tag Need 和群体报告。
+- Tag 条件的表达/匹配运算符、多 Need 规则重叠与去重、明确人口份额表示仍待设计。独立 species / class / profession / wealth 边际不得相乘推导交集人数。
+- 商品 Tag 品质、数量满足与品质/生活水平满足分离、品质库存批次、购买力、工资、劳动力、市场清算、物流与能源容量/调度不属于本次范围。
+- 不因为接口已经可执行，就把 Core 当前聚合 min(requested, stock) 视为 Engine 默认配给制度。
+
+下一步
+------
+先闭合最小群体 Tag / Need 匹配契约：标签如何从现有 Pop Group 描述中读取，哪些组合匹配可由现有显式数据无歧义表达，多条规则重叠时如何去重/累加，以及如何保留精确人口份额。设计闭合后再由 Mod 定义具体需求与分配策略，Engine 仅提供通用计算/校验/执行机制。
+
+验收状态
+--------
+- 代码 CI：45151414787 success，238/238 tests；Renderer 构建成功。
+- 本地 Node 测试/构建：未运行。
+- Windows GUI：未验收。

@@ -27,12 +27,13 @@ Files use YYYY-MM-DD_NN_topic.txt; NN is one shared chronological sequence per d
 - 2026-11-20: 01
 - 2026-11-21: 01–08
 - 2026-11-22: 01–17
-- 2026-11-23: 01–06
+- 2026-11-23: 01–07
 
 Latest 2026-11-23 records:
 - Astra/WORKFLOWS/2026-11-23_04_tag-based-population-needs-design.txt
 - Astra/WORKFLOWS/2026-11-23_05_need-allocation-policy-interface.txt
 - Astra/WORKFLOWS/2026-11-23_06_engine-mod-boundary-cleanup.txt
+- Astra/WORKFLOWS/2026-11-23_07_shared-stockpile-allocation-engine-contract.txt
 
 Key boundary discussion:
 - Astra/DISCUSSIONS/Engine 与 Mod 边界清单.txt
@@ -55,8 +56,8 @@ Key boundary discussion:
 ## Current gameplay foundation and non-goals
 
 - Core currently keeps the transitional colony-aggregate daily-need rule: population × commodity.daily_need_per_thousand, stock-limited shared inventory consumption, requested/consumed/unmet/satisfaction reporting. It is not group Tag Need or a group-level allocation policy.
-- The user rejected any Engine default allocation ideology. Pro-rata is not default/fallback; Mod decides allocation, Engine will enforce data validity/inventory conservation and record results once the strategy contract is designed.
-- No group-level Tag matching/explicit joint shares, shared-stock allocation API, purchasing power, wages, workforce assignment, goods substitution, quality-batch inventory or market clearing.
+- Shared-stock execution is implemented as the generic Mod Effect `colony.stockpile.allocate`. Mod submits the allocation plan; Engine validates complete request coverage, per-request bounds and per-commodity inventory conservation, then applies and audits the result. No Engine allocation policy or fallback exists.
+- No group-level Tag matching/explicit joint shares or group-level Need requests; the shared-stock allocation executor now exists, with Core's colony-aggregate Need as its first consumer. Purchasing power, wages, workforce assignment, goods substitution, quality-batch inventory and market clearing remain unimplemented.
 - No full cargo logistics, energy generation/capacity/storage/scheduling, cross-colony migration/robot transfer, ownership/lease framework.
 - engine/queries.cjs retains read-only data projections for the current Core world model. Effect whitelist remains a bounded state-transition interface, not an arbitrary World patch.
 
@@ -68,8 +69,8 @@ Key boundary discussion:
 - Interstellar travel, gates and mixed transport exist; inhospitable colonies are possible but local self-sufficiency may be very expensive.
 - Population location, political jurisdiction, origin, employment and ownership are separate relations. Employment references resident groups; it must not create a second population ledger.
 
-Next work: design minimum Tag-driven group Need matching and the Mod-owned shared-stock allocation strategy interface. Do not infer joint population from marginal dimensions; do not implement a default allocation policy. Keep exact rules, categories and balance values in Mods.
+Next work: close the minimum Tag-driven group Need matching contract, including explicit population-share representation and overlapping-rule semantics. The shared-stock executor already exists; distribution policy stays Mod-owned. Never infer joint population from marginal dimensions. Keep exact rules, categories and balance values in Mods.
 
 ## Verification and acceptance
 
-Final code CI 45144034925 succeeded on functional commit 7c441c0. Current main has only the CI-generated Renderer output follow-up a2d90f5 in addition. No local build/tests or user Windows GUI acceptance were performed.
+Code commits: [0b253ab](https://github.com/Sakurefa/test-game/commit/0b253ab23eaf8e82cb1b0d0a3ad4222714a54ae2) added the allocation contract; [29945fc](https://github.com/Sakurefa/test-game/commit/29945fc7e61bc9def4c03fa72a22ac55c582dea2) fixed entity-ID validation and test integration. Final CI [45151414787](https://github.com/Sakurefa/test-game/actions/runs/45151414787) succeeded: 238/238 tests passed, syntax checks and Renderer build succeeded, and the generated-renderer step completed. The first run 45151047812 exposed an uppercase-ID validation issue and a strict floating-point assertion; both were corrected. No local build/tests were run in this session. User-side Windows GUI acceptance remains outstanding.

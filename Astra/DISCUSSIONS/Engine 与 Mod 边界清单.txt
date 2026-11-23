@@ -73,10 +73,10 @@ Effect allowlist 仍是明确且受限的状态转换 API，不是通用可变 W
 六、当前没有因此实现的功能
 ------------------------
 - 没有完成群体 Tag/Need 匹配、重叠规则去重或联合人口份额表达。
-- 没有群体间共享库存分配策略接口；不设 pro-rata、公平配给、阶级优先或其他 Engine 默认。未来由 Mod 决定配额，Engine 执行守恒与记录。
+- 通用共享库存执行接口 `colony.stockpile.allocate` 已实现，Core 当前总人口聚合 Need 已接入；Mod 提供分配方案，Engine 验证请求覆盖/请求上限/库存守恒并记录结果。尚未实现群体 Tag 匹配与群体级请求。Engine 不设 pro-rata、公平配给、阶级优先或其他默认策略。
 - 没有购买力、工资、劳动力分配、市场清算、商品品质批次、能源调度、储能或跨殖民地物流。
 - 不因为未来可能需要而提前建立相关抽象。
 
 七、后续方向
 ------------
-继续先设计群体 Tag/Need 最小契约与共享库存分配策略接口。复用当前 Population Group、Mod Hook、Formula、System Registry 和 Effect 边界；不建立无消费者的新规则框架。具体人口标签、需求规则、配给制度与经济参数继续由 Mod 定义。
+共享库存的通用执行边界已经落地；下一步先设计并闭合群体 Tag/Need 最小契约，包括规则重叠和明确人口份额语义，再由 Mod 决定分配政策。复用现有 Population Group、Mod Hook、Formula、System Registry 和 Effect 边界；不建立无消费者的新规则框架。具体人口标签、需求规则、配给制度与经济参数继续由 Mod 定义。

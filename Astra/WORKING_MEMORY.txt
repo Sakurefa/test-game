@@ -176,4 +176,15 @@ END
 - User correction: do not define pro-rata or any other fairness/allocation principle as the Engine default. Distribution of scarce goods is game-content/economic-policy design.
 - Engine should preserve an extension point: calculate/represent demand requests; allow a Mod-provided policy/strategy to determine allocations; execute valid allocations against shared stock and record results.
 - The Engine must not hardcode class privilege, wealth, purchasing power, rationing, political privilege, equality, proportionality or another distribution ideology.
-- A proportional strategy may be chosen by a particular Mod, but is not an Engine default. The policy interface contract, validation boundaries and reporting contract remain to be designed.
+- A proportional strategy may be chosen by a particular Mod, but is not an Engine default. The initial shared-stock execution contract is implemented as `colony.stockpile.allocate`; Mod chooses the allocation, while Engine validates and executes it. Group-level demand generation and Tag semantics remain open.
+
+
+16. SHARED STOCK ALLOCATION EXECUTION CONTRACT (2026-11-23)
+----------------------------------------------------------
+- `colony.stockpile.allocate` is a generic Engine Effect submitted by a Mod. Each request has a request ID, requester ID, commodity ID and requested quantity; each allocation references exactly one request and supplies its allocated quantity.
+- The plan requires complete one-to-one request coverage. Engine rejects unknown, duplicate or missing results; negative quantities; allocations above the request amount; unknown commodities; invalid inventory; and per-commodity total allocation above the colony's available stock.
+- Engine validates the entire plan before changing any stockpile, then applies the Mod-submitted quantities without implementing an allocation policy or fairness preference. Per-request allocated/unmet/satisfaction and per-commodity before/allocated/after stockpile changes are returned in the standard Effect audit event.
+- One Hook invocation permits at most one allocation plan per colony. All requests for that colony belong in that plan; competing plans are rejected rather than resolved by Mod load order.
+- Core's existing aggregate-population Need system is the first consumer. Its requester currently identifies the colony aggregate, not an individual Population Group. This does not implement Tag matching or group-level Needs.
+- Stockpile subtraction clamps only a tiny floating-point residue within a 1e-12 relative tolerance to zero; individual request allocation values are not rounded.
+- Tag operators, overlapping-rule semantics, explicit joint population-share representation and group-level reports remain open. Never infer joint population by multiplying independent dimensions.

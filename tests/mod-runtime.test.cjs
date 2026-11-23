@@ -175,6 +175,135 @@ test("API v4 evaluates each population Need rule independently for one group", (
   assert.throws(() => missingRuleRuntime.run("campaign.after-day", input), { code: "MOD_HOOK_FAILURE" });
 });
 
+test("a Mod can turn per-rule group demand lines into traceable same-commodity requests", () => {
+  // This fixture deliberately keeps every rule/group line separate and fails on
+  // unknown shares. It demonstrates one Mod policy, not an Engine default.
+  const runtime = createModExtensionRuntime([mod(
+    "function onHook(input, api) { " +
+    "const colonyId = 'colony-a'; " +
+    "const colony = input.world.colonies[colonyId]; " +
+    "const groupIds = Object.keys(colony.populationGroups).sort(); " +
+    "const rules = input.catalog.populationNeedRules.slice().sort((a, b) => a.id.localeCompare(b.id)); " +
+    "const requests = []; " +
+    "for (const groupId of groupIds) { " +
+    "for (const rule of rules) { " +
+    "const line = api.evaluatePopulationNeedRule(colonyId, groupId, rule.id); " +
+    "if (line.requested === null) throw new Error('Unknown population share: ' + rule.id + '/' + groupId); " +
+    "requests.push({ id: 'line.' + rule.id + '.' + groupId, requesterId: groupId, sourceId: rule.id, commodityId: line.commodityId, requested: line.requested }); " +
+    "} } " +
+    "return { effects: [{ type: 'colony.stockpile.allocate', payload: { colonyId, requests, allocations: requests.map(request => ({ requestId: request.id, allocated: request.requested })) } }] }; }"
+  )]);
+  const world = {
+    clock: { day: 5, date: "2478-04-06" },
+    domainEventSequence: 0,
+    domainEvents: [],
+    colonies: {
+      "colony-a": {
+        id: "colony-a",
+        population: 200,
+        populationGroups: {
+          residents: {
+            id: "residents",
+            population: 200,
+            dimensions: { species: { human: 0.65, xenari: 0.35 } }
+          }
+        },
+        stockpiles: { food: 0.2 }
+      }
+    }
+  };
+  const catalogInput = {
+    populationTags: [{
+      id: "tag.humanoid",
+      dimensionId: "species",
+      categoryIds: ["human"]
+    }],
+    populationNeedRules: [
+      {
+        id: "need.food.base",
+        populationTagId: "tag.humanoid",
+        commodityId: "food",
+        dailyNeedPerThousand: 0.25
+      },
+      {
+        id: "need.food.extra",
+        populationTagId: "tag.humanoid",
+        commodityId: "food",
+        dailyNeedPerThousand: 0.5
+      }
+    ]
+  };
+  const outcomes = runtime.run("campaign.after-day", {
+    day: 5,
+    world,
+    catalog: catalogInput
+  });
+  assert.equal(outcomes[0].effects.length, 1);
+  assert.deepEqual(outcomes[0].effects[0].payload.requests, [
+    {
+      id: "line.need.food.base.residents",
+      requesterId: "residents",
+      sourceId: "need.food.base",
+      commodityId: "food",
+      requested: 0.0325
+    },
+    {
+      id: "line.need.food.extra.residents",
+      requesterId: "residents",
+      sourceId: "need.food.extra",
+      commodityId: "food",
+      requested: 0.065
+    }
+  ]);
+
+  const applied = applyModHookResults(outcomes, {
+    world,
+    catalog: {
+      commodities: new Map([["food", { id: "food" }]]),
+      securities: new Map()
+    },
+    day: 5,
+    hookId: "campaign.after-day",
+    emitDomainEvent: createDomainEventEmitter(world, world.clock)
+  });
+  assert.deepEqual(applied, { effectCount: 1, eventCount: 0, triggerCount: 0, calculationCount: 0 });
+  const audit = world.domainEvents.at(-1);
+  assert.equal(audit.type, "mod.effect-applied");
+  assert.deepEqual(audit.payload.result.requests.map((request) => ({
+    id: request.id,
+    requesterId: request.requesterId,
+    sourceId: request.sourceId,
+    requested: request.requested,
+    allocated: request.allocated
+  })), [
+    {
+      id: "line.need.food.base.residents",
+      requesterId: "residents",
+      sourceId: "need.food.base",
+      requested: 0.0325,
+      allocated: 0.0325
+    },
+    {
+      id: "line.need.food.extra.residents",
+      requesterId: "residents",
+      sourceId: "need.food.extra",
+      requested: 0.065,
+      allocated: 0.065
+    }
+  ]);
+  assert.equal(world.colonies["colony-a"].stockpiles.food, 0.1025);
+
+  const unknownWorld = structuredClone(world);
+  unknownWorld.colonies["colony-a"].populationGroups.residents.dimensions = {};
+  assert.throws(() => runtime.run("campaign.after-day", {
+    day: 5,
+    world: unknownWorld,
+    catalog: catalogInput
+  }), { code: "MOD_HOOK_FAILURE" });
+  // Hook failure occurs before any Effect is applied to the authoritative world.
+  assert.equal(world.colonies["colony-a"].stockpiles.food, 0.1025);
+});
+
 test("separates deterministic random sequences by entity scope and freezes hook input", () => {
   const scoped = createModExtensionRuntime([mod(
     "function onHook(input, api) { return { events: [{ type: 'roll', payload: { roll: api.random(), globalRandomType: typeof globalThis.Math.random } }] }; }"

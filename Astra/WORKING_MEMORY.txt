@@ -208,3 +208,13 @@ END
 - One Tag cannot encode conditions across independent dimensions. Multi-Tag AND/OR composition, overlapping Need rules, duplicate demand semantics and explicit joint population shares remain unresolved; never infer intersections by multiplying marginal proportions.
 - Population Tag definitions are Mod INI content, enter the shared Catalog/content fingerprint when present, and add no World fields or save-schema migration. Empty populationTags are omitted from serialization so old content fingerprints do not change when no Mod defines them.
 - Core currently declares no population_tag, race categories, demographic shares or group-level Need rules.
+
+
+19. MOD-DEFINED POPULATION NEED RULE FOUNDATION (2026-11-23)
+------------------------------------------------------------
+- A Mod may register the population-scoped content type population_need_rule. Each rule has one population_tag_id, one commodity_id and a positive daily_need_per_thousand rate. The rule is a demand descriptor, not a NeedProfile/population entity.
+- A rule's single Tag maps through population_tag to one explicit population dimension and OR-selected categories in that dimension. No rule condition may imply an intersection across independent dimensions.
+- API v4 Mod Hooks can call api.matchPopulationTag(colonyId, groupId, tagId) against the detached Hook snapshot. It returns the exact one-dimension matched share; a missing dimension remains unknown (null); missing group/Tag references fail explicitly.
+- Need rules and population Tags are Mod INI/Catalog content, exposed in the serialized Catalog to Mod scripts and included in the content fingerprint when present. Empty collections are omitted to preserve legacy fingerprints. No World field or schema migration is added.
+- The Engine does not combine, deduplicate, prioritize or allocate multiple Need rules. A Mod Hook decides whether distinct rules accumulate, override or conflict and how requests map to the existing shared-stock allocation Effect. The Engine still has no default rationing policy.
+- Core has no population_need_rule, actual race composition or group-level Need consumer; its transitional colony-aggregate daily Need remains unchanged.

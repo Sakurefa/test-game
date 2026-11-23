@@ -136,3 +136,29 @@ type = population_tag
 - 这是人口专用的 Tag 映射适配，不是通用全局 Tag Catalog，也不是 NeedProfile 人口实体。商品等其他对象已有的 `tags` 列表不受影响。
 
 实现落点：Mod Loader 识别 `[population_tag.<id>]`、Registry 识别 `type = population_tag`，Catalog 负责维度与类别 ID 结构校验。定义会传入 Mod 可读取的序列化 Catalog，并参与内容指纹；没有任何人口 Tag 定义时不序列化空集合，保持旧存档内容指纹兼容。此能力尚未被 Core 的具体 Need 规则消费；Core 不添加种族或人口比例。
+
+
+Population Need Rule → Mod Hook 消费契约（2026-11-23，第一阶段已实现）
+-------------------------------------------------------------------
+新增 Mod 内容类型 population_need_rule。每条规则只描述一项基于一个人口 Tag 的商品数量需求：
+
+    [population_need_rule.need.humanoid-food]
+    population_tag_id = tag.humanoid
+    commodity_id = food
+    daily_need_per_thousand = 0.25
+
+Registry 使用同 ID 注册：
+
+    [entry.need.humanoid-food]
+    type = population_need_rule
+
+契约：
+- 每条规则只有一个 population_tag_id、一个 commodity_id 和一个正数 daily_need_per_thousand。该数量率的基准是命中人口份额中的每千人、每游戏日商品数量。
+- Need Rule 是 Mod 定义的需求描述，不是 NeedProfile 人口实体，也不会在 World 中建立额外人口记录。
+- population_tag 只映射一个人口维度及其类别 OR 集合，因此单条规则只能精确命中一个维度份额。不得通过规则字段暗中组合多个独立维度。
+- Engine Catalog 校验 Tag 与 Commodity 引用，以及正数需求率；规则定义在存在时进入序列化 Catalog 和内容指纹。没有规则时省略空集合，以保持旧存档内容指纹兼容。
+- API v4 Mod Hook 可调用 api.matchPopulationTag(colonyId, groupId, tagId)。Engine 从当前 Hook 的 detached world/catalog snapshot 找到群体和 Tag，再调用既有单维度匹配器；返回匹配比例与人数，不返回可修改 World 引用。群体缺少目标维度时返回未知 null；不存在的群体或 Tag 明确报错。
+- Mod Hook 从 input.catalog.populationNeedRules 读取规则，按自身规则计算需求。Engine 不把多条规则自动合并、去重、覆盖或按文件顺序决定优先级；这些语义由 Mod 实现。相同商品请求如何汇总、请求如何关联 rule/group 结果也仍需在 Mod 消费侧确定。
+- 短缺分配仍使用已有 colony.stockpile.allocate：Mod 提交完整策略结果，Engine 只校验并执行，不增设默认分配原则。
+
+当前 Core 尚未定义任何 population_need_rule，也未改为群体级消费。其原有按殖民地总人口和商品 daily_need_per_thousand 计算的过渡性规则不变。本阶段只建立 INI/Catalog 与 Hook 匹配基础，不添加 Core 种族、人口比例或需求平衡数值。

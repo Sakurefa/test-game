@@ -334,3 +334,17 @@ Trigger 完成检查点（2026-11-22_17）建议下一步推进人口群体级�
 - 此项没有新增 World schema、存档字段、人口分类轴或 Core 种族数据；没有把普通 group-level `tags` 列表误当作精确人口份额。
 - 多 Tag 组合（AND/OR）、跨维度联合人群、多个 Need 规则重叠/去重、同一商品的需求累加/冲突，以及请求报告上下文仍未决定。下一步应先闭合 Need rule 的最小 INI 字段与这些组合语义，不应直接启动 Core 群体需求结算。
 - 共享库存分配执行器已存在，不再重复建设；任何短缺配额仍由 Mod 决定，Engine 只校验和执行。
+
+
+### 2026-11-23_10：Population Need Rule 最小描述与 Mod 匹配 API 已实现
+
+这一步建立的是规则数据描述 + Hook 读取单维人口份额的能力，不是群体级需求结算：
+
+- Mod INI 使用 [population_need_rule.<id>]，字段为 population_tag_id、commodity_id、daily_need_per_thousand；Registry 类型为 population_need_rule。
+- 单条规则只引用一个人口 Tag 和一个商品，需求率为每游戏日、每千名命中人口的商品数量。Need Rule 是规则描述，不是 NeedProfile 实体。
+- Catalog 校验 Tag / Commodity 引用与正数需求率。定义在存在时传给 Mod Hook 并进入内容指纹；空集合省略，不更改没有新规则的旧内容指纹。
+- API v4 Hook 可调用 api.matchPopulationTag(colonyId, groupId, tagId)，返回精确的单维类别比例和命中人数。底层复用既有 matcher；缺失维度仍返回未知 null，不会被折算为零。
+- Engine 不解释多规则重叠：不自动累加、去重、覆盖、按文件顺序决定优先级，也不替 Mod 选择分配政策。Need Rule 的消费组合由 Mod Hook 决定。
+- 当前没有 Core 群体 Need 消费者。Core 的殖民地总人口聚合日需求仍然有效且未改动；不创建 Core 种族或人口比例。
+
+下一步：先让规则组合语义在 Mod 侧可明确表达——同一人口命中多条规则时区分独立需求与重复需求；同商品多条请求的汇总与 rule/group 报告关联；未知人口份额如何处理。随后再结合真实人口内容和明确的 Core 配给制度接入群体请求。跨独立维度 AND 仍要求显式联合份额；不得相乘边际分布。

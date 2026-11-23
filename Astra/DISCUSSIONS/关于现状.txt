@@ -32,7 +32,7 @@
 - Campaign clock、命名随机流、候选 World 日结算原子提交、版本化计算审计、命令运行时、财务账本、Domain Events、post-commit read-only Event Bus、Trigger/Resolution/Settlement 基础均已实现。
 - Trigger 当前支持 date、elapsed-day、new Domain Event due sources；effect.apply、formula.effect、event.emit 三种 Resolution；13 种即时批准 Effect。条件/阈值来源、Command Resolution、通用 Modifier 生命周期、Presentation 仍未实现；没有真实消费者时不继续扩张。
 - Core 当前人口需求仍为殖民地总人口 × commodity.daily_need_per_thousand，并执行共享库存受限消费；这只是过渡性的聚合人口需求规则，不是群体 Tag Need。
-- Engine 已有单一维度类别份额选择原语 `matchPopulationDimensionCategories`，并新增 Mod 内容类型 `population_tag`：一个人口 Tag 映射到一个 dimension 及该维度内一个或多个 category（OR）。这是人口专用映射适配，不是全局 Tag Catalog；尚未形成 Need rule 或群体级需求结算。跨维度联合份额、Tag 组合、规则重叠去重和群体级报告仍未实现。共享库存执行接口已实现，策略由 Mod 提供；Engine 不设 pro-rata、公平配给、阶级优先或隐藏 fallback。
+- Engine 已有单一维度类别份额选择原语 `matchPopulationDimensionCategories`、人口 Tag 映射类型 `population_tag`，以及最小需求描述类型 `population_need_rule`。API v4 Hook 可用 `api.matchPopulationTag(colonyId, groupId, tagId)` 精确匹配当前快照中的单维人口份额。Need Rule 只含一个 Tag、一个商品和一个日需求率；多规则叠加/冲突、跨维度联合份额、群体级请求和报告仍未实现。共享库存执行接口已实现，策略由 Mod 提供；Engine 不设 pro-rata、公平配给、阶级优先或隐藏 fallback。
 - 商品品质/市场相对档次/品质批次、购买力/工资、建筑 workforce、完整订单市场、跨殖民地物流、能源发电/容量/储能/调度、人口迁移/群体调拨仍未实现。
 - engine/queries.cjs 的部分查询仍是只读 Core 世界模型投影；Effect whitelist 仍是有限、明确的领域状态转换 API，而非任意 World patch。
 
@@ -62,3 +62,12 @@
 - CI [45156928743](https://github.com/Sakurefa/test-game/actions/runs/45156928743) 成功，245/245 tests passed；语法检查、Simulation/Mod Loader 测试、Renderer 构建及生成文件步骤均成功。
 - 未运行本地 Node 测试/构建；未进行 Windows GUI 验收。
 - Core 没有实际人口 Tag、种族人口比例或群体 Need 规则；World schema 仍为 9。
+
+
+## 2026-11-23：Population Need Rule 基础已进入 Catalog / API v4
+
+- 代码提交：[11226f0](https://github.com/Sakurefa/test-game/commit/11226f0af016db4f13679d5066a6ad5d2e3f287a)。
+- 新增 population_need_rule 内容类型：单个 Tag、单个商品与正数 daily_need_per_thousand；Catalog 验证 Tag/Commodity 引用和需求率。
+- API v4 Mod Hook 新增只读 api.matchPopulationTag(colonyId, groupId, tagId)，使用现有单维人口匹配机制。
+- CI [45158883203](https://github.com/Sakurefa/test-game/actions/runs/45158883203) 最终成功，249/249 tests passed；第一次执行有一项既有存档往返测试因 Core 市场 Hook 的 50ms 超时失败，重跑失败 Job 后全部通过；未放宽沙箱时限。
+- 本地 Node 测试/构建未运行；未进行 Windows GUI 验收。Core 未添加规则或实际人口组成，World schema 仍为 9。

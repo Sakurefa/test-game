@@ -108,3 +108,31 @@ Pop Group 的人口分类轴应是 **Mod 定义的不同种族/物种**，不是
 - Engine 不建立 organic / synthetic / android / mechanical 的预设分类，不根据名字推断需求。一个种族的需求完全由 Mod 的 Tag / Need 规则决定。
 - 当前 Engine 的首个精确匹配机制为单一维度的类别选择：同一维度中多个类别按 OR 合并，人数按该维度显式比例精确计算；未定义该维度的群体返回“维度不存在/未知”，不得视作零人口。
 - 多个独立维度的 AND 交集仍不能推导。只有人口数据明确保存联合份额/细分群体后才能匹配；不建立边际乘法或隐藏独立性假设。
+
+
+Population Tag → 维度类别映射（2026-11-23，第一阶段已实现）
+-----------------------------------------------------------
+新增 Mod 内容类型 `population_tag`，用途仅是把稳定 Tag ID 映射到现有 Pop Group 的一个统计维度：
+
+```ini
+[population_tag.tag.example]
+dimension_id = species
+category_ids = species-a;species-b
+```
+
+并在 Registry 中注册同 ID：
+
+```ini
+[entry.tag.example]
+type = population_tag
+```
+
+契约边界：
+- 每个 population Tag 只能指向一个 dimension；`category_ids` 必须非空且不重复。
+- 同一 dimension 内列出的 category 是 OR，匹配人口比例为这些互斥类别在该维度中的比例之和。Tag 不创建新人口份额，也不修改 Pop Group。
+- Tag 可以映射到 Mod 自定义的任意 dimension/category ID；Engine 不要求它必须叫 `species`，也不内置任何种族或类别名单。
+- 若群体不存在目标 dimension，匹配仍是未知；不能当成零。若 dimension 存在但不含所选类别，该类别在该群体的份额为零。
+- 一个 population Tag 不能同时要求多个独立 dimension。Need 规则组合多个 Tag 的 AND/OR、跨维度交集、规则重叠/去重、同商品重复需求的语义仍未确定；不得根据独立边际比例相乘。
+- 这是人口专用的 Tag 映射适配，不是通用全局 Tag Catalog，也不是 NeedProfile 人口实体。商品等其他对象已有的 `tags` 列表不受影响。
+
+实现落点：Mod Loader 识别 `[population_tag.<id>]`、Registry 识别 `type = population_tag`，Catalog 负责维度与类别 ID 结构校验。定义会传入 Mod 可读取的序列化 Catalog，并参与内容指纹；没有任何人口 Tag 定义时不序列化空集合，保持旧存档内容指纹兼容。此能力尚未被 Core 的具体 Need 规则消费；Core 不添加种族或人口比例。

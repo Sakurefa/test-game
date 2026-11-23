@@ -198,3 +198,13 @@ END
 - Need differences between races are expressed by Mod-defined Tags and Need rules. A species label alone does not imply food, energy, component, maintenance or other requirements.
 - The first exact matching primitive selects one or more mutually exclusive categories within one explicit population dimension. It may calculate that dimension's population share; it must never combine independent dimensions to infer an intersection. Multi-dimensional cohorts require explicit population data.
 - The first Engine increment is `matchPopulationDimensionCategories`; it is generic over dimension/category IDs and does not hardcode the name `species`.
+
+
+18. POPULATION TAG MAPPING FOUNDATION (2026-11-23)
+--------------------------------------------------
+- A Mod may register the population-scoped content type `population_tag`. Each definition maps one stable Tag ID to exactly one population dimension (`dimensionId`) and one or more category IDs (`categoryIds`) within that same dimension.
+- Categories in one mapping are OR-selected; the existing exact dimension matcher sums their mutually exclusive proportions. A missing dimension remains unknown, not zero.
+- This is a narrow adapter from population Tags to existing population dimensions, not a global Tag catalog, a NeedProfile entity, or a new population ledger. Other entity `tags` fields keep their existing semantics.
+- One Tag cannot encode conditions across independent dimensions. Multi-Tag AND/OR composition, overlapping Need rules, duplicate demand semantics and explicit joint population shares remain unresolved; never infer intersections by multiplying marginal proportions.
+- Population Tag definitions are Mod INI content, enter the shared Catalog/content fingerprint when present, and add no World fields or save-schema migration. Empty populationTags are omitted from serialization so old content fingerprints do not change when no Mod defines them.
+- Core currently declares no population_tag, race categories, demographic shares or group-level Need rules.

@@ -32,7 +32,7 @@
 - Campaign clock、命名随机流、候选 World 日结算原子提交、版本化计算审计、命令运行时、财务账本、Domain Events、post-commit read-only Event Bus、Trigger/Resolution/Settlement 基础均已实现。
 - Trigger 当前支持 date、elapsed-day、new Domain Event due sources；effect.apply、formula.effect、event.emit 三种 Resolution；13 种即时批准 Effect。条件/阈值来源、Command Resolution、通用 Modifier 生命周期、Presentation 仍未实现；没有真实消费者时不继续扩张。
 - Core 当前人口需求仍为殖民地总人口 × commodity.daily_need_per_thousand，并执行共享库存受限消费；这只是过渡性的聚合人口需求规则，不是群体 Tag Need。
-- Engine 已有单一维度类别份额选择原语 `matchPopulationDimensionCategories`，可精确匹配一个维度内的一个或多个类别；它不是完整 Tag/Need 系统。Need 规则、跨维度联合份额、重叠去重和群体级报告仍未实现。共享库存执行接口已实现，策略由 Mod 提供；Engine 不设 pro-rata、公平配给、阶级优先或隐藏 fallback。
+- Engine 已有单一维度类别份额选择原语 `matchPopulationDimensionCategories`，并新增 Mod 内容类型 `population_tag`：一个人口 Tag 映射到一个 dimension 及该维度内一个或多个 category（OR）。这是人口专用映射适配，不是全局 Tag Catalog；尚未形成 Need rule 或群体级需求结算。跨维度联合份额、Tag 组合、规则重叠去重和群体级报告仍未实现。共享库存执行接口已实现，策略由 Mod 提供；Engine 不设 pro-rata、公平配给、阶级优先或隐藏 fallback。
 - 商品品质/市场相对档次/品质批次、购买力/工资、建筑 workforce、完整订单市场、跨殖民地物流、能源发电/容量/储能/调度、人口迁移/群体调拨仍未实现。
 - engine/queries.cjs 的部分查询仍是只读 Core 世界模型投影；Effect whitelist 仍是有限、明确的领域状态转换 API，而非任意 World patch。
 
@@ -53,3 +53,12 @@
 5. 设计完成后再实现最小机制与聚焦测试。
 
 明确延后：财富/购买力、支付、阶级配额、工资、商品替代、商品品质批次、市场清算、能源基础设施、跨殖民地物流、人口迁移与产权/租赁框架。没有真实消费者前不提前建立对应通用抽象。
+
+
+## 2026-11-23：Population Tag 映射基础已进入 Catalog
+
+- 代码提交：`bee65051bce21cebdf85372d620c68ac3d418ef8`。
+- Mod Loader / Catalog 已支持 `population_tag`；每个 Tag 只映射一个人口维度和非空、不重复的类别列表。
+- CI [45156928743](https://github.com/Sakurefa/test-game/actions/runs/45156928743) 成功，245/245 tests passed；语法检查、Simulation/Mod Loader 测试、Renderer 构建及生成文件步骤均成功。
+- 未运行本地 Node 测试/构建；未进行 Windows GUI 验收。
+- Core 没有实际人口 Tag、种族人口比例或群体 Need 规则；World schema 仍为 9。

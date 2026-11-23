@@ -9,9 +9,9 @@
 - Functional boundary-cleanup commit: [7c441c0b3dd59406bd127947fbfc904c1e8dc7a1](https://github.com/Sakurefa/test-game/commit/7c441c0b3dd59406bd127947fbfc904c1e8dc7a1).
 - CI-generated Renderer output baseline: [a2d90f588de220276bc476aab28cbe795e625df9](https://github.com/Sakurefa/test-game/commit/a2d90f588de220276bc476aab28cbe795e625df9).
 - Astra current-state/worklog archive commit: [e13b901c476da2b2c11459d0424ecde02e73874d](https://github.com/Sakurefa/test-game/commit/e13b901c476da2b2c11459d0424ecde02e73874d).
-- Latest Engine code commit: [26641ef625e3ad3c1c980b07a3075b61b3f43df8](https://github.com/Sakurefa/test-game/commit/26641ef625e3ad3c1c980b07a3075b61b3f43df8), adding exact single-dimension population category matching.
+- Latest Engine code commit: [bee65051bce21cebdf85372d620c68ac3d418ef8](https://github.com/Sakurefa/test-game/commit/bee65051bce21cebdf85372d620c68ac3d418ef8), adding Mod-defined population Tag → one-dimension category mappings; prior matcher commit [26641ef](https://github.com/Sakurefa/test-game/commit/26641ef625e3ad3c1c980b07a3075b61b3f43df8) provides exact within-dimension matching.
 - Latest species-direction documentation commit: [b19df9ce7c706b91b82363e063ff32e98a195403](https://github.com/Sakurefa/test-game/commit/b19df9ce7c706b91b82363e063ff32e98a195403).
-- Latest source CI: [45154966675](https://github.com/Sakurefa/test-game/actions/runs/45154966675), success; 242/242 tests passed; syntax check, Simulation/Mod Loader tests, Renderer build and generated-renderer step all succeeded.
+- Latest source CI: [45156928743](https://github.com/Sakurefa/test-game/actions/runs/45156928743), success; 245/245 tests passed; syntax check, Simulation/Mod Loader tests, Renderer build and generated-renderer step all succeeded. Local Node tests/build were not run.
 - Direction-documentation CI: [45155199026](https://github.com/Sakurefa/test-game/actions/runs/45155199026), success; syntax check, all tests and Renderer build succeeded.
 - CI-generated follow-up commit a2d90f5 only updates dist/assets/index-BU1AwfrZ.js and dist/index.html; it contains generated Renderer output, not additional simulation source changes.
 - No local tests/build were executed in this session. User-side Windows GUI acceptance remains outstanding. CI results do not prove user-device launch behavior.
@@ -30,7 +30,7 @@ Files use YYYY-MM-DD_NN_topic.txt; NN is one shared chronological sequence per d
 - 2026-11-20: 01
 - 2026-11-21: 01–08
 - 2026-11-22: 01–17
-- 2026-11-23: 01–08
+- 2026-11-23: 01–09
 
 Latest 2026-11-23 records:
 - Astra/WORKFLOWS/2026-11-23_04_tag-based-population-needs-design.txt
@@ -38,6 +38,7 @@ Latest 2026-11-23 records:
 - Astra/WORKFLOWS/2026-11-23_06_engine-mod-boundary-cleanup.txt
 - Astra/WORKFLOWS/2026-11-23_07_shared-stockpile-allocation-engine-contract.txt
 - Astra/WORKFLOWS/2026-11-23_08_species-based-population-matching-foundation.txt
+- Astra/WORKFLOWS/2026-11-23_09_population-tag-mapping-foundation.txt
 
 Key boundary discussion:
 - Astra/DISCUSSIONS/Engine 与 Mod 边界清单.txt
@@ -61,7 +62,7 @@ Key boundary discussion:
 
 - Core currently keeps the transitional colony-aggregate daily-need rule: population × commodity.daily_need_per_thousand, stock-limited shared inventory consumption, requested/consumed/unmet/satisfaction reporting. It is not group Tag Need or a group-level allocation policy.
 - Shared-stock execution is implemented as the generic Mod Effect `colony.stockpile.allocate`. Mod submits the allocation plan; Engine validates complete request coverage, per-request bounds and per-commodity inventory conservation, then applies and audits the result. No Engine allocation policy or fallback exists.
-- The generic population module now provides exact matching of one or more categories within one Mod-defined dimension; it does not combine independent dimensions. Need rule loading, Tag mapping, overlapping-rule semantics, explicit joint shares and group-level Need requests remain unimplemented. The shared-stock allocation executor exists, with Core's colony-aggregate Need as its current consumer. Purchasing power, wages, workforce assignment, goods substitution, quality-batch inventory and market clearing remain unimplemented.
+- The generic population module provides exact matching of one or more categories within one Mod-defined dimension; the Mod Loader/Catalog now also accepts population-scoped `population_tag` mappings (one dimension plus one or more OR categories). It does not combine independent dimensions. Need rule loading, Tag combination/overlap semantics, explicit joint shares and group-level Need requests remain unimplemented. The shared-stock allocation executor exists, with Core's colony-aggregate Need as its current consumer. Purchasing power, wages, workforce assignment, goods substitution, quality-batch inventory and market clearing remain unimplemented.
 - No full cargo logistics, energy generation/capacity/storage/scheduling, cross-colony migration/robot transfer, ownership/lease framework.
 - engine/queries.cjs retains read-only data projections for the current Core world model. Effect whitelist remains a bounded state-transition interface, not an arbitrary World patch.
 
@@ -73,8 +74,8 @@ Key boundary discussion:
 - Interstellar travel, gates and mixed transport exist; inhospitable colonies are possible but local self-sufficiency may be very expensive.
 - Population location, political jurisdiction, origin, employment and ownership are separate relations. Employment references resident groups; it must not create a second population ledger.
 
-Next work: define the minimal Mod INI Tag-to-population-category mapping and Need-rule contract, then handle rule overlap and explicit joint shares. The Engine's current matcher only selects categories within one dimension. The shared-stock executor already exists; distribution policy stays Mod-owned. Never infer joint population from marginal dimensions. Keep race categories, Needs and balance values in Mods.
+Next work: define the minimal Mod INI Need-rule contract and its Tag references, then settle multi-rule overlap, same-commodity accumulation/conflict and any explicit joint-share representation. Population Tag mapping is now available but is not consumed by Core yet. The Engine matcher only selects categories within one dimension; never infer joint population from marginal dimensions. The shared-stock executor already exists; distribution policy stays Mod-owned. Keep race categories, Needs and balance values in Mods.
 
 ## Verification and acceptance
 
-Code commits: [0b253ab](https://github.com/Sakurefa/test-game/commit/0b253ab23eaf8e82cb1b0d0a3ad4222714a54ae2) added the shared-stock allocation contract; [29945fc](https://github.com/Sakurefa/test-game/commit/29945fc7e61bc9def4c03fa72a22ac55c582dea2) fixed allocation ID validation and test integration; [26641ef](https://github.com/Sakurefa/test-game/commit/26641ef625e3ad3c1c980b07a3075b61b3f43df8) added exact one-dimension population category matching. CI [45154966675](https://github.com/Sakurefa/test-game/actions/runs/45154966675) succeeded: 242/242 tests passed, syntax checks and Renderer build succeeded. Direction docs commit [b19df9c](https://github.com/Sakurefa/test-game/commit/b19df9ce7c706b91b82363e063ff32e98a195403) also passed CI [45155199026](https://github.com/Sakurefa/test-game/actions/runs/45155199026). The earlier allocation run 45151047812 exposed an uppercase-ID validation issue and strict floating-point/test-load problems; those were corrected in 29945fc. No local Node tests/build were run. User-side Windows GUI acceptance remains outstanding.
+Code commits: [0b253ab](https://github.com/Sakurefa/test-game/commit/0b253ab23eaf8e82cb1b0d0a3ad4222714a54ae2) added the shared-stock allocation contract; [29945fc](https://github.com/Sakurefa/test-game/commit/29945fc7e61bc9def4c03fa72a22ac55c582dea2) fixed allocation ID validation and test integration; [26641ef](https://github.com/Sakurefa/test-game/commit/26641ef625e3ad3c1c980b07a3075b61b3f43df8) added exact one-dimension population category matching; [bee6505](https://github.com/Sakurefa/test-game/commit/bee65051bce21cebdf85372d620c68ac3d418ef8) added population Tag mappings. CI [45156928743](https://github.com/Sakurefa/test-game/actions/runs/45156928743) succeeded: 245/245 tests passed, syntax checks and Renderer build succeeded. Direction docs commit [b19df9c](https://github.com/Sakurefa/test-game/commit/b19df9ce7c706b91b82363e063ff32e98a195403) also passed CI [45155199026](https://github.com/Sakurefa/test-game/actions/runs/45155199026). The earlier allocation run 45151047812 exposed an uppercase-ID validation issue and strict floating-point/test-load problems; those were corrected in 29945fc. No local Node tests/build were run. User-side Windows GUI acceptance remains outstanding.

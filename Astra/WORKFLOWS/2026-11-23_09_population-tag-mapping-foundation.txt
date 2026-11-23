@@ -1,0 +1,81 @@
+【工作流记录】Population Tag → 人口维度类别映射基础
+===================================================
+
+工作日期：2026-11-23
+当日序号：09
+代码基线：51e8df62004e2c6af1391a4affc706706f6cd026
+代码提交：bee65051bce21cebdf85372d620c68ac3d418ef8
+目标：为 Mod 提供最小的人口 Tag → 已保存维度/类别份额映射；不建立全局 Tag Catalog、NeedProfile 实体或 Core 人口内容。
+
+一、方向与现状复核
+------------------
+- 核对 main 与前一轮最后 CI：51e8df62004e2c6af1391a4affc706706f6cd026；此前 CI 45155510659 success。
+- 阅读 AGENTS.md、Astra README、Working Memory、AK / MOD 化原则，以及人口/经济/现状/下一步讨论和 2026-11-23_04～08 工作记录。
+- 复核 Mod Loader 的 LIST_FIELDS 已支持普通实体 `tags` 列表，但 Pop Group 可以同时含多个独立维度的比例分布。给整个 group 贴一个 Tag 会错误地把该 group 全部人口视作命中；不能把 group-level tags 当作人口份额来源。
+- 复核 `matchPopulationDimensionCategories`：可精确 OR 匹配单一维度内一个或多个互斥类别；缺失维度返回未知 null；不同维度不能相乘。
+- Core 的 population.ini 仍只有中性的 profession / wealth_tier 定义；没有实际种族、人口比例或群体 Need 规则。
+
+二、最小契约
+------------
+新增 Mod 内容类型 `population_tag`，定义示例：
+
+```ini
+[population_tag.tag.example]
+dimension_id = species
+category_ids = species-a;species-b
+```
+
+Registry 使用同 ID：
+
+```ini
+[entry.tag.example]
+type = population_tag
+```
+
+语义：
+- 每个 population_tag 只能映射一个人口维度。
+- `category_ids` 必须是非空且不重复的稳定 ID 列表。
+- 同一维度的多个 category 按 OR 合并；对应份额来自现有 dimension distribution，不创建新份额或新人口记录。
+- 目标 group 缺失该 dimension 时保持未知；不得转成零人口。目标 dimension 存在但不包含某类别时，该类别份额为零。
+- 不允许一个 Tag 跨多个独立维度表达 AND。多 Tag 的 AND/OR、规则重叠、去重、同商品需求叠加/冲突以及显式联合人口份额仍未决定。
+- 这是一项人口专用映射适配，不是全局 Tag Catalog；不新增 NeedProfile、World schema 或存档字段。现有普通实体 `tags` 字段不变。
+
+三、代码变更
+------------
+- `electron/mod-loader.cjs`：加入 `population_tag` INI 类型；把 `category_ids` 解析为稳定 ID 数组。
+- `engine/catalog.cjs`：加入 `populationTags` Catalog；校验 dimensionId 与 categoryIds；Tag 不需要 nameKey；定义进入可序列化 Catalog 和内容指纹。
+- 空的 `populationTags` 集合不加入 serializable Catalog，避免没有任何 Tag 定义时无故更改旧内容指纹。
+- 未修改 `mods/core`；无种族名单、需求数值或人口平衡数据。
+
+四、测试与验证
+--------------
+新增 Mod Loader 测试，验证 population_tag INI 与 Registry 装载；新增 Catalog 测试，验证 Tag 映射可序列化并进入内容指纹，以及空类别、重复类别和非法维度被拒绝。
+
+代码 CI [45156928743](https://github.com/Sakurefa/test-game/actions/runs/45156928743)：success，245/245 tests passed；Electron/Simulation 语法检查、Simulation / Mod Loader 测试、Renderer 构建与生成文件步骤全部成功。未运行本地 Node 测试/构建；未进行 Windows GUI 验收。
+
+五、文件变更
+------------
+- `electron/mod-loader.cjs`
+- `engine/catalog.cjs`
+- `tests/mod-loader.test.cjs`
+- `tests/engine.test.cjs`
+- `Astra/WORKING_MEMORY.txt`
+- `Astra/DISCUSSIONS/人口系统设计.txt`
+- `Astra/DISCUSSIONS/关于现状.txt`
+- `Astra/DISCUSSIONS/关于接下来的工作.txt`
+- `Astra/WORKFLOWS/2026-11-23_09_population-tag-mapping-foundation.txt`
+- `ASTRA_WORKLOG.md`
+
+六、下一步与明确未完成项
+------------------------
+1. 定义最小 Need rule INI 形状与 Mod 脚本消费路径；Need 类别、商品引用、数量需求与档次标准应保持 Mod-owned。
+2. 明确单条规则允许引用一个 Tag，还是需要复合条件；跨维度 AND 必须有显式联合人口份额，不能相乘独立边际。
+3. 明确多规则重叠：不同 Need 的有意累加、同一 Need 重复命中、同一商品重复请求、修正/覆盖和冲突分别如何表达，且不能依赖文件顺序。
+4. 定义匹配未知值的处理和群体级请求 ID / 结果报告上下文。
+5. 之后再接 Core 的真实消费者；不在 Core 添加未经用户定义的种族和人口比例。共享库存执行器已经存在，不再重复实现；分配政策仍由 Mod 决定。
+
+验收状态
+--------
+- 代码 CI：45156928743 success，245/245 tests。
+- 本地 Node 测试/构建：未运行。
+- Windows GUI：未验收。

@@ -1,0 +1,63 @@
+【工作流记录】阶级 Need 与商品品质/市场档次设计
+==============================================
+
+工作日期：2026-11-23
+当日序号：03
+工作基线：a5cf718a137a5af1681b2c791aade2bba5b3451b
+结果提交：待提交后回填
+范围：设计审视与文档更新；未修改 Engine、Mod 内容、测试或存档结构。
+
+目标
+----
+1. 记录用户对 Species、阶级生活水平与 Need Profile 的补充方向。
+2. 研究商品多标签品质、生产修正与市场相对档次对需求结算的影响。
+3. 在现有 Pop Group 独立边际模型与 AK/MOD 原则下，明确下一步设计边界。
+
+仓库与 CI 核对
+--------------
+- main 当前 HEAD：a5cf718a137a5af1681b2c791aade2bba5b3451b。
+- 最新 Actions run：45112925012，结论 success。
+- 已阅读 AGENTS.md、Astra/README.txt、完整 WORKING_MEMORY、AK/MOD 最高优先级原则、人口/经济/下一步讨论、相关人员与建筑结算及日志规范。
+- 复核 engine/simulation.cjs：settlePopulationNeeds() 仍从殖民地总人口计算每种商品的 daily_need_per_thousand，读取共享 stockpile，记录 requested/consumed/unmet/satisfaction；无群体 Need Profile 或群体分配。
+- 复核 engine/catalog.cjs：已有 profession、wealth_tier、population_group Catalog；群体维度是独立比例分布，只有 profession 与 wealth_tier 做现有 Catalog 引用校验，其他维度为通用 ID。
+- 复核 mods/core/content/economy.ini：商品有价格/库存参数与 food/water 的 daily_need_per_thousand；尚无商品品质标签、品质值或市场档次。
+- 复核 mods/core/content/population.ini：仅有中性 profession.unassigned 与 wealth_tier.unclassified，没有真实人口构成或阶级/Need 内容。
+- 当前市场只有基于库存的价格更新；不是订单撮合、购买力支付或市场清算。库存以 commodity 数量存储，没有品质批次。
+
+本轮新增/澄清的设计方向
+----------------------
+- 保留现有 Mod-defined species 人口维度，兼容人类、外星人及未来智慧生命。Engine 只处理通用 Pop Group，不为不同生命形态建立硬编码运行时实体类型。
+- Species 不自动决定 Need Profile；职业、阶级/阶层、财富与法律身份分别表达不同语义。奴隶身份不是物种；不要把 wealth_tier 自动等同阶级。
+- 阶级/生活水平标准影响 Need 商品的可接受/期望档次。数量消费满足与品质/生活水平满足需要分开表达。
+- 商品可以拥有多个标签（例如碳水、蛋白质），不同标签可具有不同品质贡献；生产建筑/工艺可以修正最终品质，负面加工标签可以降低品质。具体品质聚合公式与标签权重未决定。
+- 商品相对档次应在具体市场、具体需求品类中与竞争商品比较，不是商品永久固定的档次。市场基准如何加权、如何避免单一商品市场自动成为平均档次，仍未决定。
+- Need Profile 必须明确对应人口数量。显式 need_profile 维度可作为候选，表示各需求群体的直接人数份额；不能用 class/species/profession/wealth 独立边际相乘推导交叉人口。
+- 若同一 commodity ID 因建筑/工艺而产生不同品质，当前数量型 stockpile 会丢失品质来源；未来需明确商品变体/品质批次或其他表达。本阶段不实现。
+
+当前结论与未决问题
+------------------
+1. 可以继续推进 Need Profile 设计，但需要确认它如何表达 class/social standard 与不同 Species 的需求差异；若两者共同决定需求，必须显式保存联合需求归属，而不能推导边际交叉。
+2. Need Profile 的结构应至少能描述需求类别、数量需求与品质/档次标准；具体档案、标签、商品映射和数值属于 Mod INI。
+3. 共享库存分配仍需确定公平性/优先级/比例规则、确定性排序，以及群体短缺报告。
+4. 商品标签品质、市场相对档次、商品价格/购买力、最终满意度是不同层次；不要在第一版需求机制中混成一个公式。
+5. 能源仍是边界案例：未来需求可以由 Need Profile 表达，但发电容量、功率调度、储能、能源网络和跨星系市场继续延后。
+6. 商品品质批次库存、商品替代、购买力/支付、订单撮合、市场清算与物流不进入当前实现范围。
+
+修改文件
+--------
+- Astra/DISCUSSIONS/人口系统设计.txt
+- Astra/DISCUSSIONS/经济系统设计.txt
+- Astra/DISCUSSIONS/关于接下来的工作.txt
+- Astra/WORKING_MEMORY.txt
+- ASTRA_WORKLOG.md
+- Astra/WORKFLOWS/2026-11-23_03_class-needs-and-market-quality-design.txt（新增）
+
+验证
+----
+- 本轮未运行本地测试或构建；未修改运行时代码、Mod 或测试。
+- 最新已核对 CI 为基线提交的 run 45112925012，success；本轮纯文档更新尚未产生新的 CI 结果。
+- 未进行用户 Windows GUI 验收；本轮不涉及需要 GUI 验收的运行时变更。
+
+下一步
+------
+继续设计 Need Profile 的显式人口归属、阶级/Species 需求标准映射、共享库存分配与短缺报告。先闭合契约，再决定最小 Engine 通用机制；不提前实现商品品质批次、市场清算、购买力或能源基础设施。

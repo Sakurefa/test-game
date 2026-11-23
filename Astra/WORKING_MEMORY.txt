@@ -148,3 +148,15 @@ END
 - The setting supports interstellar travel and gates, including mixed transport modes; colonization is possible on inhospitable worlds. Food can be cultivated locally, but self-sufficiency in unsuitable environments is extremely expensive.
 - These premises guide future generic Engine capability design. Specific species, commodities, need profiles, energy technologies, costs and balance remain Mod INI content. Do not add these concrete definitions to Engine.
 - Future energy design must distinguish generation capacity/available power, actual consumption and allocation, storage, and transportable energy carriers. Do not assume all forms of energy are interchangeable as ordinary colony stockpile quantities before the domain contract is decided.
+
+
+14. CLASS-BASED NEEDS, PRODUCT QUALITY AND MARKET GRADES
+-------------------------------------------------------
+- Preserve the Mod-defined species population dimension for human/alien compatibility. Engine treats all populations as generic Pop Groups; it does not hardcode separate runtime entity classes for organic, android, alien or mechanical populations.
+- Species, profession, class/social status, wealth and legal status are distinct concepts. Slavery is not a species. Do not automatically equate wealth_tier with class. Mod definitions decide categories and mappings.
+- User's confirmed direction for needs: class/social level affects acceptable and expected quality/grade of need goods. Quantity consumption can be met while quality/lifestyle expectations remain unmet; report these separately.
+- Goods may carry multiple Mod-defined tags (e.g. carbohydrate and protein) with different quality contributions. Production/building/process modifiers can raise or lower quality; negative processing labels may reduce it. Exact formula, weights and tag semantics remain open.
+- Market grade is contextual: compare competing goods for the same need category in a specific market. It is not an immutable commodity property. Market benchmark weighting and absolute-vs-relative thresholds remain open.
+- A Need Profile must have explicit population assignment. Never infer a class × species or other joint population by multiplying independent marginal dimensions. An explicit need_profile dimension is a candidate for representing exact need-cohort shares, pending final contract design.
+- If production can create different quality batches under the same commodity ID, a quantity-only stockpile loses quality provenance. Future inventory design must explicitly preserve variants/batches or choose another clear representation; do not implement it in the current design phase.
+- Engine mechanisms remain generic; Need Profiles, class standards, tags, product mappings, modifiers and values belong to Mod INI.

@@ -6,8 +6,8 @@
 
 - Repository: https://github.com/Sakurefa/test-game
 - Branch: main
-- Latest inspected baseline before this documentation update: 04f604cb6c8b8bce48f761157fdbf1b3df7979b3.
-- Baseline Windows source CI: [45059248600](https://github.com/Sakurefa/test-game/actions/runs/45059248600), success: Electron/Engine syntax, simulation + Mod loader tests, Renderer build and generated-renderer steps all passed.
+- Latest inspected baseline before this documentation update: a5cf718a137a5af1681b2c791aade2bba5b3451b.
+- Latest source CI for baseline: [45112925012](https://github.com/Sakurefa/test-game/actions/runs/45112925012), success on baseline a5cf718a137a5af1681b2c791aade2bba5b3451b.
 - Last explicitly counted full Trigger integration suite: [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324), 233/233 tests passed. Documentation CI [44988145049](https://github.com/Sakurefa/test-game/actions/runs/44988145049) succeeded.
 - Latest successful Runtime/Launcher workflow: [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367). Launcher artifact Market-Simulator-Launcher-EXE (~92.7 MB) was uploaded; this confirms CI packaging only, not user-device launch.
 - No local full test/build and no user-side Windows GUI acceptance have been performed in this review.
@@ -26,11 +26,12 @@ Files use YYYY-MM-DD_NN_topic.txt; NN is one shared chronological sequence per d
 - 2026-11-20: 01
 - 2026-11-21: 01–08
 - 2026-11-22: 01–17
-- 2026-11-23: 01–02
+- 2026-11-23: 01–03
 
 Latest records:
 - Astra/WORKFLOWS/2026-11-23_01_victoria3-population-economy-production-research.txt
 - Astra/WORKFLOWS/2026-11-23_02_repository-state-and-population-foundation-review.txt
+- Astra/WORKFLOWS/2026-11-23_03_class-needs-and-market-quality-design.txt
 
 ## Current engine snapshot
 
@@ -41,6 +42,7 @@ Latest records:
 - Trigger core is implemented and automated-simulation-tested: date, elapsed-day and new Domain Event sources; three Resolutions; 13 approved immediate Effects; shared Settlement runner and atomic daily execution. Do not expand without a concrete consumer.
 - Production is weekly and stock-constrained. Market pricing is daily. There is no complete inter-colony cargo/logistics or market-clearing system.
 - Daily needs still use colony total population and commodity daily_need_per_thousand; stock-limited consumption and requested/consumed/unmet/satisfaction reporting exist. No group-level Need Profile or shared-stock allocation across groups exists.
+- Class-based need/quality direction is documented: quantity satisfaction differs from quality/lifestyle satisfaction; goods may carry multiple quality-bearing tags; market grade is contextual. These are design concepts, not implemented features.
 - Recipe workforce remains metadata. No actual building employment allocation, wages, population migration or ownership system exists.
 - Mod content and localization remain INI; Core is a required Mod, not Engine.
 
@@ -53,7 +55,7 @@ Long-term setting constraints are recorded:
 - Interstellar travel, gates and mixed transport exist. Inhospitable colonies are possible; local self-sufficiency can be extremely expensive.
 - Population location, political jurisdiction, origin, employment and ownership are separate relations. A building references employed residents; it does not own a second population count. Migration is globally count-conserving; unemployment, political change and ownership transfer do not themselves change population totals.
 
-Next recommended work: design the minimal Mod-defined group-level Need Profile assignment and deterministic allocation of shared colony stock among groups. Consider energy as a design boundary case, but do not implement energy generation, capacity dispatch or interstellar energy markets in that work.
+Next work: continue the group-level Need Profile and shared-stock allocation contract design, incorporating explicit population assignment, class-based quality expectations and market-relative product grades. Exact profile mapping, quality aggregation, market benchmark and allocation fairness remain open; do not implement until the contract is agreed. Treat quality-batch inventory as a future constraint, not current scope.
 
 Deferred: cross-colony migration/robot transfer, origin distributions, ownership/lease structures, actual building workforce and wages, full energy infrastructure/market, and logistics. Preserve their constraints without building speculative frameworks.
 

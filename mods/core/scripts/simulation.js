@@ -329,14 +329,28 @@ function onDailyNeeds(input) {
     const population = colony.population;
     const calculation = calculatePopulationNeeds({ population, requirements });
     const result = calculation.result;
+    const requests = requirements.map((requirement) => ({
+      id: "need." + requirement.commodityId,
+      requesterId: colony.id,
+      commodityId: requirement.commodityId,
+      requested: result.requested[requirement.commodityId] || 0
+    }));
+    const allocations = requirements.map((requirement) => ({
+      requestId: "need." + requirement.commodityId,
+      allocated: result.consumed[requirement.commodityId] || 0
+    }));
+    if (requests.length > 0) {
+      // The current Core aggregate rule is a Mod-owned policy. Engine validates and applies its plan.
+      effects.push({
+        type: "colony.stockpile.allocate",
+        payload: { colonyId: colony.id, requests, allocations }
+      });
+    }
     const needs = requirements.map((requirement) => {
       const commodityId = requirement.commodityId;
       const requested = result.requested[commodityId] || 0;
       const consumed = result.consumed[commodityId] || 0;
       const unmet = result.unmet[commodityId] || 0;
-      if (consumed > 0) {
-        effects.push({ type: "colony.stockpile.delta", payload: { colonyId: colony.id, commodityId, delta: -consumed } });
-      }
       return {
         commodityId,
         available: requirement.available,

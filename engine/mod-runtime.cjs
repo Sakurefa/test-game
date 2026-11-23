@@ -22,6 +22,8 @@ const MAX_MOD_HOOK_INPUT_BYTES = 2 * 1024 * 1024;
 const MAX_MOD_OUTPUT_BYTES = 128 * 1024;
 const MAX_MOD_STATE_BYTES = 64 * 1024;
 const MAX_MOD_STATE_KEYS = 128;
+const STOCKPILE_ALLOCATION_ID_PATTERN = /^[a-z0-9][a-z0-9._-]{0,63}$/;
+const MAX_STOCKPILE_ALLOCATION_REQUESTS = 2048;
 const DEFAULT_MOD_TIMEOUT_MS = 50;
 const MAX_MOD_TIMEOUT_MS = 100;
 
@@ -485,6 +487,76 @@ function applyModEffect(effect, world, catalog, modId) {
       colony.stability = Math.min(100, Math.max(0, before + requireFinite(payload.delta, effect.type + ".delta", 100)));
       return { colonyId: colony.id, before, after: colony.stability };
     }
+    case "colony.stockpile.allocate": {
+      requireKeys(payload, ["colonyId", "requests", "allocations"], effect.type);
+      if (typeof payload.colonyId !== "string" || !STOCKPILE_ALLOCATION_ID_PATTERN.test(payload.colonyId)) {
+        throw new TypeError("Stockpile allocation requires a valid colony ID");
+      }
+      const colony = world.colonies?.[payload.colonyId];
+      if (!colony) throw new Error("Missing colony " + String(payload.colonyId));
+      if (!isRecord(colony.stockpiles)) throw new TypeError("Colony stockpiles are missing or invalid");
+      if (!Array.isArray(payload.requests) || !Array.isArray(payload.allocations)
+        || payload.requests.length > MAX_STOCKPILE_ALLOCATION_REQUESTS
+        || payload.allocations.length !== payload.requests.length) {
+        throw new TypeError("Stockpile allocation requires matching bounded request and allocation arrays");
+      }
+      const requests = [];
+      const requestsById = new Map();
+      for (const [index, request] of payload.requests.entries()) {
+        requireKeys(request, ["id", "requesterId", "commodityId", "requested"], effect.type + ".requests[" + index + "]");
+        if (typeof request.id !== "string" || !STOCKPILE_ALLOCATION_ID_PATTERN.test(request.id)
+          || typeof request.requesterId !== "string" || !STOCKPILE_ALLOCATION_ID_PATTERN.test(request.requesterId)) {
+          throw new TypeError("Stockpile allocation request IDs must be stable identifiers");
+        }
+        if (requestsById.has(request.id)) throw new Error("Stockpile allocation contains a duplicate request ID: " + request.id);
+        getRequired(catalog.commodities, request.commodityId, "commodity");
+        const requested = requireFinite(request.requested, effect.type + ".requested");
+        if (requested < 0) throw new RangeError("Stockpile allocation requested quantity cannot be negative");
+        const normalized = { id: request.id, requesterId: request.requesterId, commodityId: request.commodityId, requested };
+        requests.push(normalized);
+        requestsById.set(request.id, normalized);
+      }
+      const allocationsByRequest = new Map();
+      for (const [index, allocation] of payload.allocations.entries()) {
+        requireKeys(allocation, ["requestId", "allocated"], effect.type + ".allocations[" + index + "]");
+        if (typeof allocation.requestId !== "string" || !requestsById.has(allocation.requestId)) {
+          throw new Error("Stockpile allocation references an unknown request: " + String(allocation.requestId));
+        }
+        if (allocationsByRequest.has(allocation.requestId)) {
+          throw new Error("Stockpile allocation contains a duplicate result for request: " + allocation.requestId);
+        }
+        const allocated = requireFinite(allocation.allocated, effect.type + ".allocated");
+        if (allocated < 0) throw new RangeError("Stockpile allocation cannot be negative");
+        const request = requestsById.get(allocation.requestId);
+        if (allocated > request.requested) throw new RangeError("Stockpile allocation exceeds requested quantity: " + allocation.requestId);
+        allocationsByRequest.set(allocation.requestId, allocated);
+      }
+      for (const request of requests) {
+        if (!allocationsByRequest.has(request.id)) throw new Error("Stockpile allocation is missing a result for request: " + request.id);
+      }
+      const allocatedByCommodity = new Map();
+      for (const request of requests) {
+        const allocated = allocationsByRequest.get(request.id);
+        allocatedByCommodity.set(request.commodityId, (allocatedByCommodity.get(request.commodityId) || 0) + allocated);
+      }
+      const stockpileChanges = [];
+      for (const [commodityId, allocated] of [...allocatedByCommodity.entries()].sort(([a], [b]) => a.localeCompare(b))) {
+        const before = requireFinite(colony.stockpiles[commodityId] ?? 0, effect.type + ".available");
+        if (before < 0) throw new RangeError("Stockpile allocation found a negative inventory: " + colony.id + "." + commodityId);
+        const after = before - allocated;
+        const tolerance = Math.max(1, Math.abs(before)) * 1e-12;
+        if (after < -tolerance) throw new RangeError("Stockpile allocation exceeds available inventory: " + colony.id + "." + commodityId);
+        stockpileChanges.push({ commodityId, before, allocated, after: Math.max(0, after) });
+      }
+      // Validate the complete plan before changing any stockpile.
+      for (const change of stockpileChanges) colony.stockpiles[change.commodityId] = change.after;
+      const allocationResults = requests.map((request) => {
+        const allocated = allocationsByRequest.get(request.id);
+        const unmet = Math.max(0, request.requested - allocated);
+        return { ...request, allocated, unmet, satisfaction: request.requested > 0 ? allocated / request.requested : 1 };
+      });
+      return { colonyId: colony.id, requests: allocationResults, stockpileChanges };
+    }
     case "colony.stockpile.delta": {
       requireKeys(payload, ["colonyId", "commodityId", "delta"], effect.type);
       const colony = world.colonies?.[payload.colonyId];
@@ -625,6 +697,16 @@ function applyModEffect(effect, world, catalog, modId) {
 function applyModHookResults(outcomes, { world, catalog, day, hookId, subjectKey = "world", emitDomainEvent, scheduleTrigger }) {
   if (!Array.isArray(outcomes)) throw new TypeError("Mod hook outcomes must be an array");
   if (typeof emitDomainEvent !== "function") throw new TypeError("Mod effects require a domain-event emitter");
+  const allocationPlansByColony = new Set();
+  for (const outcome of outcomes) {
+    for (const effect of outcome.effects || []) {
+      if (effect?.type !== "colony.stockpile.allocate" || typeof effect.payload?.colonyId !== "string") continue;
+      if (allocationPlansByColony.has(effect.payload.colonyId)) {
+        throw new Error("A hook may submit only one stockpile allocation plan per colony: " + effect.payload.colonyId);
+      }
+      allocationPlansByColony.add(effect.payload.colonyId);
+    }
+  }
   let effectCount = 0;
   let eventCount = 0;
   let triggerCount = 0;

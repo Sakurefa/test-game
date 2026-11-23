@@ -83,6 +83,32 @@ test("weekly Core Mod production records calculations and cannot underflow stock
  assert.equal(validateWorldState(world,catalog),true);
 });
 
+test("Core aggregate needs use the Engine stockpile allocation contract",async()=>{
+ const catalog=await loadCatalog(),world=createWorld(catalog,{seed:"needs-allocation-contract"});
+ const initialStockpiles=Object.fromEntries(Object.entries(world.colonies).map(([id,colony])=>[id,{...colony.stockpiles}]));
+ advanceDay(world,catalog);
+ for(const [colonyId,colony] of Object.entries(world.colonies)){
+  const facts=world.domainEvents.filter(event=>event.type==="mod.effect-applied"
+   &&event.payload.effectType==="colony.stockpile.allocate"
+   &&event.payload.result.colonyId===colonyId);
+  assert.equal(facts.length,1);
+  const allocation=facts[0].payload.result;
+  assert.ok(allocation.requests.length>0);
+  assert.ok(allocation.requests.every(request=>request.requesterId===colonyId));
+  for(const request of allocation.requests){
+   const report=colony.lastNeedsReport.needs.find(item=>item.commodityId===request.commodityId);
+   assert.ok(report);
+   assert.equal(request.requested,report.requested);
+   assert.equal(request.allocated,report.consumed);
+   assert.equal(request.unmet,report.unmet);
+  }
+  for(const change of allocation.stockpileChanges){
+   assert.equal(initialStockpiles[colonyId][change.commodityId]-colony.stockpiles[change.commodityId],change.allocated);
+  }
+ }
+ assert.equal(validateWorldState(world,catalog),true);
+});
+
 test("Core Mod recurring systems emit scoped market, war and colony facts",async()=>{
  const catalog=await loadCatalog(),world=createWorld(catalog,{seed:"domain-event-economy"});
  advanceDay(world,catalog);

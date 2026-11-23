@@ -5,6 +5,7 @@ const assert = require("node:assert/strict");
 const path = require("node:path");
 const {
   createModExtensionRuntime,
+  applyModEffect,
   applyModHookResults
 } = require("../engine/mod-runtime.cjs");
 const { createDomainEventEmitter } = require("../engine/domain-events.cjs");
@@ -216,6 +217,101 @@ test("applies only registered colony, market, fleet and war effects and records 
   assert.equal(world.domainEvents.length, 8);
   assert.equal(world.domainEvents.at(-1).type, "mod.test-mod.monthly-note");
   assert.ok(world.domainEvents.every((event) => event.idempotencyKey));
+});
+
+test("applies a Mod-selected stockpile allocation without imposing an Engine fairness rule", () => {
+  const world = { colonies: { colonyOne: { id: "colonyOne", stockpiles: { food: 10, water: 3 } } } };
+  const catalog = { commodities: new Map([["food", { id: "food" }], ["water", { id: "water" }]]) };
+  const result = applyModEffect({
+    type: "colony.stockpile.allocate",
+    payload: {
+      colonyId: "colonyOne",
+      requests: [
+        { id: "food.group-a", requesterId: "group-a", commodityId: "food", requested: 8 },
+        { id: "food.group-b", requesterId: "group-b", commodityId: "food", requested: 6 },
+        { id: "water.group-a", requesterId: "group-a", commodityId: "water", requested: 2 }
+      ],
+      // Deliberately unequal shares: the Engine applies the Mod's legal policy unchanged.
+      allocations: [
+        { requestId: "food.group-a", allocated: 8 },
+        { requestId: "food.group-b", allocated: 2 },
+        { requestId: "water.group-a", allocated: 1.5 }
+      ]
+    }
+  }, world, catalog, "test-mod");
+  assert.deepEqual(result.requests, [
+    { id: "food.group-a", requesterId: "group-a", commodityId: "food", requested: 8, allocated: 8, unmet: 0, satisfaction: 1 },
+    { id: "food.group-b", requesterId: "group-b", commodityId: "food", requested: 6, allocated: 2, unmet: 4, satisfaction: 2 / 6 },
+    { id: "water.group-a", requesterId: "group-a", commodityId: "water", requested: 2, allocated: 1.5, unmet: 0.5, satisfaction: 0.75 }
+  ]);
+  assert.deepEqual(result.stockpileChanges, [
+    { commodityId: "food", before: 10, allocated: 10, after: 0 },
+    { commodityId: "water", before: 3, allocated: 1.5, after: 1.5 }
+  ]);
+  assert.deepEqual(world.colonies.colonyOne.stockpiles, { food: 0, water: 1.5 });
+});
+
+test("rejects invalid stockpile allocation plans without partially changing inventory", () => {
+  const validPayload = {
+    colonyId: "colonyOne",
+    requests: [
+      { id: "food.a", requesterId: "group-a", commodityId: "food", requested: 4 },
+      { id: "food.b", requesterId: "group-b", commodityId: "food", requested: 4 }
+    ],
+    allocations: [
+      { requestId: "food.a", allocated: 2 },
+      { requestId: "food.b", allocated: 2 }
+    ]
+  };
+  const invalidPlans = [
+    {
+      payload: {
+        ...validPayload,
+        requests: [...validPayload.requests, validPayload.requests[0]],
+        allocations: [...validPayload.allocations, { requestId: "food.a", allocated: 0 }]
+      },
+      message: /duplicate request ID/
+    },
+    { payload: { ...validPayload, allocations: [{ requestId: "food.a", allocated: 2 }, { requestId: "unknown", allocated: 2 }] }, message: /unknown request/ },
+    { payload: { ...validPayload, allocations: [{ requestId: "food.a", allocated: 2 }, { requestId: "food.a", allocated: 1 }] }, message: /duplicate result/ },
+    { payload: { ...validPayload, allocations: [{ requestId: "food.a", allocated: 2 }] }, message: /matching bounded/ },
+    { payload: { ...validPayload, allocations: [{ requestId: "food.a", allocated: -1 }, { requestId: "food.b", allocated: 2 }] }, message: /cannot be negative/ },
+    { payload: { ...validPayload, allocations: [{ requestId: "food.a", allocated: 5 }, { requestId: "food.b", allocated: 0 }] }, message: /exceeds requested quantity/ },
+    { payload: { ...validPayload, allocations: [{ requestId: "food.a", allocated: 4 }, { requestId: "food.b", allocated: 4 }] }, message: /exceeds available inventory/ }
+  ];
+  for (const invalid of invalidPlans) {
+    const world = { colonies: { colonyOne: { id: "colonyOne", stockpiles: { food: 6 } } } };
+    const before = structuredClone(world);
+    assert.throws(() => applyModEffect({
+      type: "colony.stockpile.allocate", payload: invalid.payload
+    }, world, { commodities: new Map([["food", { id: "food" }]]) }, "test-mod"), invalid.message);
+    assert.deepEqual(world, before);
+  }
+});
+
+test("rejects competing stockpile allocation plans for one colony before applying hook effects", () => {
+  const world = {
+    clock: { day: 1, date: "2478-04-02" }, domainEventSequence: 0, domainEvents: [],
+    colonies: { colonyOne: { id: "colonyOne", stockpiles: { food: 10 }, stability: 50 } }
+  };
+  const plan = {
+    type: "colony.stockpile.allocate",
+    payload: {
+      colonyId: "colonyOne",
+      requests: [{ id: "food.a", requesterId: "group-a", commodityId: "food", requested: 5 }],
+      allocations: [{ requestId: "food.a", allocated: 5 }]
+    }
+  };
+  const before = structuredClone(world);
+  assert.throws(() => applyModHookResults([
+    { modId: "test-mod-a", effects: [plan], events: [] },
+    { modId: "test-mod-b", effects: [{ ...plan, payload: structuredClone(plan.payload) }], events: [] }
+  ], {
+    world, catalog: { commodities: new Map([["food", { id: "food" }]]), securities: new Map() },
+    day: 1, hookId: "campaign.after-day",
+    emitDomainEvent: createDomainEventEmitter(world, world.clock)
+  }), /only one stockpile allocation plan per colony/);
+  assert.deepEqual(world, before);
 });
 
 test("population delta effects remove people proportionally from existing groups", () => {

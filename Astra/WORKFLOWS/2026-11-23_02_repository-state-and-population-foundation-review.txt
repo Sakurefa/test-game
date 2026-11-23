@@ -1,0 +1,82 @@
+【工作流记录】仓库整体现状复核与人口经济地基方向更新
+================================================
+
+工作日期：2026-11-23
+当日序号：02
+工作基线：04f604cb6c8b8bce48f761157fdbf1b3df7979b3
+本次结果：文档提交后回填
+
+目标
+----
+1. 综合 Victoria 3 研究与星际殖民世界设定，更新长期设计约束。
+2. 记录 Pop 在势力、殖民地、建筑之间的权威归属、所在地、来源、所有权、就业、迁移与流失语义。
+3. 检查仓库整体实现状态与最新 CI，核实 Trigger 完成后的既定下一方向是否已推进。
+4. 决定新讨论内容是否进入下一工作流，避免把未来系统全部提前塞入 Engine。
+
+检查范围
+--------
+当前 main、仓库文件树、AGENTS.md、Astra/README.txt、WORKING_MEMORY、AK/MOD原则、人口/经济/现状/下一工作讨论、相关工作流与根工作日志；人口、生产、市场、财务、调度、触发相关 Engine 模块及测试；README、ENGINE_ARCHITECTURE、SIMULATION_DOMAIN_MAP；最新 GitHub Actions。
+
+仓库基线与验证
+--------------
+- main 基线：04f604cb6c8b8bce48f761157fdbf1b3df7979b3。
+- 最新源码 CI：45059248600，结论 success；Electron/Engine syntax、Simulation + Mod loader tests、Renderer build、generated-renderer 全部成功。
+- Trigger 全功能集成 CI：44987890324，233/233 tests 成功；文档 CI 44988145049 成功。
+- Runtime/Launcher 最近成功记录：44953518367；仅确认 CI 打包和 Artifact 上传，不代表用户设备 GUI 启动。
+- 本次未执行本地测试、构建或 Windows GUI 验收。
+
+整体现状
+--------
+- World schema 9，旧 schema 1–8 迁移。
+- 聚合 Pop 群体是殖民地人口数量权威；总人口是群体人数之和，scalar population 是派生兼容投影。Mod INI 可定义初始群体；split/merge/维度更新已实现。
+- 维度仍为独立边际分布，禁止通过相乘推导联合人口。
+- 战役时钟与 annual/monthly/weekly/daily/manual cadence 已实现；实际消费者为周度生产、日度人口需求、市场定价和战争时间线。
+- Candidate-world 日结算原子提交、命名随机流、版本化公式审计、命令事务、财务账本、Domain Event、只读 Event Bus、Mod API v4 hooks 已存在。
+- Trigger date/elapsed/domain-event sources、effect.apply/formula.effect/event.emit Resolutions、13 种即时 Effect、Settlement runner 和原子结算已实现并通过完整自动化集成测试。Condition/threshold、Command Resolution、通用 modifier/临时效果和 Presentation 未实现；没有真实消费者时不继续扩展。
+- 每日需求仍按殖民地总人口计算；现有商品 daily_need_per_thousand、库存约束消费、requested/consumed/unmet/satisfaction 报告存在。没有群体需求配置和共享库存群体分配。
+- 每周生产使用 recipe、industry level、stability 和库存约束；recipe workforce 仍只是 metadata。没有实际雇佣人口、工资或 workforce 条件结算。
+- 市场主要做殖民地商品/证券报价；不是完整买卖订单撮合、跨殖民地市场清算或货物物流。
+- 没有舰队移动、星门物流、跨殖民地货运或人口迁移系统。财务账本也不等于完整公司/政府财政体系。
+
+新增/更新的设计约束
+------------------
+- 有机人口与仿生人/机械劳工有不同需求；后者不需要食物，需能源、精密部件和维护。
+- AI/机械劳工使产能不能简单等同于有机人口数量。
+- 能源是地理和容量受限的核心稀缺资源；未来区分发电能力、实际供应、消耗/分配、储能和运输载体。
+- 星际航行、星门和混合运输并存；不宜居星球可殖民，但不适环境的本地自给自足成本很高。
+- Pop 只有一份权威人口数量。势力是政治/组织视图，殖民地是当前居住地，建筑通过就业关系引用群体和人数；雇员仍属于殖民地人口。
+- 当前所在地、政治归属、来源/籍贯、就业关系、所有权必须分开。迁移是跨殖民地守恒转移；出生/制造和死亡/报废改变总量；失业、政权变化、所有权转移本身不改变总量。
+
+上次决定方向的完成进度
+----------------------
+2026-11-22_17 建议的下一方向是人口群体级需求与商品消费。代码复核确认尚未开始实现：
+- 已有殖民地总人口需求计算、共享库存受限消费与报告。
+- 仍无群体 Need Profile、群体需求结果、群体间共享库存分配。
+因此基础准备部分存在，但目标能力未完成。
+
+下一次工作流取舍
+----------------
+纳入下一工作流的是：人口群体需求配置与共享库存分配契约设计。先设计，不直接跳到大规模编码：
+1. 明确群体如何显式关联 Need Profile，使有机/合成/机械人口可以拥有不同需求。
+2. 在独立边际原则下确定需求配置对应人数的表达方式；显式 profile 引用或直接需求归属维度仅是候选，禁止猜测交叉分布。
+3. 明确群体请求量、共享库存分配规则、确定性顺序/比例、短缺结果和殖民地汇总。
+4. 将能源作为边界案例，区分普通商品库存消费与未来能源功率/容量/储能/传输；不实现能源市场或发电系统。
+5. 设计通过后再实现最小 Engine 通用机制和测试 Mod fixture；具体种族、商品、需求数值和人口比例仍由 Mod 提供，不预先写入 Core。
+
+延后执行的方向
+--------------
+世界级人口账本/跨殖民地移民与机械劳工调拨、来源/籍贯分布、所有权/租赁/雇主制度、实际建筑 workforce/工资、能源发电设施/容量调度/储能传输网络/能源市场、舰队货物与移民物流。这些方向作为约束记录，不进入下一次实现任务。当前人口按殖民地权威存储的边界足以支撑下一步群体需求设计；不为未来可能性先造全球人口账本、产权框架或通用迁移系统。
+
+修改文件
+--------
+Astra/WORKING_MEMORY.txt
+Astra/DISCUSSIONS/人口系统设计.txt
+Astra/DISCUSSIONS/经济系统设计.txt
+Astra/DISCUSSIONS/人口归属、所在地与流动设计.txt（新增）
+Astra/DISCUSSIONS/关于现状.txt
+Astra/DISCUSSIONS/关于接下来的工作.txt
+ASTRA_WORKLOG.md
+README.md（修正 schema 版本与当前人口/物流状态）
+Astra/WORKFLOWS/2026-11-23_02_repository-state-and-population-foundation-review.txt（新增）
+
+本次只整理设计与状态文档，不修改 Engine、Mod 内容、测试或存档结构。

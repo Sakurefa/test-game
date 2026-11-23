@@ -1,106 +1,53 @@
 关于现状
 ========
 
-当前阶段：通用 Engine 地基建设。目标是提供稳定、可复用、简单可靠的模拟机制；所有可运行的游戏内容与规则继续由 `mods/` 下的 Mod 提供。 `mods/core` 是必需的基础内容 Mod，不属于 Engine。Mod 内容和玩家可见文本仍通过 INI 定义；API v4 JS 仅使用明确声明的 hooks 和受限结果契约，API v3 INI-only Mod 继续兼容。
+本文件是当前仓库状态摘要。具体执行历史见 WORKFLOWS；稳定设计边界见 WORKING_MEMORY 与专题 DISCUSSIONS。
 
-## 已有底层
+## 仓库与验证基线（2026-11-23）
+- Repository：Sakurefa/test-game，默认分支 main。
+- 本次检查基线：04f604cb6c8b8bce48f761157fdbf1b3df7979b3。
+- 基线 Windows 源码 CI：45059248600 success。语法检查、Simulation/Mod loader tests、Renderer build、generated-renderer 步骤全部成功。
+- 最近一次明确测试数量的完整 Trigger 集成 CI：44987890324，233/233 tests 通过；随后文档 CI 44988145049 成功。45059248600 是后续参考资料提交的 CI，成功但本次读取的 run/job 元数据未显示测试数量。
+- 最新成功 Runtime/Launcher 工作流仍为 44953518367，Artifact Market-Simulator-Launcher-EXE 约 92.7 MB，保留至 2026-12-05 21:50 UTC。该结果仅证明 CI 打包/上传成功，不证明用户设备启动成功。
+- 本次没有执行本地测试或构建；没有用户 Windows GUI 验收。
 
-- World save schema 9；旧 schema 1–8 均有迁移路径。Schema 8 保存会保留已有群体/经济等数据，并新增空 Trigger Queue。
-- Simulation system registry 支持 annual、monthly、weekly、daily、manual cadence。年度在 1 月 1 日到期，月度在每月 1 日到期，周度按每七个经过日，日度按每个完整游戏日；周期系统同日顺序为 annual → monthly → weekly → daily。
-- 当前真实周期系统仍是周度殖民地生产，以及日度人口需求、市场报价和战争时间线；尚无实际 annual/monthly 游戏系统消费者。
-- 每日结算在 detached candidate world 上运行；所有触发动作、系统、Hook 和 Domain Event 写入都在候选世界内，成功后提交，失败则丢弃候选。Event Bus 只在提交后发布新 Domain Event。
-- 已有命名随机流、版本化计算服务、typed Domain Event 历史、只读 Event Bus、命令分发器、主进程命令网关、财务账本、Mod API v4 与只读查询投影。
+## 工程边界
+- 项目仍处于通用 Engine 地基阶段。Engine 提供机制、数据装载、验证、结算、持久化和受限扩展；全部可运行游戏内容由 mods/ 提供。mods/core 是必需基础 Mod，不属于 Engine。
+- Mod manifest、registry、内容和 localization 保持 INI；API v3 INI-only 兼容；API v4 JS 仅限声明式 hooks 与批准结果。
+- 遵守 AK 原则与 MOD 化原则：简单可靠、只为真实消费者抽象、避免重复权威状态；不提前建设通用框架。
 
-## Trigger System 当前实现
+## 当前实现概览
+- 世界数据：多星系/星域空间内容、殖民地、市场、舰队、战争等基础定义；Catalog 交叉引用验证；World schema 9，旧 schema 1–8 迁移到 9。
+- 时间与模拟：战役时钟、暂停/倍速时间推进、annual/monthly/weekly/daily/manual simulation cadence；当前实际游戏消费者为周度生产、日度人口需求、市场定价与战争时间线。没有实际 annual/monthly 游戏系统。
+- 执行与扩展：detached candidate-world 日结算与原子提交、命名随机流、版本化计算审计、命令运行时/主进程网关、Domain Event history、post-commit read-only Event Bus、Mod API v4 hooks。
+- Trigger：持久化队列；date、elapsed-day、new Domain Event 三类来源；effect.apply、formula.effect、event.emit 三种 Resolution；13 种批准的即时 Mod Effect；独立 Settlement runner；整日 candidate-world 原子性和回执。核心实现与自动化模拟验收完成。条件/阈值来源、Command Resolution、通用 Modifier/临时效果生命周期和 Presentation 未实现；没有真实消费者前不应继续扩展。
+- 财务：玩家账户与整数最小货币单位账本、转账命令等基础能力；并非完整税收、债务、公司财务或市场结算系统。
+- 生产与市场：殖民地每周按 recipe/industry level/stability 结算生产，输入受库存约束；每日更新商品/证券报价。不是完整跨殖民地订单市场或物流。
+- 人口：World schema 9 的聚合 populationGroups 为权威人口数量；殖民地 scalar population 是派生兼容投影。Mod 可通过 INI 定义完整初始群体；运行时支持群体 split/merge/维度更新。群体维度是独立边际，不推导联合分布。
+- 需求：当前每日仍按殖民地总人口 × commodity.daily_need_per_thousand 计算；共享殖民地库存受限消费并记录 requested/consumed/unmet/satisfaction。尚无群体需求归属、群体间库存分配、购买力/工资或需求替代。
+- 建筑就业：recipe.workforce 只是 metadata；没有实际雇佣群体、建筑 workforce 人数、工资或就业结算。
+- 世界物流：星际航行/星门是世界设定方向，但当前没有舰队移动、货物运输、跨殖民地物流或人口迁移系统。
 
-- 新增独立的持久化 Trigger Queue，保存待执行实例及最近处理回执；不替代 recurring simulation-system cadence。
-- 当前 due source 支持有效日历日期、经过整数个完整 campaign day，以及 Domain Event 新事实精确匹配（type 必填，scope/subjectId 可选）；不支持子日触发和历史回溯。
-- Mod API v4 hook 可以返回 `triggers`。Trigger ID 由所属 Mod 命名空间约束；同 ID、同定义重复创建会去重，同 ID、不同定义会报错。
-- 每个完整日结算开始时，Engine 先推进时钟，再处理已有到期 Trigger，随后执行 `campaign.before-day`、年度/月度/周度/日度系统，最后执行 `campaign.after-day`。本次结算期间新建的 Trigger 最早在下一个完整日边界运行，避免同一边界递归触发。
-- Trigger 到期时创建短生命周期 System Event。当前注册 `effect.apply`、`formula.effect` 与 `event.emit` 三种 Resolution；Resolution 返回 `{ result, effects, domainEvents? }` 有界计划。独立 `engine/settlement.cjs` 校验计划并执行 Effect，返回 Domain Event 描述；Trigger Runner 负责将批准的事实写入候选世界、记录 `trigger.resolved`、出队与回执。`formula.effect` 只调用已有版本化 Engine 公式，以 Trigger ID 生成独立随机流，并用顶层 `resultFields` 映射公式结果。Trigger 不能存储任意 JS 函数、Mod callback 或 world patch。
-- System Event 是待 Engine 处理的请求；Domain Event 是已经发生的事实。独立 `engine/settlement.cjs` 只负责 Resolution/Effect 计划执行并返回 Domain Event 描述，不负责写 history 或 UI；Trigger Runner 在候选世界先应用 Effect、写入 Resolution 输出的 Domain Events，再记录 `trigger.resolved`，Event Bus 仍在世界提交后才收到它们。Presentation/玩家可见文本不属于 Trigger Queue。
-- Queue、Settlement 结果、Effect 变更、Domain Event 和处理回执处于同一个 candidate-world 事务。处理失败时整日回滚，待处理 Trigger 仍保留。
-- 近期回执保留 256 条；在回执窗口内可防止已处理 ID 被重复执行。该机制不是永久全局 ID 数据库。
+## 已确认的世界经济前提
+- 有机生命 Pop 需要食物等生物需求；仿生人和机械劳工 Pop 不需要食物，转而需要能源、精密部件与维护。AI/机械劳工意味着生产能力不能简单等同于有机人口数量。
+- 能源是最大的经济张力之一：恒星发电与技术发电受位置和容量限制，殖民地/星系争夺有限能源。未来必须区分发电能力、实际供给、消耗分配、储能和可运输能源载体；当前没有能源系统。
+- 可进行星际航行、建立星门并混合使用；不宜居星球也可殖民，也可培养食物，但不适宜环境下的自给自足成本极高。以上是世界设定，不代表物流、能源玩法已实现。
 
-- Resolution 结果对象与 Effect 计划是分离字段；每次最多 16 个 Effect。
-- `formula.effect` 的输入在 Trigger 调度时捕获；它只能选择 Engine 已注册公式，并通过顶层结果字段映射向已注册 Effect 填值，不提供公式表达式/回调扩展。
-- 公式使用按 Trigger ID 派生的稳定随机流；结果记录与流状态在 candidate world 成功后一起提交。
+## Pop 归属与流动的设计约束
+- 概念关系：势力提供政治管辖/组织视图；殖民地是当前居住地与现有人口群体权威存放位置；建筑是工作地点，通过就业分配关系引用群体和人数。
+- 人口只保留一份权威数量。势力统计与建筑 workforce 都是派生/引用关系；建筑雇员仍属于殖民地人口，不得双重计数。
+- 当前所在地、政治归属、来源/籍贯、雇佣关系、所有权是不同关系。机器人制造来源和所有权可有意义，且可与当前殖民地、势力、雇主不同。
+- 移民/调拨是跨殖民地守恒转移；出生/制造和死亡/报废改变总量；失业只改变就业；政权更迭只改变管辖；所有权转移不自动改变位置或人数。
+- 这些是未来设计约束，不是当前实现，也不批准立即增加全球人口账本、产权系统或迁移框架。
 
+## 下一步方向与边界
+上一轮 Trigger 完成后的建议尚未被实现：推进人口群体级需求与商品消费。当前实现检查确认它仍未开始，群体需求配置与共享库存分配均未落地。
 
-### Mod Effect 白名单现状（2026-11-22）
+建议下一次工作流按以下顺序：
+1. 先设计最小需求配置契约：群体如何显式关联需求配置，使有机人口与合成人口能拥有不同需求；具体配置与商品映射仍由 Mod INI 提供。
+2. 明确如何从独立人口维度获得需求归属，禁止通过边际比例相乘推导 species×profession 等交叉人口。显式 profile 引用或直接需求归属维度只是候选，不预设答案。
+3. 定义多个群体竞争殖民地共享库存时的分配规则，以及群体结果如何汇总为殖民地报告；保持确定性、可解释、可审计。
+4. 能源作为设计边界案例考虑，但不直接实现能源市场、发电容量或跨星系能源物流；保留未来功率/容量与库存能源的区别。
+5. 设计确认后再实现最小闭环与聚焦测试。具体种族、商品、需求数值和人口比例仍由 Mod 提供，不写入 Engine。
 
-- `applyModEffect()` 提供 13 种批准的即时状态转移，Hook 与 Trigger Resolution 共用同一执行器；成功应用会留下 `mod.effect-applied` 事实。
-- 仓库当前启用的 Mod 脚本只有 `example-market` 使用了 `mod.state.increment`；其他 Effect 目前由引擎契约与测试覆盖，尚无随仓库发布的 Mod 实际调用。
-- 现有 Effect 直接修改权威状态，不创建活动效果实例或可撤销 Modifier；临时效果生命周期仍未实现。到期 Trigger 不能仅靠对原 delta 取反来可靠恢复状态。
-- `mod.state.increment` 的缺失键仍从 0 开始；显式 `null` 不再被当作缺失键，必须先是有限数字才能递增。
-
-## 人口与经济现状
-
-- 人口采用聚合群体模型；群体人数是权威记录，殖民地总人口等于所有群体人数之和，标量 `population` 仅作为派生兼容投影。
-- Mod 可通过 INI 的 `population_group` 定义完整初始群体。没有群体定义时才从 colony fallback population 创建单一 `unclassified` 群体。
-- 群体支持 split、merge 和维度分布更新；这些群体重组不改变人口总量。
-- 当前每日需求仍按殖民地总人口聚合计算，没有按群体分别结算；Core 尚未写入实际人口构成。
-- 每周生产已存在，但配方 workforce 仍只是 metadata；实际雇佣群体、工资、人员池和建筑 workforce 结算尚未实现。
-
-## 尚未实现
-
-- 条件/阈值触发来源。
-- Command Resolution；当前 `event.emit` 仅提供受限的 Mod Domain Event 输出。
-- 临时效果状态、生命周期与对应到期动作；通用 source/target/operation/value 数值修改器。
-- 建筑实际雇佣 workforce 数据、结算快照与条件效果稳定期。
-- 人口分组需求消费、商品市场清算、工资与完整生产经济规则。
-
-## 验证边界
-
-第一阶段 Trigger System Windows CI [44949943031](https://github.com/Sakurefa/test-game/actions/runs/44949943031) 成功，215/215 测试通过。第二阶段 Resolution/Effect 分离与 `formula.effect` Windows CI [44953041332](https://github.com/Sakurefa/test-game/actions/runs/44953041332) 成功，219/219 测试通过。第三阶段 Settlement 执行管线抽离 Windows 源码 CI [44953518426](https://github.com/Sakurefa/test-game/actions/runs/44953518426) 成功：语法检查、221/221 测试、Renderer build 和 generated-renderer 步骤全部通过。
-独立 Windows Runtime/Launcher 工作流 [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367) 成功，EXE Artifact `Market-Simulator-Launcher-EXE` 已上传（约 92.7 MB，保留至 2026-12-05 21:50 UTC）。Runtime 工作流自动生成依赖配置提交 `0f2d9a5fc41c34dfd1c669d043a19bfd08743aeb`。Electron storage 仍读取 schema 1–9、只写 schema 9；本轮未改变存档 schema。
-未执行本地测试/构建，也未在用户 Windows 设备上启动 GUI 验收；Artifact 上传成功不等同于用户设备验收。
-
-
-## Domain Event Trigger 扩展（2026-11-22）
-
-- `domain-event` due source 已实现：按新写入 Domain Event 的精确 type 与可选 scope/subjectId 匹配。
-- 订阅建立前发生的历史事实不会回放；匹配事实在写入 candidate world 时激活 Trigger，并把来源快照持久化在 pending Trigger。
-- 激活日不执行，dueDay 为来源事实日 + 1；下一完整游戏日复用既有 Trigger → System Event → Settlement 路径。
-- 不扫描 300 条 Domain Event history，不使用 Event Bus 驱动权威世界变更；只扫描有上限的 pending Trigger Queue。日结算与命令事务写入新 Domain Event 时都会激活匹配 Trigger；Event Bus 仍然仅在 world commit 后发布事实。
-- World schema 保持 9，旧 date/elapsed Trigger 的签名/存档格式语义保持兼容。
-- 源码提交：`6804bc9e394abada2dad48dd398fae68636df027`；源码 CI [44957849824](https://github.com/Sakurefa/test-game/actions/runs/44957849824) 成功：223/223 tests、语法检查与 Renderer build 全部通过。
-
-
-## 命令事务事件入口补齐（2026-11-22）
-
-- Domain Event Trigger 激活入口已同时接入 `engine/simulation.cjs` 的日结算事实写入和 `engine/command-runtime.cjs` 的命令事务事实写入。
-- 命令处理先在 detached candidate world 写入 Domain Event，并激活匹配 pending Trigger，再调用世界提交；Event Bus 仍在提交成功后才通知订阅者。
-- 命令重放不写新事实，因此不会重复激活 Trigger 或重复发布 Event Bus 通知。
-- 新增命令集成测试：验证命令产生的事实会安排下一日 Trigger、提交后的 Event Bus 观察到已经激活的 Trigger、重复 command ID 不会重复执行，并且该 Trigger 能在下一完整日由现有 Settlement 路径处理。
-- 最终 Engine/测试提交：`78bd540b5bb2e872d304b3ad0509460985629e09`；源码 CI [44958699387](https://github.com/Sakurefa/test-game/actions/runs/44958699387) 成功，224/224 tests。
-
-
-## Resolution 输出 Domain Event（2026-11-22）
-
-- 新增 `event.emit` Resolution，使用 Trigger owner 的 Mod 身份产生 namespaced Domain Event：`mod.<mod-id>.<type>`；scope 固定为 mod，subjectId 固定为原始 Mod ID，payload 含 modId/eventType。
-- Resolution 计划可选包含最多 16 条 `domainEvents`，与最多 16 个 Effect 分开校验。Settlement 不写历史，只返回 descriptors；Trigger Runner 在 candidate world 内写入事实并将 ID/sequence/type 引用记录在 `trigger.resolved`。
-- 新事实可激活另一个等待该类型的 Trigger，但它的 dueDay 是事实日 + 1，不在本轮递归处理。
-- 这不是 Command Resolution，也没有开放任意 Event Bus publish 或任意 callback。World schema 保持 9。
-- 源码 CI [44962162081](https://github.com/Sakurefa/test-game/actions/runs/44962162081) 成功：227/227 tests、语法检查与 Renderer build 全部通过。
-
-
-## Trigger 全功能运行验收（2026-11-22）
-
-- 修正 Trigger source snapshot 不应继承 Trigger definition payload 16 KiB 限制的问题；Domain Event 完整 JSON-safe 来源快照会随 pending Trigger、`trigger.resolved` 与 receipt 保存。
-- 每日结算移除 `validateDayInputs()` 中对 Trigger Queue 的重复校验；由 `processDueTriggers()` 在处理入口统一校验。世界/存档验证仍保留完整队列校验。
-- 新增隔离于 `mods/` 的 API v4 测试 Mod fixture，加载真实 Core 与 example-market 内容，通过 Mod loader 和日结算执行 13 种 Effect、3 种 Resolution、date/elapsed/domain-event 三种 due source。
-- 测试自动选择分支，完成 Trigger → Domain Event → 下游 Trigger 链，并在匹配 Domain Event 后存档、重新加载、次日执行。
-- Windows 源码 CI [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324) 成功：233/233 tests，Engine/Electron syntax 与 Renderer build 全部通过。World schema 仍为 9。
-- 该结果是 Windows CI 自动化引擎/Mod/存档测试，不是用户设备 GUI 验收；未重新构建 Launcher EXE。
-
-
-## Trigger 核心实现完成检查点（2026-11-22）
-
-当前 Trigger/System Event/Resolution/Settlement 已完成本阶段约定的 Engine 核心实现，并通过完整自动化模拟验收。实现包含 date、elapsed、domain-event 三种 due source，effect.apply、formula.effect、event.emit 三种 Resolution，全部 13 种批准 Effect，以及 candidate-world 原子提交、回执、来源快照和存档往返。
-
-真实 Mod-loader + daily-settlement 测试剧本覆盖了当前全部已实现的 Trigger source、Resolution 和 Effect。Windows 源码 CI [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324) 成功：233/233 tests、Engine/Electron syntax、Renderer production build 与 generated-renderer 均通过。随后文档提交 CI [44988145049](https://github.com/Sakurefa/test-game/actions/runs/44988145049) 也已成功。
-
-项目状态应记为：**核心实现完成，自动化模拟测试通过，等待 Windows 用户设备 GUI 验收**。后续仅在真实 Mod 消费者或缺陷出现时扩展，不再为了覆盖面继续增加 Trigger/Resolution/Effect 类型。
-
-本次没有在用户设备启动 Electron GUI，也没有重新构建/上传 Launcher Runtime EXE。
+暂缓：人口来源分布、跨殖民地移民/机器人调拨、所有权、政治身份分离、实际建筑就业关系及工资。它们已作为设计约束记录；只有在群体需求/库存分配形成稳定消费者，或出现真实 workforce/迁移消费者时再设计和实现。建筑就业不能靠人口边际比例推算。

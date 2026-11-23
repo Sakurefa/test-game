@@ -7,6 +7,7 @@
 - Repository: https://github.com/Sakurefa/test-game
 - Branch: main
 - Latest inspected baseline before this documentation update: a5cf718a137a5af1681b2c791aade2bba5b3451b.
+- Latest documentation result commit: [4cba5ca74d85b0cf7601dc0a06f1d18ac38d9acb](https://github.com/Sakurefa/test-game/commit/4cba5ca74d85b0cf7601dc0a06f1d18ac38d9acb); CI for this commit is not yet checked in this worklog.
 - Latest source CI for baseline: [45112925012](https://github.com/Sakurefa/test-game/actions/runs/45112925012), success on baseline a5cf718a137a5af1681b2c791aade2bba5b3451b.
 - Last explicitly counted full Trigger integration suite: [44987890324](https://github.com/Sakurefa/test-game/actions/runs/44987890324), 233/233 tests passed. Documentation CI [44988145049](https://github.com/Sakurefa/test-game/actions/runs/44988145049) succeeded.
 - Latest successful Runtime/Launcher workflow: [44953518367](https://github.com/Sakurefa/test-game/actions/runs/44953518367). Launcher artifact Market-Simulator-Launcher-EXE (~92.7 MB) was uploaded; this confirms CI packaging only, not user-device launch.

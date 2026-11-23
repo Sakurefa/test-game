@@ -169,3 +169,11 @@ END
 - Need rules should be selected through Mod-defined Tags and matching rules. Goods may carry multiple Tags (e.g. carbohydrate/protein); processing/building effects and negative Tags may affect quality; market grade remains contextual.
 - Tag presence and population share are different facts. Existing population dimensions are independent marginal distributions. A Tag rule that needs a joint cohort must use explicitly represented population membership/shares or a directly classified cohort; never multiply independent dimension proportions to invent a joint count.
 - The exact INI representation and matching operators remain to be designed. Reuse existing population-group dimension distributions where they express explicit population shares; do not add a broad Tag framework or new runtime layer without a concrete consumer.
+
+
+15. NEED ALLOCATION IS A MOD POLICY, NOT ENGINE FAIRNESS (2026-11-23)
+------------------------------------------------------------------------
+- User correction: do not define pro-rata or any other fairness/allocation principle as the Engine default. Distribution of scarce goods is game-content/economic-policy design.
+- Engine should preserve an extension point: calculate/represent demand requests; allow a Mod-provided policy/strategy to determine allocations; execute valid allocations against shared stock and record results.
+- The Engine must not hardcode class privilege, wealth, purchasing power, rationing, political privilege, equality, proportionality or another distribution ideology.
+- A proportional strategy may be chosen by a particular Mod, but is not an Engine default. The policy interface contract, validation boundaries and reporting contract remain to be designed.

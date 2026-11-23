@@ -73,3 +73,10 @@ The user chose a unified Tag approach: no dedicated NeedProfile runtime entity/c
 Important constraint: Tag membership is not automatically a population share. Existing population dimensions remain independent marginals; joint matching conditions require explicitly represented cohort shares and must never multiply independent proportions. Next design work is the minimum Tag/matching contract, overlapping-rule semantics, and shared-stock allocation. Pro-rata allocation per commodity is the current candidate, not yet a final user-approved rule. Quantity satisfaction remains separate from quality/lifestyle satisfaction.
 
 Latest inspected source CI: run 45116399485 succeeded on 7cc72429e9dcd31f9abca8b31e7bfe5bbea03b3d. This session is documentation/design only; no Engine, Mod, tests, save schema or local build changed.
+
+
+## 2026-11-23：库存分配策略由 Mod 决定
+
+用户明确否定将 pro-rata 作为 Engine 默认分配原则。商品短缺时的获取配额属于游戏经济制度，可由阶级、财权、购买力、政治特权或配给规则决定；Engine 不应硬编码所谓公平分配。
+
+下一步只设计策略扩展接口：需求请求作为输入，Mod 策略返回各请求方分配数量，Engine 负责通用合法性/库存守恒检查、库存扣减与结果记录。pro-rata 仅是未来 Mod 可选择的策略，不是默认或隐藏 fallback。当前不实现财富、支付、阶级配额或具体分配制度。

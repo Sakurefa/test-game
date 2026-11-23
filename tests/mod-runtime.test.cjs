@@ -169,10 +169,10 @@ test("API v4 evaluates each population Need rule independently for one group", (
   assert.equal(unknownLines[0].matchedPopulation, null);
   assert.equal(unknownLines[0].requested, null);
 
-  assert.throws(() => runtime.run("campaign.after-day", {
-    ...input,
-    catalog: { ...input.catalog, populationNeedRules: [] }
-  }), { code: "MOD_HOOK_FAILURE" });
+  const missingRuleRuntime = createModExtensionRuntime([mod(
+    "function onHook(input, api) { return { events: [{ type: 'missing-need-rule', payload: api.evaluatePopulationNeedRule('colony-a', 'residents', 'need.missing') }] }; }"
+  )]);
+  assert.throws(() => missingRuleRuntime.run("campaign.after-day", input), { code: "MOD_HOOK_FAILURE" });
 });
 
 test("separates deterministic random sequences by entity scope and freezes hook input", () => {

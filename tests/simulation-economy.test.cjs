@@ -118,7 +118,7 @@ test("daily and weekly domain facts have one idempotent emission per entity and 
  assert.equal(new Set(keys).size,keys.length);
  for(const marketId of Object.keys(world.markets)){
   for(let day=1;day<=14;day++){
-   assert.equal(world.domainEvents.filter(event=>event.type==="mod.core.market.prices-settled"&&event.subjectId===marketId&&event.day===day).length,1);
+   assert.equal(world.domainEvents.filter(event=>event.type==="mod.core.market.prices-settled"&&event.subjectId===marketId&&event.day===day).length,1,`missing ${marketId} on day ${day}; market facts=${JSON.stringify(world.domainEvents.filter(event=>event.type==="mod.core.market.prices-settled").map(event=>({subjectId:event.subjectId,day:event.day,scope:event.scope,idempotencyKey:event.idempotencyKey})))}`);
   }
  }
  for(const war of activeWars){

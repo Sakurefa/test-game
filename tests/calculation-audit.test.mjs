@@ -108,9 +108,9 @@ test("Engine calculation registry starts empty and accepts explicitly registered
   const { result, record } = custom.evaluate("economy.population-needs", {
     population: 1450000, rate: .0015, available: 1
   }, { day: 3 });
-  assert.equal(result.requested, 2.175);
+  assert.ok(Math.abs(result.requested - 2.175) < 1e-12);
   assert.equal(result.consumed, 1);
-  assert.equal(result.unmet, 1.1749999999999998);
+  assert.ok(Math.abs(result.unmet - 1.175) < 1e-12);
   assert.equal(record.formulaId, "economy.population-needs");
   assert.equal(record.version, 2);
   assert.deepEqual(record.steps.map(step => step.id), ["requested", "consumed"]);

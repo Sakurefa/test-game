@@ -39,7 +39,7 @@ function calculatePopulationNeeds(inputs) {
   }
   const requested = {}, consumed = {}, unmet = {}, satisfaction = {};
   for (const [commodityId, requirement] of requirements) {
-    const quantity = round(population / 1000 * requirement.dailyNeedPerThousand, 2);
+    const quantity = round(population / 1000 * requirement.dailyNeedPerThousand, 3);
     const actual = Math.min(quantity, requirement.available);
     requested[commodityId] = quantity;
     consumed[commodityId] = actual;
@@ -312,6 +312,11 @@ function onWeeklyProduction(input, api) {
 function onDailyNeeds(input) {
   const effects = [], events = [], calculations = [];
   const commodities = input.catalog.commodities || [];
+  for (const commodity of commodities) {
+    if (commodity.dailyNeedPerThousand !== undefined) {
+      requireNumber(commodity, "dailyNeedPerThousand", 0);
+    }
+  }
   for (const colony of Object.values(input.world.colonies || {}).sort((a, b) => a.id.localeCompare(b.id))) {
     const requirements = commodities
       .filter((commodity) => Number.isFinite(commodity.dailyNeedPerThousand) && commodity.dailyNeedPerThousand > 0)

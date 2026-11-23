@@ -39,7 +39,7 @@ test("daily needs settle before market pricing while colony production remains w
  assert.ok(verdant.stockpiles.food>initialVerdant.stockpiles.food);
  assert.equal(newDawn.lastProductionReport.day,7);
  assert.equal(newDawn.lastNeedsReport.day,7);
- assert.deepEqual(w.events.at(-1).systemsRun,["colonies.production","population.needs-consumption","economy.market-pricing","military.war-chronology"]);
+ assert.deepEqual(w.events.at(-1).systemsRun,["core.colony-production","core.population-needs","core.market-pricing","core.war-chronology"]);
 });
 test("daily needs consume food and water before market pricing and retain unmet demand",async()=>{
  const c=await catalog(),w=createWorld(c,{seed:"daily-population-needs"});
@@ -58,7 +58,7 @@ test("daily needs consume food and water before market pricing and retain unmet 
  assert.equal(newDawn.population,initialNewDawn.population);
  assert.equal(newDawn.stability,initialNewDawn.stability);
  assert.equal(w.audit.calculations.filter((record)=>record.formulaId==="economy.population-needs"&&record.day===1).length,3);
- assert.deepEqual(w.events.at(-1).systemsRun,["population.needs-consumption","economy.market-pricing","military.war-chronology"]);
+ assert.deepEqual(w.events.at(-1).systemsRun,["core.population-needs","core.market-pricing","core.war-chronology"]);
  assert.ok(Object.values(newDawn.stockpiles).every((amount)=>amount>=0));
 });
 test("daily needs report stock shortage without underflow or automatic population changes",async()=>{
@@ -79,7 +79,7 @@ test("daily needs report stock shortage without underflow or automatic populatio
  assert.equal(colony.population,population);
  assert.equal(colony.stability,stability);
  assert.equal(colony.lastNeedsReport.shortageCount,1);
- const event=w.domainEvents.find((item)=>item.type==="colony.needs-settled"&&item.subjectId===colonyId);
+ const event=w.domainEvents.find((item)=>item.type==="mod.core.colony.needs-settled"&&item.subjectId===colonyId);
  assert.equal(event.payload.shortageCount,1);
  assert.equal(event.payload.needs.find((item)=>item.commodityId==="water").unmet,2.15);
 });
@@ -94,7 +94,7 @@ test("weekly production replenishes input stock before same-day population needs
  assert.ok(production.produced.food>0);
  assert.ok(foodNeed.available>foodNeed.requested);
  assert.equal(foodNeed.unmet,0);
- assert.deepEqual(w.events.at(-1).systemsRun,["colonies.production","population.needs-consumption","economy.market-pricing","military.war-chronology"]);
+ assert.deepEqual(w.events.at(-1).systemsRun,["core.colony-production","core.population-needs","core.market-pricing","core.war-chronology"]);
 });
 test("weekly production report explains limited inputs and matches the stockpile settlement",async()=>{
   const c=await catalog(),w=createWorld(c,{seed:"production-report-limited"});
@@ -165,7 +165,7 @@ test("input-free extraction reports normal production without a false shortage",
   assert.ok(entry.requestedOutput.ore>0);
   assert.ok(entry.produced.ore>0);
 });
-test("continuous campaign time preserves fractions and catches up every daily and weekly boundary",async()=>{const c=await catalog(),w=createWorld(c,{seed:51});let result=advanceCampaignTime(w,c,0.4);assert.equal(result.daysAdvanced,0);assert.equal(w.clock.day,0);assert.equal(w.clock.dayFraction,0.4);result=advanceCampaignTime(w,c,13.6);assert.equal(result.daysAdvanced,14);assert.equal(w.clock.day,14);assert.equal(w.clock.dayFraction,0);assert.equal(w.scheduler.lastRunDayBySystem["colonies.production"],14);assert.equal(w.scheduler.lastRunDayBySystem["economy.market-pricing"],14);assert.equal(w.scheduler.lastRunDayBySystem["military.war-chronology"],14);});
+test("continuous campaign time preserves fractions and catches up every daily and weekly boundary",async()=>{const c=await catalog(),w=createWorld(c,{seed:51});let result=advanceCampaignTime(w,c,0.4);assert.equal(result.daysAdvanced,0);assert.equal(w.clock.day,0);assert.equal(w.clock.dayFraction,0.4);result=advanceCampaignTime(w,c,13.6);assert.equal(result.daysAdvanced,14);assert.equal(w.clock.day,14);assert.equal(w.clock.dayFraction,0);assert.equal(w.scheduler.lastRunDayBySystem["core.colony-production"],14);assert.equal(w.scheduler.lastRunDayBySystem["core.market-pricing"],14);assert.equal(w.scheduler.lastRunDayBySystem["core.war-chronology"],14);});
 test("legacy world schemas 1 and 2 migrate to event-enabled schema without changing calendar time",async()=>{const c=await catalog(),legacy=createWorld(c,{seed:5});legacy.schemaVersion=1;delete legacy.clock.dayFraction;delete legacy.scheduler;delete legacy.commandReceipts;delete legacy.finance;delete legacy.player.accountId;legacy.player.account={cash:250000,holdings:{}};legacy.clock.date="2478-04-13";legacy.clock.day=12;legacy.rng={seed:5,state:123};const migrated=migrateWorldState(legacy);assert.equal(migrated.schemaVersion,9);assert.deepEqual(migrated.clock,{date:"2478-04-13",day:12,dayFraction:0});assert.deepEqual(migrated.scheduler,{lastRunDayBySystem:{}});assert.deepEqual(migrated.rng,{seed:5,streams:{}});assert.deepEqual(migrated.audit,{calculations:[]});assert.deepEqual(migrated.domainEvents,[]);assert.equal(migrated.domainEventSequence,0);assert.deepEqual(migrated.commandReceipts,[]);assert.equal(migrated.finance.accounts["player-main"].balanceMinor,25000000);assert.equal(migrated.finance.transactions[0].day,12);assert.equal(migrated.finance.transactions[0].date,"2478-04-13");assert.equal(validateWorldState(migrated,c),true);const schema2=createWorld(c,{seed:6});schema2.schemaVersion=2;schema2.rng={seed:6,state:999};delete schema2.audit;delete schema2.commandReceipts;delete schema2.finance;delete schema2.player.accountId;schema2.player.account={cash:125000,holdings:{}};assert.equal(migrateWorldState(schema2).schemaVersion,9);assert.equal(schema2.finance.accounts["player-main"].balanceMinor,12500000);assert.equal(validateWorldState(schema2,c),true);const schema3=createWorld(c,{seed:7});schema3.schemaVersion=3;delete schema3.domainEvents;delete schema3.domainEventSequence;delete schema3.commandReceipts;delete schema3.finance;delete schema3.player.accountId;schema3.player.account={cash:75000,holdings:{}};assert.equal(migrateWorldState(schema3).schemaVersion,9);assert.equal(schema3.finance.accounts["player-main"].balanceMinor,7500000);assert.equal(validateWorldState(schema3,c),true);});
 test("schema-five saves migrate player cash and positions into the canonical ledger",async()=>{const c=await catalog(),legacy=createWorld(c,{seed:9});legacy.schemaVersion=5;delete legacy.finance;delete legacy.player.accountId;legacy.player.account={cash:12345.67,holdings:{"frontier-industries":4}};const migrated=migrateWorldState(legacy);assert.equal(migrated.schemaVersion,9);assert.equal(migrated.player.accountId,"player-main");assert.equal(migrated.finance.accounts["player-main"].balanceMinor,1234567);assert.deepEqual(migrated.finance.accounts["player-main"].positions,{"frontier-industries":4});assert.equal(migrated.player.account,undefined);assert.equal(validateWorldState(migrated,c),true);});
 test("schema-four saves migrate command receipt history without changing world state",async()=>{const c=await catalog(),legacy=createWorld(c,{seed:8});legacy.schemaVersion=4;delete legacy.commandReceipts;delete legacy.finance;delete legacy.player.accountId;legacy.player.account={cash:50000,holdings:{}};legacy.clock.day=8;legacy.clock.date="2478-04-09";const migrated=migrateWorldState(legacy);assert.equal(migrated.schemaVersion,9);assert.deepEqual(migrated.commandReceipts,[]);assert.equal(migrated.clock.day,8);assert.equal(migrated.clock.date,"2478-04-09");assert.equal(migrated.finance.accounts["player-main"].balanceMinor,5000000);assert.equal(migrated.finance.transactions[0].day,8);assert.equal(migrated.finance.transactions[0].date,"2478-04-09");assert.equal(validateWorldState(migrated,c),true);});
@@ -309,7 +309,7 @@ test("market formula service records inputs, modifiers, steps and actual random 
   assert.ok(records.some(x=>x.formulaId==="economy.security-price"));
 });
 test("calculation audit history is bounded and reading it does not consume random draws",()=>{
-  const service=createCalculationService({definitions:[{id:"test.roll",version:1,calculate:({random,recordStep})=>{const value=random.next();recordStep("roll",value);return value;}}],historyLimit:2});
+  const service=createCalculationService({definitions:[{id:"test.roll",version:1,calculate:({random,recordStep})=>{const value=random.next();recordStep("roll",value);return {value};}}],historyLimit:2});
   const random=new SeededRandom(8);
   service.evaluate("test.roll",{}, {random,randomStreamId:"test.roll.stream",day:1});
   const stateAfterFirst=random.snapshot();
@@ -326,10 +326,17 @@ test("a failed system discards the candidate day instead of partially mutating t
   const c = await catalog();
   const world = createWorld(c, { seed: "atomic-day" });
   const before = structuredClone(world);
-  const brokenMarkets = new Map(c.markets);
-  brokenMarkets.get = () => undefined;
-  const brokenCatalog = { ...c, markets: brokenMarkets };
-  assert.throws(() => advanceDay(world, brokenCatalog), /colonyId|undefined/);
+  const brokenCatalog = {
+    ...c,
+    extensions: [...c.extensions, {
+      id: "test-failure",
+      version: "1.0.0",
+      scripts: { "failure.js": "function fail(){ throw new Error('intentional system failure'); }" },
+      hooks: { "campaign.before-day": "failure.js:fail" },
+      formulas: {}
+    }]
+  };
+  assert.throws(() => advanceDay(world, brokenCatalog), /MOD_HOOK_FAILURE|intentional system failure/);
   assert.deepEqual(world, before);
 });
 
@@ -445,11 +452,15 @@ test("campaign clock forwards elapsed game days into the simulation advance", as
   assert.equal(world.clock.dayFraction, 0);
 });
 
-test("catalog rejects negative daily population need rates",async()=>{
+test("Core Mod rejects negative daily population need rates during its own settlement",async()=>{
  const packages=await mods(),core=packages.find((item)=>item.id==="core");
  core.data.content["economy.ini"].commodities.find((item)=>item.id==="food").dailyNeedPerThousand=-.1;
  const result=compileCatalog(packages);
- assert.equal(result.ok,false);assert.match(result.error,/dailyNeedPerThousand/);
+ assert.equal(result.ok,true,result.error);
+ const world=createWorld(result.catalog,{seed:"negative-core-need"});
+ const before=structuredClone(world);
+ assert.throws(()=>advanceDay(world,result.catalog),/Invalid Core simulation input: dailyNeedPerThousand/);
+ assert.deepEqual(world,before);
 });
 
 test("partial sub-mill population consumption records the exact shortage without over-consuming stock", async () => {
@@ -470,7 +481,7 @@ test("partial sub-mill population consumption records the exact shortage without
   assert.equal(settledColony.stockpiles.food, 0);
   assert.equal(settledColony.lastNeedsReport.shortageCount, 1);
 
-  const event = settledWorld.domainEvents.find((item) => item.type === "colony.needs-settled");
+  const event = settledWorld.domainEvents.find((item) => item.type === "mod.core.colony.needs-settled");
   assert.equal(event.payload.needs.find((need) => need.commodityId === "food").unmet, food.unmet);
 });
 

@@ -203,7 +203,7 @@ test("applies only registered colony, market, fleet and war effects and records 
     emitDomainEvent: createDomainEventEmitter(world, world.clock)
   });
 
-  assert.deepEqual(emitted, { effectCount: 7, eventCount: 1, triggerCount: 0 });
+  assert.deepEqual(emitted, { effectCount: 7, eventCount: 1, triggerCount: 0, calculationCount: 0 });
   assert.equal(world.colonies.colonyOne.population, 105);
   assert.equal(world.colonies.colonyOne.populationGroups.unclassified.population, 105);
   assert.equal(world.colonies.colonyOne.stability, 52);
@@ -333,7 +333,7 @@ test("applies population group split, merge and dimension effects with cause rec
     emitDomainEvent: createDomainEventEmitter(world, world.clock)
   });
 
-  assert.deepEqual(emitted, { effectCount: 3, eventCount: 0, triggerCount: 0 });
+  assert.deepEqual(emitted, { effectCount: 3, eventCount: 0, triggerCount: 0, calculationCount: 0 });
   assert.equal(world.colonies.colonyOne.population, 140);
   assert.equal(world.colonies.colonyOne.populationGroups.workers.population, 120);
   assert.deepEqual(world.colonies.colonyOne.populationGroups.workers.dimensions.profession, {
@@ -427,7 +427,7 @@ test("runs the example Mod hook through real world day settlement", async () => 
   assert.equal(mods.find((item) => item.id === "example-market").error, undefined);
   const compiled = compileCatalog(mods);
   assert.equal(compiled.ok, true, compiled.error);
-  assert.deepEqual(compiled.catalog.extensions.map((item) => item.id), ["example-market"]);
+  assert.deepEqual(compiled.catalog.extensions.map((item) => item.id), ["core", "example-market"]);
 
   const world = createWorld(compiled.catalog, { seed: 12345 });
   for (let day = 0; day < 60; day += 1) advanceDay(world, compiled.catalog);

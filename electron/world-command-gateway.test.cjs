@@ -4,7 +4,14 @@ const {createWorldCommandGateway}=require("./world-command-gateway.cjs");
 
 function fixture(){
  return {schemaVersion:6,clock:{day:3,date:"2478-04-04"},player:{factionId:"free-port-alliance",accountId:"player-main"},
-  finance:createFinancialLedger({playerFactionId:"free-port-alliance",startDate:"2478-04-01"}),
+  finance:createFinancialLedger({
+   playerFactionId:"free-port-alliance",playerAccountId:"player-main",startDate:"2478-04-01",
+   currencies:[{code:"CR",minorUnitDigits:2}],
+   accounts:[
+    {id:"player-main",ownerType:"player",ownerId:"free-port-alliance",currencyCode:"CR",openingBalanceMinor:25000000,overdraftLimitMinor:0,allowNegative:false,status:"open"},
+    {id:"system-treasury",ownerType:"system",ownerId:"test",currencyCode:"CR",openingBalanceMinor:-25000000,overdraftLimitMinor:0,allowNegative:true,status:"open"}
+   ]
+  }),
   commandReceipts:[],domainEventSequence:0,domainEvents:[]};
 }
 const makeCommand=(id="cmd-gateway-01",from="player-main")=>({commandId:id,type:"finance.transfer",payload:{fromAccountId:from,toAccountId:from==="player-main"?"system-treasury":"player-main",amountMinor:1000}});

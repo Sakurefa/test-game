@@ -87,6 +87,94 @@ test("API v4 Mod scripts can exactly match a population Tag from the detached co
   }), { code: "MOD_HOOK_FAILURE" });
 });
 
+test("API v4 evaluates each population Need rule independently for one group", () => {
+  const runtime = createModExtensionRuntime([mod(
+    "function onHook(input, api) { " +
+    "const lines = input.catalog.populationNeedRules.map(rule => " +
+    "api.evaluatePopulationNeedRule('colony-a', 'residents', rule.id)); " +
+    "return { events: [{ type: 'population-need-lines', payload: { lines } }] }; }"
+  )]);
+  const input = {
+    day: 5,
+    world: {
+      colonies: {
+        "colony-a": {
+          populationGroups: {
+            residents: {
+              id: "residents",
+              population: 200,
+              dimensions: { species: { human: 0.65, xenari: 0.35 } }
+            }
+          }
+        }
+      }
+    },
+    catalog: {
+      populationTags: [{
+        id: "tag.humanoid",
+        dimensionId: "species",
+        categoryIds: ["human"]
+      }],
+      populationNeedRules: [
+        {
+          id: "need.food.base",
+          populationTagId: "tag.humanoid",
+          commodityId: "food",
+          dailyNeedPerThousand: 0.25
+        },
+        {
+          id: "need.food.extra",
+          populationTagId: "tag.humanoid",
+          commodityId: "food",
+          dailyNeedPerThousand: 0.5
+        }
+      ]
+    }
+  };
+  const result = runtime.run("campaign.after-day", input);
+  assert.deepEqual(result[0].events[0].payload.lines, [
+    {
+      ruleId: "need.food.base",
+      populationTagId: "tag.humanoid",
+      groupId: "residents",
+      commodityId: "food",
+      dimensionId: "species",
+      categoryIds: ["human"],
+      dimensionPresent: true,
+      matchedProportion: 0.65,
+      matchedPopulation: 130,
+      dailyNeedPerThousand: 0.25,
+      requested: 0.0325
+    },
+    {
+      ruleId: "need.food.extra",
+      populationTagId: "tag.humanoid",
+      groupId: "residents",
+      commodityId: "food",
+      dimensionId: "species",
+      categoryIds: ["human"],
+      dimensionPresent: true,
+      matchedProportion: 0.65,
+      matchedPopulation: 130,
+      dailyNeedPerThousand: 0.5,
+      requested: 0.065
+    }
+  ]);
+
+  const unknown = structuredClone(input);
+  unknown.world.colonies["colony-a"].populationGroups.residents.dimensions = {};
+  const unknownResult = runtime.run("campaign.after-day", unknown);
+  const unknownLines = unknownResult[0].events[0].payload.lines;
+  assert.equal(unknownLines[0].dimensionPresent, false);
+  assert.equal(unknownLines[0].matchedPopulation, null);
+  assert.equal(unknownLines[0].requested, null);
+
+  assert.throws(() => runtime.run("campaign.after-day", {
+    ...input,
+    catalog: { ...input.catalog, populationNeedRules: [] }
+  }), { code: "MOD_HOOK_FAILURE" });
+});
+
 test("separates deterministic random sequences by entity scope and freezes hook input", () => {
   const scoped = createModExtensionRuntime([mod(
     "function onHook(input, api) { return { events: [{ type: 'roll', payload: { roll: api.random(), globalRandomType: typeof globalThis.Math.random } }] }; }"

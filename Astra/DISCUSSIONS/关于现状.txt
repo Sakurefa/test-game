@@ -32,7 +32,7 @@
 - Campaign clock、命名随机流、候选 World 日结算原子提交、版本化计算审计、命令运行时、财务账本、Domain Events、post-commit read-only Event Bus、Trigger/Resolution/Settlement 基础均已实现。
 - Trigger 当前支持 date、elapsed-day、new Domain Event due sources；effect.apply、formula.effect、event.emit 三种 Resolution；13 种即时批准 Effect。条件/阈值来源、Command Resolution、通用 Modifier 生命周期、Presentation 仍未实现；没有真实消费者时不继续扩张。
 - Core 当前人口需求仍为殖民地总人口 × commodity.daily_need_per_thousand，并执行共享库存受限消费；这只是过渡性的聚合人口需求规则，不是群体 Tag Need。
-- Engine 已有单一维度类别份额选择原语 `matchPopulationDimensionCategories`、人口 Tag 映射类型 `population_tag`，以及最小需求描述类型 `population_need_rule`。API v4 Hook 可用 `api.matchPopulationTag(colonyId, groupId, tagId)` 精确匹配当前快照中的单维人口份额。Need Rule 只含一个 Tag、一个商品和一个日需求率；多规则叠加/冲突、跨维度联合份额、群体级请求和报告仍未实现。共享库存执行接口已实现，策略由 Mod 提供；Engine 不设 pro-rata、公平配给、阶级优先或隐藏 fallback。
+- Engine 已有单维人口份额匹配、population_tag 与 population_need_rule Catalog。API v4 Hook 可通过 evaluatePopulationNeedRule(colonyId, groupId, ruleId) 对单条规则/单个群体返回独立需求行；缺失维度的 requested 保持 null。库存请求支持可选 sourceId，逐请求结果保留规则来源与请求方；同商品多条请求分别记录结果，只在库存扣减时按商品汇总。人口辅助 API 仅在对应 Catalog 内容非空时注入。规则重叠/累加/冲突、跨维度联合份额与 Core 群体级消费者仍未实现；短缺策略仍完全由 Mod 决定。
 - 商品品质/市场相对档次/品质批次、购买力/工资、建筑 workforce、完整订单市场、跨殖民地物流、能源发电/容量/储能/调度、人口迁移/群体调拨仍未实现。
 - engine/queries.cjs 的部分查询仍是只读 Core 世界模型投影；Effect whitelist 仍是有限、明确的领域状态转换 API，而非任意 World patch。
 
@@ -71,3 +71,14 @@
 - API v4 Mod Hook 新增只读 api.matchPopulationTag(colonyId, groupId, tagId)，使用现有单维人口匹配机制。
 - CI [45158883203](https://github.com/Sakurefa/test-game/actions/runs/45158883203) 最终成功，249/249 tests passed；第一次执行有一项既有存档往返测试因 Core 市场 Hook 的 50ms 超时失败，重跑失败 Job 后全部通过；未放宽沙箱时限。
 - 本地 Node 测试/构建未运行；未进行 Windows GUI 验收。Core 未添加规则或实际人口组成，World schema 仍为 9。
+
+
+## 2026-11-23：Population Need 逐群体需求行与请求来源追溯已实现
+
+- 最终代码提交：[e49c0b2](https://github.com/Sakurefa/test-game/commit/e49c0b2c5955d979ecfd56fea928f38c93495faf)。
+- API v4 新增 evaluatePopulationNeedRule，一条规则 × 一个 Pop Group 返回一条独立需求行；不会合并或去重。缺失人口维度的 requested 保持 null。
+- colony.stockpile.allocate 请求新增可选 sourceId；逐请求结果原样保留来源 ID，requesterId 仍可标识 Pop Group。同商品的多条请求分别保留结果，库存扣减才按商品汇总。
+- 人口 Tag / Need helper 仅在相应 Catalog 非空时注入 Hook。
+- CI [45161571754](https://github.com/Sakurefa/test-game/actions/runs/45161571754) 成功：250/250 tests passed；语法检查、Simulation/Mod Loader 测试、Renderer 构建和生成文件步骤全部通过。
+- 中间提交 8794830 的多次 CI 尝试在不同既有 Hook 上遇到 50ms 超时；未修改时限。最终的条件注入提交完整 CI 一次通过。
+- 本地 Node 测试/构建未运行；未进行 Windows GUI 验收。World schema 仍为 9，Core 未添加种族、人口比例或群体 Need 规则。

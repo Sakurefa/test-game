@@ -218,3 +218,15 @@ END
 - Need rules and population Tags are Mod INI/Catalog content, exposed in the serialized Catalog to Mod scripts and included in the content fingerprint when present. Empty collections are omitted to preserve legacy fingerprints. No World field or schema migration is added.
 - The Engine does not combine, deduplicate, prioritize or allocate multiple Need rules. A Mod Hook decides whether distinct rules accumulate, override or conflict and how requests map to the existing shared-stock allocation Effect. The Engine still has no default rationing policy.
 - Core has no population_need_rule, actual race composition or group-level Need consumer; its transitional colony-aggregate daily Need remains unchanged.
+
+
+20. POPULATION NEED RULE EVALUATION AND REQUEST PROVENANCE (2026-11-23)
+-----------------------------------------------------------------------
+- API v4 Mod Hooks can call api.evaluatePopulationNeedRule(colonyId, groupId, ruleId) when the Catalog contains population Tags and Need Rules. It evaluates exactly one rule against exactly one Pop Group.
+- A result keeps ruleId, populationTagId, groupId, commodityId, dimension/category details, matched population, dailyNeedPerThousand and requested quantity. Requested is matchedPopulation / 1000 × daily_need_per_thousand without display rounding.
+- If the target dimension is absent, matched population, proportion and requested quantity remain null/unknown. The Engine does not turn unknown into zero or choose skip/fail/fallback behavior for the Mod.
+- Rules are evaluated independently. The Engine does not sum, deduplicate, override, prioritize or infer conflicts between overlapping rules. Those are Mod-owned semantics.
+- Population matching/evaluation helpers and host callbacks are injected only when the detached Catalog contains the corresponding non-empty content. Mods without population Tags/Need Rules do not receive those extra methods or callback setup.
+- colony.stockpile.allocate requests may include optional sourceId as a stable provenance ID. The allocator validates its identifier shape and echoes it in per-request outcomes/audit. requesterId remains the requester (for example, a Pop Group ID); id remains the unique request ID selected by the Mod.
+- Multiple requests for the same commodity remain separate in the returned request results. Only stockpile subtraction and inventory-conservation checks aggregate allocated quantities by commodity.
+- If a Mod combines several source rules into one request, one sourceId cannot represent all sources; the Mod must retain its own source list/mapping. No World schema or save migration change; Core's aggregate Need consumer is unchanged.

@@ -121,3 +121,13 @@ Population Need Rule 基础契约（2026-11-23）
 - API v4 Mod Hook 可通过 api.matchPopulationTag(colonyId, groupId, tagId) 精确读取单一人口维度的命中份额。规则定义由 INI 提供并通过 Catalog 暴露，匹配与需求计算由 Mod Hook 消费。
 - Engine 不合并、去重、覆盖或按优先级解释重叠规则；多个规则命中同一份人口时的累加/冲突、同商品请求归并与结果上下文仍由 Mod 设计。单条规则不表达跨独立维度 AND。
 - Core 暂时仍使用殖民地总人口聚合需求，未声明 population_need_rule，也没有群体级分配。商品数量需求、商品质量/市场档次与库存短缺配额仍是不同层次；库存配额政策归 Mod。
+
+
+Population Need 逐规则需求行与库存请求来源（2026-11-23）
+----------------------------------------------------
+- API v4 Hook 可对单条 Need Rule 和单个 Pop Group 调用 evaluatePopulationNeedRule；每条返回独立需求行，不自动合并。数量按命中人口 / 1000 × Mod 日需求率计算；未知人口份额保持 null。
+- 同一商品允许有多条库存请求。Engine 逐请求保留 requested、allocated、unmet 与 satisfaction，只在同商品库存扣减和库存守恒检查时汇总。
+- 请求可选 sourceId 记录来源 Need Rule 等稳定内容 ID；requesterId 可标识人口群体，唯一 request id 由 Mod 生成。Effect audit 会回传 sourceId，建立 rule/group/request 的可追溯链。
+- Mod 若将多个规则合并为同一请求，需要自己决定合并策略并保留完整来源映射；一个 sourceId 只能表示一个来源。Engine 不进行隐式去重/累加，也不决定公平或短缺配额。
+- 人口 Tag / Need helper 仅在相应 Catalog 存在非空内容时注入 Hook；没有相关内容的 Mod 不承担这些额外调用路径。
+- 规则重叠、同份额重复需求、多个来源如何聚合以及未知份额的策略仍由 Mod / 游戏内容决定。Core 暂时仍使用殖民地总人口聚合需求。

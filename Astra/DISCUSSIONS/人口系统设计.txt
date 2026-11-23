@@ -162,3 +162,20 @@ Registry 使用同 ID 注册：
 - 短缺分配仍使用已有 colony.stockpile.allocate：Mod 提交完整策略结果，Engine 只校验并执行，不增设默认分配原则。
 
 当前 Core 尚未定义任何 population_need_rule，也未改为群体级消费。其原有按殖民地总人口和商品 daily_need_per_thousand 计算的过渡性规则不变。本阶段只建立 INI/Catalog 与 Hook 匹配基础，不添加 Core 种族、人口比例或需求平衡数值。
+
+
+单条 Need Rule → 群体需求行与请求来源追溯（2026-11-23，基础已实现）
+------------------------------------------------------------
+API v4 Hook 新增 evaluatePopulationNeedRule(colonyId, groupId, ruleId)。它只评估一个 Rule 对一个 Pop Group 的需求行，返回 ruleId、populationTagId、groupId、commodityId、dimensionId、categoryIds、dimensionPresent、matchedProportion、matchedPopulation、dailyNeedPerThousand 与 requested。
+
+requested = matchedPopulation / 1000 × daily_need_per_thousand；不进行显示舍入。目标维度不存在时，matchedProportion、matchedPopulation 与 requested 均保持 null/unknown；不会把未知转成 0。若维度存在但匹配类别份额为零，则 requested 是数值 0。
+
+规则与群体按一对一评估：不同规则即使命中相同人口份额，也分别产生需求行；Engine 不自动累加、去重、覆盖或按内容文件顺序设优先级。规则重叠究竟代表独立需求、重复、修正、互斥还是冲突，仍是 Mod 内容语义。
+
+共享库存请求来源：
+- colony.stockpile.allocate 已支持同一商品多条独立请求；每条请求继续保留自己的 requested / allocated / unmet / satisfaction，只有商品库存扣减与守恒检查按商品汇总。
+- 请求新增可选 sourceId，用于记录来源规则等稳定内容 ID；requesterId 仍标识请求方（可用 Pop Group ID），request ID 由 Mod 为本次计划提供唯一值。sourceId 会随逐请求分配结果与审计记录返回。
+- 如果 Mod 把多个 Rule 的需求汇总成一条请求，一个 sourceId 无法表示完整来源集合；Mod 必须自己保留规则来源列表或归并明细，Engine 不猜测来源血缘。
+- 相关人口辅助方法只在 detached Catalog 含有对应的非空人口 Tag / Need Rule 定义时注入 Hook；不相关的 Mod 不承担额外 API 方法与宿主回调设置。
+
+当前没有 Core 群体 Need 消费者；Core 仍使用殖民地总人口聚合需求。多规则重叠、未知份额如何处理和 Core 的群体分配制度都没有被本次 Engine 实现替用户决定。

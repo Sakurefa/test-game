@@ -1,0 +1,82 @@
+【工作流记录】Population Need 逐群体需求行与请求来源追溯
+====================================================
+
+工作日期：2026-11-23
+当日序号：11
+代码基线：b48ba00b22e04317570bcb66d125d216a7af26bb
+中间代码提交：4b435c1856875a80b32e655f2291281f7be313c0；9c408136cc404e4b28f067befcabcca66a3276ad；87948301440d25da1595122cde4737f88fd5ba6c
+最终代码提交：e49c0b2c5955d979ecfd56fea928f38c93495faf
+目标：让 Mod 能逐条评估 Need Rule × Pop Group 需求行，并把群体、规则来源与库存请求结果关联；不决定重叠规则政策，不接入 Core 人口消费。
+
+一、现状确认
+------------
+- main 基线 b48ba00；上一轮文档 CI 45159586184 success。
+- Core 仍使用殖民地总人口聚合 Needs；没有实际种族人口比例、population_tag 或 population_need_rule。
+- API v4 已能读取人口 Tag 并返回单维度精确份额；Need Rule 已在 Catalog 中定义单 Tag / 单 Commodity / 正数日需求率。
+- colony.stockpile.allocate 已允许同商品多条请求，逐请求保留 requested / allocated / unmet / satisfaction；库存扣减与守恒检查按商品汇总。此前没有保留每条请求的来源规则 ID。
+- 多规则重叠语义仍未确定，不由 Engine 猜测或按内容文件顺序处理。
+
+二、逐 Rule × Group 的需求行
+----------------------------
+新增 API v4 Hook 方法：evaluatePopulationNeedRule(colonyId, groupId, ruleId)。
+
+对指定群体和指定规则计算一条独立需求行，包含 ruleId、populationTagId、groupId、commodityId、dimensionId、categoryIds、dimensionPresent、matchedProportion、matchedPopulation、dailyNeedPerThousand 与 requested。
+
+requested = matchedPopulation / 1000 × daily_need_per_thousand；不进行显示舍入。
+- 目标维度不存在时，matchedProportion、matchedPopulation 与 requested 均保持 null/unknown；不会把未知转成 0。
+- 维度存在但匹配类别份额为零时，requested 是数值 0。
+- 每次只评估一个 Rule × 一个 Group；不同规则即使命中相同人口份额也分别返回。
+- Engine 不自动累加、去重、覆盖或按文件顺序设优先级；重叠语义由 Mod 决定。
+
+三、请求来源追溯
+----------------
+扩展 colony.stockpile.allocate 请求，新增可选 sourceId。
+- id 仍是 Mod 为本次完整计划内每条请求提供的唯一请求 ID。
+- requesterId 继续标识请求方，例如 Pop Group ID。
+- sourceId 是可选的稳定来源内容 ID，例如 Need Rule ID；Engine 验证其稳定 ID 格式并在逐请求 allocation result / audit 中原样保留。
+- 未提供 sourceId 的既有请求保持原返回结构。
+- 同一商品可有多个独立请求。Engine 保留每条请求结果，只在同商品库存扣减与库存守恒检查时聚合分配量。
+- 若 Mod 把多个 Rule 源聚合为一条请求，单一 sourceId 无法表达多来源；Mod 自己保存来源列表/归并明细。
+
+四、按内容注入人口辅助 API
+--------------------------
+- API matchPopulationTag 与宿主回调只在 detached Catalog 有非空 populationTags 时注入。
+- API evaluatePopulationNeedRule 与宿主回调只在有 population Tags 且 populationNeedRules 非空时注入。
+- 不含这些内容的 Mod 不创建额外人口回调或 API 方法，减少无关 Hook 路径开销。
+- 所有计算仍基于 detached read-only world/catalog snapshot，不暴露可变 World 引用。
+
+五、代码变更
+------------
+- engine/mod-runtime.cjs：新增逐 Rule × Group 需求评估；人口 API 按 Catalog 内容条件注入；stockpile allocation 支持可选 sourceId 并在结果回传。
+- tests/mod-runtime.test.cjs：验证两条同 Tag/同商品规则仍独立返回 ruleId / requested；验证未知维度 null、缺失规则报错；验证同商品多请求保留 sourceId 和 requesterId、库存仍按商品汇总扣减；验证无效 sourceId 拒绝。
+- 未修改 mods/core；未新增 Catalog 内容类型、World 字段或 schema migration；World schema 仍为 9。
+
+六、测试与 CI
+-------------
+最终代码 CI [45161571754](https://github.com/Sakurefa/test-game/actions/runs/45161571754)：success，250/250 tests passed；Electron/Simulation syntax、Simulation/Mod Loader tests、Renderer build 与 generated-renderer steps 全部成功。
+
+过程记录：
+- 4b435c1 初次 CI 的 249/250 是新增测试未实际触发缺失规则调用；已在 9c40813 修正为显式请求不存在的 Rule ID。
+- 8794830 增加 sourceId 后，CI 的几次尝试在不同既有 Hook（连续时间、经济存档往返、示例市场）遭遇 50ms timeout；失败位置变化，不是新增需求/请求业务断言。
+- e49c0b2 将人口辅助 API 和宿主回调改成仅在对应 Catalog 非空时注入后，完整 CI 一次通过 250/250。
+- 未放宽 50ms Hook timeout，也未删除压力测试。
+- 本地 Node 测试/构建未执行；没有用户 Windows GUI 验收。
+
+七、实际文件
+------------
+代码：engine/mod-runtime.cjs；tests/mod-runtime.test.cjs。
+Astra：ASTRA_WORKLOG.md；Astra/WORKING_MEMORY.txt；Astra/DISCUSSIONS/人口系统设计.txt；Astra/DISCUSSIONS/经济系统设计.txt；Astra/DISCUSSIONS/关于现状.txt；Astra/DISCUSSIONS/关于接下来的工作.txt；Astra/WORKFLOWS/2026-11-23_11_population-need-line-and-request-provenance.txt。
+
+八、仍未闭合的语义
+------------------
+1. 多条 Need Rule 命中同一人口份额时，区分独立需求累加、重复、修正、互斥与冲突；不能依赖文件顺序。
+2. 若 Mod 将多个规则来源合成一个同商品请求，需保留完整来源映射；单个 sourceId 只能指向一个来源。
+3. Mod 对人口份额 unknown 应明确选择失败、跳过或其他处理；Engine 不代替 Mod 决策。
+4. 跨 species/class 等独立维度的 AND 仍须有显式联合人口份额，不能相乘独立边际。
+5. Core 仍没有真实种族人口构成或群体 Need Rule，继续使用原总人口聚合需求；在真实人口数据和分配政策明确前，不接入 Core 群体消费。
+
+验收状态
+--------
+- 最终代码 CI：45161571754 success，250/250 tests。
+- 本地 Node tests/build：未执行。
+- Windows GUI：未验收。

@@ -147,7 +147,7 @@ function executeScript({
     "const Date = undefined, process = undefined, require = undefined, module = undefined, exports = undefined;",
     "const fetch = undefined, console = undefined, setTimeout = undefined, setInterval = undefined, queueMicrotask = undefined, performance = undefined;",
     "const api = Object.freeze({",
-    "random(scope = 'default') { const key = String(scope); let value; if (typeof __hostRandom === 'function') { value = __hostRandom(key); } else { let state = Object.hasOwn(__randomStates, key) ? __randomStates[key] : __seedFor(key); state ^= state << 13; state ^= state >>> 17; state ^= state << 5; state >>>= 0; __randomStates[key] = state; value = state / 4294967296; } __randomDraws.push({ streamId: key, method: 'next', args: [], value }); return value; },
+    "random(scope = 'default') { const key = String(scope); let value; if (typeof __hostRandom === 'function') { value = __hostRandom(key); } else { let state = Object.hasOwn(__randomStates, key) ? __randomStates[key] : __seedFor(key); state ^= state << 13; state ^= state >>> 17; state ^= state << 5; state >>>= 0; __randomStates[key] = state; value = state / 4294967296; } __randomDraws.push({ streamId: key, method: 'next', args: [], value }); return value; },",
     "clamp(value, minimum, maximum) { return Math.min(maximum, Math.max(minimum, value)); },",
     "round(value, digits = 2) { const factor = 10 ** digits; return Math.round((value + Number.EPSILON) * factor) / factor; },",
     "recordStep(id, value, detail = '') { __steps.push({ id: String(id), value, detail: String(detail) }); },",

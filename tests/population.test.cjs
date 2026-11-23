@@ -6,6 +6,7 @@ const {
   createPopulationGroups,
   getPopulationTotal,
   validatePopulationGroups,
+  matchPopulationDimensionCategories,
   applyPopulationDelta,
   applyPopulationGroupSplit,
   applyPopulationGroupMerge,
@@ -62,6 +63,65 @@ test("rejects invalid group identities, totals and dimension proportions", () =>
     group: { id: "group", population: 100, dimensions: { profession: { miner: 0.6, engineer: 0.3 } } }
   };
   assert.throws(() => validatePopulationGroups(badDistribution, 100), /proportions must total 1/);
+});
+
+test("matches Mod-defined race categories using their explicit share in one population dimension", () => {
+  const group = {
+    id: "residents",
+    population: 200,
+    dimensions: {
+      species: { human: 0.65, xenari: 0.35 },
+      social_class: { citizen: 0.8, noble: 0.2 }
+    }
+  };
+
+  assert.deepEqual(matchPopulationDimensionCategories(group, "species", ["xenari"]), {
+    groupId: "residents",
+    dimensionId: "species",
+    categoryIds: ["xenari"],
+    dimensionPresent: true,
+    matchedProportion: 0.35,
+    matchedPopulation: 70
+  });
+  assert.deepEqual(matchPopulationDimensionCategories(group, "social_class", ["noble"]), {
+    groupId: "residents",
+    dimensionId: "social_class",
+    categoryIds: ["noble"],
+    dimensionPresent: true,
+    matchedProportion: 0.2,
+    matchedPopulation: 40
+  });
+});
+
+test("OR-matches multiple mutually exclusive categories within one dimension", () => {
+  const group = {
+    id: "residents",
+    population: 100,
+    dimensions: { species: { human: 0.4, xenari: 0.35, avian: 0.25 } }
+  };
+  const result = matchPopulationDimensionCategories(group, "species", ["human", "avian"]);
+  assert.equal(result.matchedProportion, 0.65);
+  assert.equal(result.matchedPopulation, 65);
+  assert.throws(() => matchPopulationDimensionCategories(group, "species", ["human", "human"]), /duplicate category ID/);
+});
+
+test("does not invent a population share when the requested dimension is absent", () => {
+  const group = { id: "unclassified", population: 80, dimensions: {} };
+  assert.deepEqual(matchPopulationDimensionCategories(group, "species", ["human"]), {
+    groupId: "unclassified",
+    dimensionId: "species",
+    categoryIds: ["human"],
+    dimensionPresent: false,
+    matchedProportion: null,
+    matchedPopulation: null
+  });
+});
+
+test("rejects invalid dimension and category selectors", () => {
+  const group = { id: "residents", population: 10, dimensions: { species: { human: 1 } } };
+  assert.throws(() => matchPopulationDimensionCategories(group, "", ["human"]), /valid dimension ID/);
+  assert.throws(() => matchPopulationDimensionCategories(group, "species", []), /at least one category/);
+  assert.throws(() => matchPopulationDimensionCategories(group, "species", ["Bad ID"]), /invalid category ID/);
 });
 
 test("population changes use group counts as source and refresh the scalar projection", () => {

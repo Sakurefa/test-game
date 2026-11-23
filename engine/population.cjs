@@ -189,6 +189,68 @@ function assertDimensionMassConserved(before, sourceAfter, splitOut, beforePopul
   }
 }
 
+
+/**
+ * Selects population represented by one or more categories in one dimension.
+ * Categories within that dimension are mutually exclusive (OR). This deliberately
+ * does not combine independent dimensions or infer a joint distribution.
+ */
+function matchPopulationDimensionCategories(group, dimensionId, categoryIds) {
+  if (!isRecord(group) || !Number.isFinite(group.population) || group.population < 0) {
+    throw new TypeError("A population group with a finite non-negative count is required");
+  }
+  if (typeof dimensionId !== "string" || !POPULATION_ID_PATTERN.test(dimensionId)) {
+    throw new TypeError("Population matching requires a valid dimension ID");
+  }
+  if (!Array.isArray(categoryIds) || categoryIds.length === 0) {
+    throw new TypeError("Population matching requires at least one category ID");
+  }
+  const seen = new Set();
+  for (const categoryId of categoryIds) {
+    if (typeof categoryId !== "string" || !POPULATION_ID_PATTERN.test(categoryId)) {
+      throw new TypeError("Population matching contains an invalid category ID");
+    }
+    if (seen.has(categoryId)) throw new Error("Population matching contains a duplicate category ID: " + categoryId);
+    seen.add(categoryId);
+  }
+  if (!isRecord(group.dimensions)) {
+    throw new TypeError("Population group dimensions are missing or invalid");
+  }
+
+  const requestedCategories = [...categoryIds];
+  const distribution = group.dimensions[dimensionId];
+  if (distribution === undefined) {
+    return {
+      groupId: group.id,
+      dimensionId,
+      categoryIds: requestedCategories,
+      dimensionPresent: false,
+      matchedProportion: null,
+      matchedPopulation: null
+    };
+  }
+
+  validateDimensionDistribution(dimensionId, distribution, "population group " + String(group.id || "unknown"));
+  let matchedProportion = 0;
+  for (const categoryId of requestedCategories) {
+    matchedProportion += distribution[categoryId] ?? 0;
+  }
+  if (!Number.isFinite(matchedProportion) || matchedProportion < 0
+    || matchedProportion > 1 + DIMENSION_SUM_TOLERANCE) {
+    throw new RangeError("Population dimension match exceeds the group's dimension share: " + dimensionId);
+  }
+  matchedProportion = Math.min(1, matchedProportion);
+  return {
+    groupId: group.id,
+    dimensionId,
+    categoryIds: requestedCategories,
+    dimensionPresent: true,
+    matchedProportion,
+    matchedPopulation: group.population * matchedProportion
+  };
+}
+
+
 function applyPopulationDelta(colony, delta) {
   if (!isRecord(colony)) throw new TypeError("A colony state is required");
   if (!Number.isFinite(delta)) throw new TypeError("Population delta must be finite");
@@ -414,6 +476,7 @@ module.exports = {
   createPopulationGroups,
   getPopulationTotal,
   validatePopulationGroups,
+  matchPopulationDimensionCategories,
   applyPopulationDelta,
   applyPopulationGroupSplit,
   applyPopulationGroupMerge,

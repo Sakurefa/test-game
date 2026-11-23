@@ -129,6 +129,11 @@ function executeScript({
     throw new RangeError("Mod " + modId + " script is missing or exceeds 256 KiB");
   }
   const safeInput = cloneJson(input, "Mod hook input");
+  const populationTags = safeInput.value.catalog?.populationTags;
+  const populationNeedRules = safeInput.value.catalog?.populationNeedRules;
+  const hasPopulationTags = resultMode === "hook" && Array.isArray(populationTags) && populationTags.length > 0;
+  const hasPopulationNeedRules = hasPopulationTags
+    && Array.isArray(populationNeedRules) && populationNeedRules.length > 0;
   const seed = hashSeed(modId + ":" + hookId + ":" + String(input.day ?? 0) + ":" + randomScope);
   const invocation = [
     "(function () {",
@@ -139,7 +144,8 @@ function executeScript({
     "const __baseSeed = " + seed + ";",
     "const __randomStates = Object.create(null);",
     "const __hostRandom = globalThis.__hostRandom; delete globalThis.__hostRandom;",
-    "const __hostMatchPopulationTag = globalThis.__hostMatchPopulationTag; delete globalThis.__hostMatchPopulationTag;",
+    ...(hasPopulationTags ? ["const __hostMatchPopulationTag = globalThis.__hostMatchPopulationTag; delete globalThis.__hostMatchPopulationTag;"] : []),
+    ...(hasPopulationNeedRules ? ["const __hostEvaluatePopulationNeedRule = globalThis.__hostEvaluatePopulationNeedRule; delete globalThis.__hostEvaluatePopulationNeedRule;"] : []),
     "const __steps = [], __modifiers = [], __randomDraws = [];",
     "function __seedFor(scope) { let hash = 2166136261; const value = __baseSeed + ':' + scope; for (const character of value) { hash ^= character.charCodeAt(0); hash = Math.imul(hash, 16777619); } return hash >>> 0 || 1; }",
     "Object.defineProperty(globalThis.Math, 'random', { value: undefined, writable: false, configurable: false });",
@@ -156,8 +162,12 @@ function executeScript({
     "round(value, digits = 2) { const factor = 10 ** digits; return Math.round((value + Number.EPSILON) * factor) / factor; },",
     "recordStep(id, value, detail = '') { __steps.push({ id: String(id), value, detail: String(detail) }); },",
     "recordModifier(id, value, reason = '') { __modifiers.push({ id: String(id), value, reason: String(reason) }); },",
-    "matchPopulationTag(colonyId, groupId, tagId) { if (typeof __hostMatchPopulationTag !== 'function') throw new Error('Population Tag matching is unavailable in this execution'); return __hostMatchPopulationTag(colonyId, groupId, tagId); },",
-    "evaluatePopulationNeedRule(colonyId, groupId, ruleId) { if (typeof __hostEvaluatePopulationNeedRule !== 'function') throw new Error('Population Need evaluation is unavailable in this execution'); return __hostEvaluatePopulationNeedRule(colonyId, groupId, ruleId); }",
+    ...(hasPopulationTags ? [
+      "matchPopulationTag(colonyId, groupId, tagId) { return __hostMatchPopulationTag(colonyId, groupId, tagId); },"
+    ] : []),
+    ...(hasPopulationNeedRules ? [
+      "evaluatePopulationNeedRule(colonyId, groupId, ruleId) { return __hostEvaluatePopulationNeedRule(colonyId, groupId, ruleId); }"
+    ] : []),
     "});",
     "const __handler = (function () {",
     '"use strict";',
@@ -177,7 +187,7 @@ function executeScript({
   } else if (randomSource && typeof randomSource.next === "function") {
     sandbox.__hostRandom = () => randomSource.next();
   }
-  if (resultMode === "hook") {
+  if (hasPopulationTags) {
     const resolvePopulationMatch = (colonyId, groupId, tagId) => {
       if ([colonyId, groupId, tagId].some((value) => typeof value !== "string")) {
         throw new TypeError("Population matching requires colony, group and Tag IDs");
@@ -197,39 +207,40 @@ function executeScript({
     sandbox.__hostMatchPopulationTag = (colonyId, groupId, tagId) => {
       return resolvePopulationMatch(colonyId, groupId, tagId);
     };
-    sandbox.__hostEvaluatePopulationNeedRule = (colonyId, groupId, ruleId) => {
-      if ([colonyId, groupId, ruleId].some((value) => typeof value !== "string")) {
-        throw new TypeError("Population Need evaluation requires colony, group and rule IDs");
-      }
-      const rules = safeInput.value.catalog?.populationNeedRules;
-      const rule = Array.isArray(rules) ? rules.find((item) => item.id === ruleId) : null;
-      if (!rule) throw new Error("Population Need evaluation cannot find rule " + ruleId);
-      const match = resolvePopulationMatch(colonyId, groupId, rule.populationTagId);
-      const dailyNeedPerThousand = requireFinite(
-        rule.dailyNeedPerThousand,
-        "Population Need rule dailyNeedPerThousand"
-      );
-      if (dailyNeedPerThousand <= 0) {
-        throw new RangeError("Population Need rule dailyNeedPerThousand must be positive");
-      }
-      const requested = match.dimensionPresent
-        ? requireFinite(match.matchedPopulation / 1000 * dailyNeedPerThousand,
-          "Population Need requested quantity")
-        : null;
-      return {
-        ruleId: rule.id,
-        populationTagId: rule.populationTagId,
-        groupId,
-        commodityId: rule.commodityId,
-        dimensionId: match.dimensionId,
-        categoryIds: match.categoryIds,
-        dimensionPresent: match.dimensionPresent,
-        matchedProportion: match.matchedProportion,
-        matchedPopulation: match.matchedPopulation,
-        dailyNeedPerThousand,
-        requested
+    if (hasPopulationNeedRules) {
+      sandbox.__hostEvaluatePopulationNeedRule = (colonyId, groupId, ruleId) => {
+        if ([colonyId, groupId, ruleId].some((value) => typeof value !== "string")) {
+          throw new TypeError("Population Need evaluation requires colony, group and rule IDs");
+        }
+        const rule = populationNeedRules.find((item) => item.id === ruleId);
+        if (!rule) throw new Error("Population Need evaluation cannot find rule " + ruleId);
+        const match = resolvePopulationMatch(colonyId, groupId, rule.populationTagId);
+        const dailyNeedPerThousand = requireFinite(
+          rule.dailyNeedPerThousand,
+          "Population Need rule dailyNeedPerThousand"
+        );
+        if (dailyNeedPerThousand <= 0) {
+          throw new RangeError("Population Need rule dailyNeedPerThousand must be positive");
+        }
+        const requested = match.dimensionPresent
+          ? requireFinite(match.matchedPopulation / 1000 * dailyNeedPerThousand,
+            "Population Need requested quantity")
+          : null;
+        return {
+          ruleId: rule.id,
+          populationTagId: rule.populationTagId,
+          groupId,
+          commodityId: rule.commodityId,
+          dimensionId: match.dimensionId,
+          categoryIds: match.categoryIds,
+          dimensionPresent: match.dimensionPresent,
+          matchedProportion: match.matchedProportion,
+          matchedPopulation: match.matchedPopulation,
+          dailyNeedPerThousand,
+          requested
+        };
       };
-    };
+    }
   }
   const context = vm.createContext(sandbox, {
     name: "mod:" + modId + ":" + hookId,

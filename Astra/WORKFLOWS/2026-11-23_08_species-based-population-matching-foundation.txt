@@ -35,7 +35,7 @@ Engine 在 `engine/population.cjs` 新增 `matchPopulationDimensionCategories(gr
 - 缺少目标维度时显式返回未知；
 - 非法/重复选择器被拒绝。
 
-本次代码提交后的 CI 尚待运行。未执行本地 Node 测试/构建；未进行 Windows GUI 验收。
+本次代码 CI [45154966675](https://github.com/Sakurefa/test-game/actions/runs/45154966675)：success，242/242 tests passed；语法检查、Simulation/Mod Loader tests、Renderer build 和 generated-renderer 步骤全部成功。方向修正文档提交 [b19df9c](https://github.com/Sakurefa/test-game/commit/b19df9ce7c706b91b82363e063ff32e98a195403) 的 CI [45155199026](https://github.com/Sakurefa/test-game/actions/runs/45155199026) 也已 success。未执行本地 Node 测试/构建；未进行 Windows GUI 验收。
 
 四、讨论与工作记忆修正
 ----------------------
@@ -68,6 +68,6 @@ Engine 在 `engine/population.cjs` 新增 `matchPopulationDimensionCategories(gr
 
 验收状态
 --------
-- 代码 CI：等待 run 45154966675 完成。
+- 代码 CI：45154966675 success，242/242 tests；文档 CI：45155199026 success。
 - 本地 Node 测试/构建：未执行。
 - Windows GUI：未验收。

@@ -9,7 +9,10 @@
 - Functional boundary-cleanup commit: [7c441c0b3dd59406bd127947fbfc904c1e8dc7a1](https://github.com/Sakurefa/test-game/commit/7c441c0b3dd59406bd127947fbfc904c1e8dc7a1).
 - CI-generated Renderer output baseline: [a2d90f588de220276bc476aab28cbe795e625df9](https://github.com/Sakurefa/test-game/commit/a2d90f588de220276bc476aab28cbe795e625df9).
 - Astra current-state/worklog archive commit: [e13b901c476da2b2c11459d0424ecde02e73874d](https://github.com/Sakurefa/test-game/commit/e13b901c476da2b2c11459d0424ecde02e73874d).
-- Latest source CI: [45144034925](https://github.com/Sakurefa/test-game/actions/runs/45144034925), success; 235/235 tests passed; syntax check, Simulation/Mod Loader tests, Renderer build and generated-renderer step all succeeded.
+- Latest Engine code commit: [26641ef625e3ad3c1c980b07a3075b61b3f43df8](https://github.com/Sakurefa/test-game/commit/26641ef625e3ad3c1c980b07a3075b61b3f43df8), adding exact single-dimension population category matching.
+- Latest species-direction documentation commit: [b19df9ce7c706b91b82363e063ff32e98a195403](https://github.com/Sakurefa/test-game/commit/b19df9ce7c706b91b82363e063ff32e98a195403).
+- Latest source CI: [45154966675](https://github.com/Sakurefa/test-game/actions/runs/45154966675), success; 242/242 tests passed; syntax check, Simulation/Mod Loader tests, Renderer build and generated-renderer step all succeeded.
+- Direction-documentation CI: [45155199026](https://github.com/Sakurefa/test-game/actions/runs/45155199026), success; syntax check, all tests and Renderer build succeeded.
 - CI-generated follow-up commit a2d90f5 only updates dist/assets/index-BU1AwfrZ.js and dist/index.html; it contains generated Renderer output, not additional simulation source changes.
 - No local tests/build were executed in this session. User-side Windows GUI acceptance remains outstanding. CI results do not prove user-device launch behavior.
 
@@ -46,7 +49,7 @@ Key boundary discussion:
 ## Current Engine snapshot
 
 - World schema 9; legacy schemas 1–8 migrate to 9.
-- Population groups are authoritative per colony; scalar population is a derived compatibility projection. Group split/merge/dimension updates exist; independent dimensions do not imply joint distributions.
+- Population groups are authoritative per colony; scalar population is a derived compatibility projection. Group split/merge/dimension updates exist. `matchPopulationDimensionCategories` selects OR categories within one Mod-defined dimension and returns their exact headcount; independent dimensions do not imply joint distributions.
 - Engine Formula service has no built-in gameplay defaults; API v4 Mods register versioned formulas through manifest [formulas]. Engine executes, injects named random streams, and audits inputs/steps/modifiers/random draws/results.
 - Engine System Registry owns only generic cadence/order/dependency execution. API v4 Mods declare recurring systems in manifest [systems].
 - Core is API v4 and provides four baseline systems in mods/core/scripts/simulation.js: weekly production, daily aggregate-population needs, daily market pricing and daily war chronology. The script is Mod-owned game behavior, not Engine foundation code. Content, formulas' balance parameters, opening finance data and player text remain in Core INI.
@@ -64,8 +67,8 @@ Key boundary discussion:
 
 ## Confirmed design constraints
 
-- Pop Group race/species categories are Mod-defined. Different races may have different Needs through Mod-defined Tags and rules; Engine does not predefine organic/synthetic/android/mechanical population types or infer Needs from a race ID.
-- AI/automation means production capacity is not simply proportional to organic headcount.
+- Pop Group race/species categories are Mod-defined. Different races may have different Needs through Mod-defined Tags and rules; Engine does not predefine life-form population types or infer Needs from a race ID.
+- Production capacity is not inferred from species labels or raw population totals; labor, automation and other contributors need explicit Mod-defined data.
 - Energy is location/technology/capacity constrained; future design must distinguish generation, available supply, consumption/allocation, storage and transportable energy.
 - Interstellar travel, gates and mixed transport exist; inhospitable colonies are possible but local self-sufficiency may be very expensive.
 - Population location, political jurisdiction, origin, employment and ownership are separate relations. Employment references resident groups; it must not create a second population ledger.
@@ -74,4 +77,4 @@ Next work: define the minimal Mod INI Tag-to-population-category mapping and Nee
 
 ## Verification and acceptance
 
-Code commits: [0b253ab](https://github.com/Sakurefa/test-game/commit/0b253ab23eaf8e82cb1b0d0a3ad4222714a54ae2) added the allocation contract; [29945fc](https://github.com/Sakurefa/test-game/commit/29945fc7e61bc9def4c03fa72a22ac55c582dea2) fixed entity-ID validation and test integration. Final CI [45151414787](https://github.com/Sakurefa/test-game/actions/runs/45151414787) succeeded: 238/238 tests passed, syntax checks and Renderer build succeeded, and the generated-renderer step completed. The first run 45151047812 exposed an uppercase-ID validation issue and a strict floating-point assertion; both were corrected. No local build/tests were run in this session. User-side Windows GUI acceptance remains outstanding.
+Code commits: [0b253ab](https://github.com/Sakurefa/test-game/commit/0b253ab23eaf8e82cb1b0d0a3ad4222714a54ae2) added the shared-stock allocation contract; [29945fc](https://github.com/Sakurefa/test-game/commit/29945fc7e61bc9def4c03fa72a22ac55c582dea2) fixed allocation ID validation and test integration; [26641ef](https://github.com/Sakurefa/test-game/commit/26641ef625e3ad3c1c980b07a3075b61b3f43df8) added exact one-dimension population category matching. CI [45154966675](https://github.com/Sakurefa/test-game/actions/runs/45154966675) succeeded: 242/242 tests passed, syntax checks and Renderer build succeeded. Direction docs commit [b19df9c](https://github.com/Sakurefa/test-game/commit/b19df9ce7c706b91b82363e063ff32e98a195403) also passed CI [45155199026](https://github.com/Sakurefa/test-game/actions/runs/45155199026). The earlier allocation run 45151047812 exposed an uppercase-ID validation issue and strict floating-point/test-load problems; those were corrected in 29945fc. No local Node tests/build were run. User-side Windows GUI acceptance remains outstanding.

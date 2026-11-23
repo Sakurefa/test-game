@@ -87,3 +87,22 @@ Code commits: [0b253ab](https://github.com/Sakurefa/test-game/commit/0b253ab23ea
 Latest population Need implementation: [e49c0b2](https://github.com/Sakurefa/test-game/commit/e49c0b2c5955d979ecfd56fea928f38c93495faf). API v4 evaluates one Need Rule per Pop Group; shared-stock requests retain optional sourceId provenance and separate same-commodity request outcomes. CI [45161571754](https://github.com/Sakurefa/test-game/actions/runs/45161571754) passed 250/250 tests. See Astra/WORKFLOWS/2026-11-23_11_population-need-line-and-request-provenance.txt. Local Node tests/build were not run; Windows GUI acceptance remains outstanding.
 
 Latest Need integration-test commit: [14477c8](https://github.com/Sakurefa/test-game/commit/14477c8acc1f4c34edf06e749ba0f3e598f27e02), adding an end-to-end test fixture for Rule × Group evaluation, provenance-bearing stockpile requests and allocation audit. CI [45163818200](https://github.com/Sakurefa/test-game/actions/runs/45163818200) passed 251/251 tests. The test's separate-request and fail-on-unknown choices are fixture-only. See Astra/WORKFLOWS/2026-11-23_12_population-need-mod-request-integration-test.txt.
+
+## 全局地基审视：下一阶段工作入口（2026-11-23）
+
+用户已明确：下一轮新对话先讨论“下一个方向”的详细需求；在选定方向前，先以全局 Engine 地基为视角盘点，不把近期 Population Need 工作误当成项目唯一主线。当前尚未批准具体施工方向。
+
+建议审视范围（不是已排定的施工顺序）：
+1. **生产与商品经济**：商品/配方/库存及 Core 基线生产已有；建筑实体与生产能力、投入产出链、生产规模/容量、品质批次等仍需按真实消费者逐项审视。
+2. **建筑与劳动力**：人口群体基础已有；建筑雇佣关系、就业人数、岗位/劳动力需求、工资与建筑条件结算尚未闭合。就业必须引用权威 Pop Group 人数，不得形成第二人口账本。
+3. **人口需求与生活水平**：人口群体、单维份额匹配、Tag/Need Rule 描述、逐群体需求行、共享库存执行与审计基础已有；正式规则重叠、unknown、短缺政策及真实 Core 群体人口/Need 消费者仍未决定。
+4. **市场、贸易与金融**：财务账本、账户转账、市场报价/价格计算等基础已有；订单/成交、市场清算、购买力与支付、工资流、跨殖民地贸易等仍需分别界定。报价、成交、货物流转和资金结算不能混为一谈。
+5. **物流与能源**：完整货运路线、载具容量、在途库存、运输时间/成本与星际转运尚未形成；能源发电、可用供给、消耗分配、储能、传输分别是不同契约。
+6. **政治、战争与军事**：战争时间线等部分基线行为已有；势力/政治归属、管辖关系、舰队实体与行动、战争目标、补给和战斗结果对世界状态的影响仍需盘点。
+7. **跨系统 Engine 机制与表现边界**：时钟、随机流、Mod Runtime、Formula/System 注册执行与审计、Command、Domain Event、Trigger/Resolution、Effect、Settlement、持久化等已有不同程度基础；条件来源、动作调用、Modifier 生命周期及 Presentation 契约需按实际消费者审视，不为未来可能性先造框架。
+
+建议新对话的第一项工作是逐项核对仓库代码和现有讨论，形成“已有 / 部分已有 / 缺失 / 依赖 / 暂不做”的全局矩阵，再由用户选择一个方向进入详细需求讨论。生产与建筑、人口与劳动力、市场贸易、物流能源、政治战争之间存在依赖，但不在本记录中替用户锁定优先级。
+
+工程边界：继续遵守 AK 原则与 MOD 化原则；Engine 只做通用机制，Core 是 mods/core 下的必需内容 Mod。所有具体规则、内容 ID、数值和平衡由 Mod 定义。审视和建议不等于施工授权；没有用户确认，不实现某一方向，也不把测试夹具策略提升为正式游戏政策。
+
+本次交接记录：Astra/WORKFLOWS/2026-11-23_13_global-foundation-roadmap-handoff.txt。

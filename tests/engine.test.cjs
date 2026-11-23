@@ -481,7 +481,7 @@ test("partial sub-mill population consumption records the exact shortage without
   assert.equal(settledColony.stockpiles.food, 0);
   assert.equal(settledColony.lastNeedsReport.shortageCount, 1);
 
-  const event = settledWorld.domainEvents.find((item) => item.type === "mod.core.colony.needs-settled");
+  const event = settledWorld.domainEvents.find((item) => item.type === "mod.core.colony.needs-settled" && item.subjectId === "new-dawn-colony");
   assert.equal(event.payload.needs.find((need) => need.commodityId === "food").unmet, food.unmet);
 });
 

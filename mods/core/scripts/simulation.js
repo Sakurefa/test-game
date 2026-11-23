@@ -280,17 +280,18 @@ function onWeeklyProduction(input, api) {
       if (result.batchScale <= 0) continue;
       activeIndustryCount += 1;
       for (const [commodityId, quantity] of Object.entries(result.consumed)) {
-        const actual = round(quantity, 3);
+        const available = Math.max(0, workingStock[commodityId] || 0);
+        const actual = Math.min(quantity, available);
         if (actual > 0) {
           effects.push({ type: "colony.stockpile.delta", payload: { colonyId: colony.id, commodityId, delta: -actual } });
-          workingStock[commodityId] = round((workingStock[commodityId] || 0) - actual, 3);
+          workingStock[commodityId] = Math.max(0, available - actual);
         }
       }
       for (const [commodityId, quantity] of Object.entries(result.produced)) {
-        const actual = round(quantity, 3);
+        const actual = quantity;
         if (actual > 0) {
           effects.push({ type: "colony.stockpile.delta", payload: { colonyId: colony.id, commodityId, delta: actual } });
-          workingStock[commodityId] = round((workingStock[commodityId] || 0) + actual, 3);
+          workingStock[commodityId] = (workingStock[commodityId] || 0) + actual;
           output[commodityId] = round((output[commodityId] || 0) + actual, 3);
         }
       }

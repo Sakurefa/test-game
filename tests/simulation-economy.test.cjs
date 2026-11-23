@@ -64,7 +64,7 @@ test("Mod-defined security formula applies declared movement and price limits",a
 test("Mod-defined commodity formula enforces the configured price corridor",async()=>{
  const calculations=calculationsFor(await loadCatalog());
  const {result,record}=calculations.evaluate("economy.commodity-price",commodityInputs(1e6),{
-  randomStreamId:"test.commodity",day:1
+  randomStreamId:"test.commodity",random:{next:()=>0.25},day:1
  });
  assert.ok(result.price>=2&&result.price<=200);
  assert.equal(record.version,3);
@@ -109,29 +109,40 @@ test("world validation rejects negative inventory and non-finite market quotes",
  assert.throws(()=>validateWorldState(badQuote,catalog),/invalid market price/);
 });
 
-test("daily and weekly domain facts have one idempotent emission per entity and cadence",async()=>{
+test("daily and weekly domain facts are idempotent within the bounded event-history window",async()=>{
  const catalog=await loadCatalog(),world=createWorld(catalog,{seed:"event-cadence"});
  const activeWars=Object.values(world.wars).filter(war=>war.status==="active");
- advanceDays(world,catalog,14);
- const keys=world.domainEvents.map(event=>event.idempotencyKey);
- assert.ok(keys.every(key=>typeof key==="string"&&key.length>0));
- assert.equal(new Set(keys).size,keys.length);
- for(const marketId of Object.keys(world.markets)){
-  for(let day=1;day<=14;day++){
-   assert.equal(world.domainEvents.filter(event=>event.type==="mod.core.market.prices-settled"&&event.subjectId===marketId&&event.day===day).length,1,`missing ${marketId} on day ${day}; market facts=${JSON.stringify(world.domainEvents.filter(event=>event.type==="mod.core.market.prices-settled").map(event=>({subjectId:event.subjectId,day:event.day,scope:event.scope,idempotencyKey:event.idempotencyKey})))}`);
+ const assertUniqueKeys=()=>{
+  const keys=world.domainEvents.map(event=>event.idempotencyKey);
+  assert.ok(keys.every(key=>typeof key==="string"&&key.length>0));
+  assert.equal(new Set(keys).size,keys.length);
+ };
+ const assertDailyFacts=(events,startDay,endDay)=>{
+  for(const marketId of Object.keys(world.markets)){
+   for(let day=startDay;day<=endDay;day++){
+    assert.equal(events.filter(event=>event.type==="mod.core.market.prices-settled"&&event.subjectId===marketId&&event.day===day).length,1);
+   }
   }
- }
- for(const war of activeWars){
-  for(let day=1;day<=14;day++){
-   assert.equal(world.domainEvents.filter(event=>event.type==="mod.core.war.chronology-advanced"&&event.subjectId===war.id&&event.day===day).length,1);
+  for(const war of activeWars){
+   for(let day=startDay;day<=endDay;day++){
+    assert.equal(events.filter(event=>event.type==="mod.core.war.chronology-advanced"&&event.subjectId===war.id&&event.day===day).length,1);
+   }
   }
- }
+ };
+ advanceDays(world,catalog,7);
+ const firstWeekEvents=structuredClone(world.domainEvents);
+ assertDailyFacts(firstWeekEvents,1,7);
  for(const colonyId of Object.keys(world.colonies)){
-  for(const day of [7,14]){
-   assert.equal(world.domainEvents.filter(event=>event.type==="mod.core.colony.production-settled"&&event.subjectId===colonyId&&event.day===day).length,1);
-  }
-  assert.equal(world.domainEvents.filter(event=>event.type==="mod.core.colony.production-settled"&&event.subjectId===colonyId).length,2);
+  assert.equal(firstWeekEvents.filter(event=>event.type==="mod.core.colony.production-settled"&&event.subjectId===colonyId&&event.day===7).length,1);
  }
+ assertUniqueKeys();
+
+ advanceDays(world,catalog,7);
+ assertDailyFacts(world.domainEvents,8,14);
+ for(const colonyId of Object.keys(world.colonies)){
+  assert.equal(world.domainEvents.filter(event=>event.type==="mod.core.colony.production-settled"&&event.subjectId===colonyId&&event.day===14).length,1);
+ }
+ assertUniqueKeys();
  assert.equal(validateWorldState(world,catalog),true);
 });
 

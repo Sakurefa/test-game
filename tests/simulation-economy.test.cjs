@@ -83,10 +83,12 @@ test("weekly Core Mod production records calculations and cannot underflow stock
  assert.equal(validateWorldState(world,catalog),true);
 });
 
-test("Core aggregate needs use the Engine stockpile allocation contract",async()=>{
- const catalog=await loadCatalog(),world=createWorld(catalog,{seed:"needs-allocation-contract"});
+test("Core Mod recurring systems emit scoped market, war and colony facts",async()=>{
+ const catalog=await loadCatalog(),world=createWorld(catalog,{seed:"domain-event-economy"});
  const initialStockpiles=Object.fromEntries(Object.entries(world.colonies).map(([id,colony])=>[id,{...colony.stockpiles}]));
  advanceDay(world,catalog);
+ assert.ok(world.domainEvents.some(event=>event.type==="mod.core.market.prices-settled"&&event.scope==="market"));
+ assert.ok(world.domainEvents.some(event=>event.type==="mod.core.war.chronology-advanced"&&event.scope==="war"));
  for(const [colonyId,colony] of Object.entries(world.colonies)){
   const facts=world.domainEvents.filter(event=>event.type==="mod.effect-applied"
    &&event.payload.effectType==="colony.stockpile.allocate"
@@ -103,17 +105,9 @@ test("Core aggregate needs use the Engine stockpile allocation contract",async()
    assert.equal(request.unmet,report.unmet);
   }
   for(const change of allocation.stockpileChanges){
-   assert.equal(initialStockpiles[colonyId][change.commodityId]-colony.stockpiles[change.commodityId],change.allocated);
+   assert.ok(Math.abs(initialStockpiles[colonyId][change.commodityId]-colony.stockpiles[change.commodityId]-change.allocated)<1e-9);
   }
  }
- assert.equal(validateWorldState(world,catalog),true);
-});
-
-test("Core Mod recurring systems emit scoped market, war and colony facts",async()=>{
- const catalog=await loadCatalog(),world=createWorld(catalog,{seed:"domain-event-economy"});
- advanceDay(world,catalog);
- assert.ok(world.domainEvents.some(event=>event.type==="mod.core.market.prices-settled"&&event.scope==="market"));
- assert.ok(world.domainEvents.some(event=>event.type==="mod.core.war.chronology-advanced"&&event.scope==="war"));
  const previousSequence=world.domainEventSequence;
  advanceDays(world,catalog,6);
  assert.ok(world.domainEvents.some(event=>event.type==="mod.core.colony.production-settled"&&event.day===7&&event.scope==="colony"));

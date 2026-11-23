@@ -1,0 +1,117 @@
+【工作流记录】Engine / Mod 边界清理与异常处理
+===============================================
+
+工作日期：2026-11-23
+当日序号：06
+工作主题：审计并修正 Engine 与 mods/core 的职责边界
+
+一、基线与结果
+--------------
+- 工作基线：34e4c0aed0234085ada11ee25a1639b2832bd6ba。
+- 最终功能代码提交：7c441c0b3dd59406bd127947fbfc904c1e8dc7a1。
+- GitHub Actions：45144034925，success。
+- 自动化结果：235/235 tests passed；Electron/Engine syntax、Simulation/Mod Loader tests、Renderer build、generated-renderer commit 全部成功。
+- CI 在构建后自动提交 Renderer 产物：a2d90f588de220276bc476aab28cbe795e625df9。已比较 7c441c0...a2d90f，差异仅为 dist/assets/index-BU1AwfrZ.js（旧 hash 文件更名/更新）与 dist/index.html；未增加模拟逻辑变更。
+- 本次没有在模型容器执行本地测试或构建；没有用户 Windows GUI 验收。CI 成功不能代替用户设备验收。
+
+二、审计发现与清理范围
+----------------------
+原始审计发现：
+1. engine/formulas.cjs 的 DEFAULT_FORMULAS 内置人口需求、殖民地生产、商品定价和证券定价四套经济模型，并夹带生产效率、价格走廊、稀缺区间、价格调整速度、证券波动限制等规则。
+2. engine/simulation.cjs 静态注册生产、人口需求、市场定价和战争时间线四个具体游戏系统，并负责它们的业务逻辑。
+3. 新世界财务初始化在 Engine 内写死 CR、player-main、system-treasury 与 25,000,000 最小货币单位的开局资金。
+4. Engine 内有新世界名称、世界创建提示、每日汇总报告的玩家可见中文文本。
+5. 地点类型和战争状态用 Engine 封闭枚举；舰队/战争运行时初始值由 Engine 补默认。
+6. Catalog 特殊认识 commodity.dailyNeedPerThousand，Effect market.price.multiplier 隐含基础价 0.1–10 倍限制。
+7. Mod 的周期系统和计算公式接口原来不足以让 Mod 独立承担基线玩法行为。
+
+本轮按“通用执行机制保留在 Engine，实际玩法规则和参数交给 Mod”完成调整。
+
+三、实现调整
+------------
+1. 公式执行
+- engine/formulas.cjs 的 DEFAULT_FORMULAS 改为空集合。
+- CalculationService 只负责版本化公式注册、同步执行、确定性随机注入与审计。
+- electron/mod-loader.cjs 解析 API v4 manifest 的 [formulas]，声明公式 ID、脚本目标和版本。
+- Engine 只执行当前已启用 Mod 注册的公式；Trigger 的 formula.effect 也必须引用已注册 Mod 公式。
+- Core 四个基线公式行为由 mods/core/scripts/simulation.js 提供；商品/配方/价格/效率等参数留在 Core INI。
+
+2. 模拟系统调度
+- Engine 移除静态业务 simulationSystems 实现，改为读取 Catalog 中已启用 Mod 声明的系统。
+- API v4 manifest [systems] 声明系统 ID、cadence、order、dependencies 与本 Mod 命名空间内的 Hook。
+- Engine 的 System Registry 仍提供 annual/monthly/weekly/daily/manual 调度、拓扑依赖排序、同步执行与 lastRunDay 记录。
+- Core 显式声明四个系统：周度殖民地生产、日度总人口需求、日度市场定价、日度战争时间线；行为脚本在 mods/core/scripts/simulation.js。
+- 这不是把底层调度器搬进 Core。Core 提供的是基线游戏行为，Engine 仍掌握通用调度器和执行边界。
+
+3. Mod Runtime 与 Effect
+- API v4 Hook 返回契约扩展为有界 effects、events、triggers、calculations；不接受任意 World patch 或宿主回调。
+- Mod Domain Event 统一使用 mod.<mod-id>.<local-event-type> 命名空间；Hook 可声明 scope/subjectId，Engine 继续生成来源/幂等身份与记录。
+- 公式脚本的随机抽取通过 Engine 命名随机流；计算输入、版本、步骤、修正、随机抽取与结果进入现有 calculation audit。
+- 新增/调整的批准 Effect 包括生产/需求报告记录、market.price.set、war.days-active.delta；market.price.multiplier 不再由 Engine 强制限制为基础价格 0.1–10 倍。
+- 生产库存扣减使用受当前可用库存约束的实际数量，不先四舍五入消耗量造成超扣。保持数量精度，不把显示舍入写回权威库存。
+
+4. 新世界财务与初始状态
+- Catalog 新增 Mod-defined currency 与 financial_account 内容类型。
+- Core finance.ini 定义货币代码/精度、账户所有者、玩家账户、开局余额与透支政策。
+- createFinancialLedger 新世界入口要求 Mod 提供 currencies/accounts，并验证每种货币开局余额守恒。
+- 旧 CR/player-main/system-treasury 与历史开局资本只保留在 createLegacyFinancialLedger，专供旧存档迁移，不再作为新世界默认配置。
+- Fleet readiness/morale/stance 与 war status/startedOn 不由 Engine 填具体玩法默认值；相应定义由 Mod 明确提供。
+- Location type 与 war status 使用 Mod 稳定 ID，不再由 Engine 限定固定类型/状态枚举。
+- 新世界名称、创建提示与日结算摘要使用 Core localization INI。
+
+5. Core 与 Renderer
+- mods/core/manifest.ini 升级到 API v4，声明脚本、Hooks、Formulas 和 Systems。
+- 新增 mods/core/scripts/simulation.js：生产、总人口需求、市场报价、战争时间线等 Core 行为。
+- 新增 mods/core/content/finance.ini；Core 的商品、配方、生产与价格参数、财务开局数据仍由 INI 定义。
+- src/domain-event-view.mjs 对 Core 的 Mod-namespaced Domain Event 去除 Core 前缀后复用既有 UI 文案映射。
+- mods/core/ 不含 Engine 调度器、公式执行器、随机流、Trigger Queue、Event Bus 或底层状态存储实现。Core 脚本属于 Mod 玩法行为，不是底层 Engine 脚本。
+
+四、边界判定：保留在 Engine 的职责
+----------------------------------
+- Campaign clock、日期推进与命名随机流。
+- INI 加载、注册表/Catalog 构建、ID/引用/数值结构校验、内容指纹与 localization key 检查。
+- 聚合 Pop Group 存储与人数守恒、split/merge/dimension update；禁止从独立边际比例推导联合人口。
+- Formula 执行服务与审计、Mod Hook 执行与快照隔离/Mod State、System Registry 通用调度。
+- Command、Domain Event、Event Bus、Trigger、Resolution、Settlement 生命周期。
+- 有限批准 Effect 的参数检查、领域状态变更执行、库存/财务守恒。
+- 候选 World 日结算与原子提交、存档校验/迁移。
+
+Effect API 仍是明确且有限的状态转换契约。稳定度、舰队 readiness/morale 等数值边界属于运行时数据不变量；Engine 不应把游戏经济偏好伪装成库存/价格合法性限制。
+
+五、明确保留的边界事项
+----------------------
+- Engine 查询模块中的 colony/market/fleet/war/faction 默认查询是只读数据投影，不参与模拟状态变化。它们目前仍按 Core 当前世界模型组织；未来自定义状态的展示差异应在有消费者时单独处理，不借此扩张通用规则框架。
+- Engine Effect whitelist 仍带有当前 World 实体结构语义；它是有界的稳定状态转换 API，不开放任意字段写入。
+- createLegacyFinancialLedger 中保留旧货币/账户 ID 只为存档迁移。
+- API v3 INI-only Mods 继续兼容；新增 Formula/System 声明仅 API v4 可用。Node vm 仍不是抵御恶意 JS 的安全沙箱，脚本 Mod 应视为可信/用户主动启用内容。
+
+六、当前 Core 经济模型的明确限制
+------------------------------
+Core 当前总人口日需求仍按殖民地总人口 × commodity.daily_need_per_thousand 计算。这是为迁移既有基线玩法而暂时保留在 Core 的过渡规则，不等于已经实现：
+- 群体 Tag/Need 匹配；
+- 精确联合人口份额；
+- 多群体竞争共享库存的分配策略；
+- 购买力、工资、替代商品或完整市场清算。
+
+库存短缺策略未来由 Mod 决定；Engine 只提供输入/输出契约、库存守恒与记录，不预设 pro-rata、公平配给、阶级优先或其他意识形态。商品品质、市场档次、能源调度、商品批次、跨殖民地物流仍未实现。
+
+七、验证与本次提交序列
+----------------------
+- 45142149852 / 45142374126 / 45142544113：发现并修复 Mod Runtime 脚本包装器语法问题。
+- 45143338953：测试暴露旧系统 ID、需求精度、API fixture 等契约问题。
+- 45143833831：测试只剩例子 Mod 在 60 天后查询有界 Domain Event 历史的旧断言；同时修正 Core 生产的库存扣减精度、事件测试 subject 归属与公式随机输入。
+- 45144034925：最终成功，235/235 tests passed，Renderer build 与 generated-renderer commit 成功。
+
+主要提交：
+- f6087da：移动基线玩法规则、注册公式与系统、财务/Mod/API/工作区大修。
+- 0867dac、c4c46fb：修复 Mod Runtime 脚本包装器生成语法。
+- d8c49c6：修正测试契约与 Core 需求精度。
+- 877db75：修正 Core 生产库存精度与事件测试窗口。
+- 7c441c0：有界 Domain Event 历史测试修正，CI 235/235 成功。
+- a2d90f：CI 自动生成 Renderer 产物，只变更 dist 文件。
+
+八、后续方向
+------------
+继续按已确认方向设计 Tag 驱动的群体 Need 最小契约与共享库存分配策略接口。先闭合人口份额/规则匹配和策略输入输出，不实现具体财富、购买力或配给制度；不设置 Engine 默认分配策略。没有真实消费者前，不扩展新的通用规则框架。
+
+验收边界：本次 CI 自动化成功；本地测试/构建未执行；用户 Windows GUI 验收仍待进行。

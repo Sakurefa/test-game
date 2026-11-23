@@ -1,53 +1,56 @@
 关于现状
 ========
 
-本文件是当前仓库状态摘要。具体执行历史见 WORKFLOWS；稳定设计边界见 WORKING_MEMORY 与专题 DISCUSSIONS。
+本文件是当前仓库状态摘要。具体执行记录见 WORKFLOWS；稳定设计边界见 WORKING_MEMORY 与专题 DISCUSSIONS。
 
 ## 仓库与验证基线（2026-11-23）
+
 - Repository：Sakurefa/test-game，默认分支 main。
-- 本次检查基线：04f604cb6c8b8bce48f761157fdbf1b3df7979b3。
-- 基线 Windows 源码 CI：45059248600 success。语法检查、Simulation/Mod loader tests、Renderer build、generated-renderer 步骤全部成功。
-- 最近一次明确测试数量的完整 Trigger 集成 CI：44987890324，233/233 tests 通过；随后文档 CI 44988145049 成功。45059248600 是后续参考资料提交的 CI，成功但本次读取的 run/job 元数据未显示测试数量。
-- 最新成功 Runtime/Launcher 工作流仍为 44953518367，Artifact Market-Simulator-Launcher-EXE 约 92.7 MB，保留至 2026-12-05 21:50 UTC。该结果仅证明 CI 打包/上传成功，不证明用户设备启动成功。
-- 本次没有执行本地测试或构建；没有用户 Windows GUI 验收。
+- 当前 main：a2d90f588de220276bc476aab28cbe795e625df9（CI 自动生成 Renderer 产物后的 HEAD）。
+- 功能代码提交：7c441c0b3dd59406bd127947fbfc904c1e8dc7a1。
+- Windows 源码 CI：45144034925，success；235/235 tests passed，Electron/Engine syntax、Simulation/Mod Loader tests、Renderer build 与 generated-renderer 步骤全部成功。
+- CI 自动生成提交 a2d90f5 仅更新 dist/assets/index-BU1AwfrZ.js 与 dist/index.html；与功能代码提交比较确认未引入额外模拟逻辑。
+- 本次没有执行本地测试或构建；没有用户 Windows GUI 验收。CI 成功不能代替用户设备验收。
 
-## 工程边界
-- 项目仍处于通用 Engine 地基阶段。Engine 提供机制、数据装载、验证、结算、持久化和受限扩展；全部可运行游戏内容由 mods/ 提供。mods/core 是必需基础 Mod，不属于 Engine。
-- Mod manifest、registry、内容和 localization 保持 INI；API v3 INI-only 兼容；API v4 JS 仅限声明式 hooks 与批准结果。
-- 遵守 AK 原则与 MOD 化原则：简单可靠、只为真实消费者抽象、避免重复权威状态；不提前建设通用框架。
+## Engine / Mod 边界
 
-## 当前实现概览
-- 世界数据：多星系/星域空间内容、殖民地、市场、舰队、战争等基础定义；Catalog 交叉引用验证；World schema 9，旧 schema 1–8 迁移到 9。
-- 时间与模拟：战役时钟、暂停/倍速时间推进、annual/monthly/weekly/daily/manual simulation cadence；当前实际游戏消费者为周度生产、日度人口需求、市场定价与战争时间线。没有实际 annual/monthly 游戏系统。
-- 执行与扩展：detached candidate-world 日结算与原子提交、命名随机流、版本化计算审计、命令运行时/主进程网关、Domain Event history、post-commit read-only Event Bus、Mod API v4 hooks。
-- Trigger：持久化队列；date、elapsed-day、new Domain Event 三类来源；effect.apply、formula.effect、event.emit 三种 Resolution；13 种批准的即时 Mod Effect；独立 Settlement runner；整日 candidate-world 原子性和回执。核心实现与自动化模拟验收完成。条件/阈值来源、Command Resolution、通用 Modifier/临时效果生命周期和 Presentation 未实现；没有真实消费者前不应继续扩展。
-- 财务：玩家账户与整数最小货币单位账本、转账命令等基础能力；并非完整税收、债务、公司财务或市场结算系统。
-- 生产与市场：殖民地每周按 recipe/industry level/stability 结算生产，输入受库存约束；每日更新商品/证券报价。不是完整跨殖民地订单市场或物流。
-- 人口：World schema 9 的聚合 populationGroups 为权威人口数量；殖民地 scalar population 是派生兼容投影。Mod 可通过 INI 定义完整初始群体；运行时支持群体 split/merge/维度更新。群体维度是独立边际，不推导联合分布。
-- 需求：当前每日仍按殖民地总人口 × commodity.daily_need_per_thousand 计算；共享殖民地库存受限消费并记录 requested/consumed/unmet/satisfaction。尚无群体需求归属、群体间库存分配、购买力/工资或需求替代。
-- 建筑就业：recipe.workforce 只是 metadata；没有实际雇佣群体、建筑 workforce 人数、工资或就业结算。
-- 世界物流：星际航行/星门是世界设定方向，但当前没有舰队移动、货物运输、跨殖民地物流或人口迁移系统。
+- Engine 提供通用机制：数据装载与结构校验、Formula 执行/审计、System cadence/依赖调度、命名随机流、Mod Hook 执行、批准 Effect、Command、Domain Event、Trigger、Resolution、Settlement、持久化与原子结算。
+- mods/core 是必需基础游戏内容 Mod，不属于 Engine。它可以通过 API v4 JS 提供基线玩法行为，但不包含 Engine 底层调度器、公式执行器、随机流、Trigger Queue 或 Event Bus。
+- Mod manifest、registry、content definitions 和 localization 仍使用 INI。API v3 INI-only Mod 保持兼容；API v4 可显式声明 scripts/hooks、versioned formulas 与 recurring simulation systems。
+- 具体游戏规则、数值、初始账户和玩家文本由 Mod 定义；Renderer 只展示状态，不成为游戏规则权威来源。
 
-## 已确认的世界经济前提
+## 当前公式与模拟系统
+
+- engine/formulas.cjs 不再内置人口需求/生产/商品价格/证券价格等游戏公式；CalculationService 默认公式集为空，负责注册/执行/审计 Mod 提供的版本化公式。
+- engine/system-registry.cjs 仍提供 annual/monthly/weekly/daily/manual 通用调度、顺序与依赖拓扑；具体周期系统由 Mod manifest [systems] 声明。
+- Core API v4 在 mods/core/scripts/simulation.js 提供基线生产、总人口需求、商品/证券定价与战争时间线行为；Core manifest 声明 4 个 recurring systems 与 4 个 Formula。
+- 对应的商品/配方、生产效率、价格走廊、稀缺系数、调整速度、证券变动限制、货币/账户/开局余额都留在 Core INI。
+- 新世界财务入口要求 Mod 提供货币与账户定义。旧 CR/player-main/system-treasury 开局结构仅保留在 createLegacyFinancialLedger 中，用于旧存档迁移。
+
+## 当前地基与未实现内容
+
+- World schema 9；旧 schema 1–8 迁移至 9。聚合 populationGroups 为殖民地权威人口数量；scalar population 是派生兼容投影。支持人口群体 split/merge/dimension update；独立维度是边际分布，不推导联合人口。
+- Campaign clock、命名随机流、候选 World 日结算原子提交、版本化计算审计、命令运行时、财务账本、Domain Events、post-commit read-only Event Bus、Trigger/Resolution/Settlement 基础均已实现。
+- Trigger 当前支持 date、elapsed-day、new Domain Event due sources；effect.apply、formula.effect、event.emit 三种 Resolution；13 种即时批准 Effect。条件/阈值来源、Command Resolution、通用 Modifier 生命周期、Presentation 仍未实现；没有真实消费者时不继续扩张。
+- Core 当前人口需求仍为殖民地总人口 × commodity.daily_need_per_thousand，并执行共享库存受限消费；这只是过渡性的聚合人口需求规则，不是群体 Tag Need。
+- 群体 Tag/Need 匹配、精确交叉人口份额、群体间库存分配接口均未实现。短缺分配属于 Mod 经济规则；Engine 不设 pro-rata、公平配给、阶级优先或隐藏 fallback。
+- 商品品质/市场相对档次/品质批次、购买力/工资、建筑 workforce、完整订单市场、跨殖民地物流、能源发电/容量/储能/调度、人口迁移/机器人调拨仍未实现。
+- engine/queries.cjs 的部分查询仍是只读 Core 世界模型投影；Effect whitelist 仍是有限、明确的领域状态转换 API，而非任意 World patch。
+
+## 已确认的世界经济与人口前提
+
 - 有机生命 Pop 需要食物等生物需求；仿生人和机械劳工 Pop 不需要食物，转而需要能源、精密部件与维护。AI/机械劳工意味着生产能力不能简单等同于有机人口数量。
-- 能源是最大的经济张力之一：恒星发电与技术发电受位置和容量限制，殖民地/星系争夺有限能源。未来必须区分发电能力、实际供给、消耗分配、储能和可运输能源载体；当前没有能源系统。
-- 可进行星际航行、建立星门并混合使用；不宜居星球也可殖民，也可培养食物，但不适宜环境下的自给自足成本极高。以上是世界设定，不代表物流、能源玩法已实现。
-
-## Pop 归属与流动的设计约束
-- 概念关系：势力提供政治管辖/组织视图；殖民地是当前居住地与现有人口群体权威存放位置；建筑是工作地点，通过就业分配关系引用群体和人数。
-- 人口只保留一份权威数量。势力统计与建筑 workforce 都是派生/引用关系；建筑雇员仍属于殖民地人口，不得双重计数。
-- 当前所在地、政治归属、来源/籍贯、雇佣关系、所有权是不同关系。机器人制造来源和所有权可有意义，且可与当前殖民地、势力、雇主不同。
-- 移民/调拨是跨殖民地守恒转移；出生/制造和死亡/报废改变总量；失业只改变就业；政权更迭只改变管辖；所有权转移不自动改变位置或人数。
-- 这些是未来设计约束，不是当前实现，也不批准立即增加全球人口账本、产权系统或迁移框架。
+- 能源是受地点、技术和容量限制的战略瓶颈；未来需区分发电能力、实际供给、消耗分配、储能和可运输能源载体。
+- 星际航行、星门和混合运输并存；不宜居殖民地也可培养食物，但自给自足成本可能极高。
+- 当前所在地、政治归属、来源/籍贯、就业关系、所有权必须区分；群体人口数量只保留一份权威账本。建筑 workforce 引用居住人口群体，不应双重计数。
 
 ## 下一步方向与边界
-上一轮 Trigger 完成后的建议尚未被实现：推进人口群体级需求与商品消费。当前实现检查确认它仍未开始，群体需求配置与共享库存分配均未落地。
 
-建议下一次工作流按以下顺序：
-1. 先设计最小需求配置契约：群体如何显式关联需求配置，使有机人口与合成人口能拥有不同需求；具体配置与商品映射仍由 Mod INI 提供。
-2. 明确如何从独立人口维度获得需求归属，禁止通过边际比例相乘推导 species×profession 等交叉人口。显式 profile 引用或直接需求归属维度只是候选，不预设答案。
-3. 定义多个群体竞争殖民地共享库存时的分配规则，以及群体结果如何汇总为殖民地报告；保持确定性、可解释、可审计。
-4. 能源作为设计边界案例考虑，但不直接实现能源市场、发电容量或跨星系能源物流；保留未来功率/容量与库存能源的区别。
-5. 设计确认后再实现最小闭环与聚焦测试。具体种族、商品、需求数值和人口比例仍由 Mod 提供，不写入 Engine。
+继续先设计 Tag 驱动的群体 Need 最小契约，以及 Mod 决定共享库存短缺配额的策略接口：
+1. 区分对象 Tag、人口维度份额与规则条件；Tag 匹配不得通过独立边际相乘推导联合人口。
+2. 闭合多 Need 规则重叠、组合条件、人口份额去重和请求结果上下文。
+3. 设计 Mod 策略的请求输入、分配结果、未覆盖/重复/未知请求、负数/超请求/超库存、精度与确定性契约。
+4. Engine 只负责合法性、库存守恒、扣减与记录；不选公平原则，也不提供隐藏分配默认。
+5. 设计完成后再实现最小机制与聚焦测试。
 
-暂缓：人口来源分布、跨殖民地移民/机器人调拨、所有权、政治身份分离、实际建筑就业关系及工资。它们已作为设计约束记录；只有在群体需求/库存分配形成稳定消费者，或出现真实 workforce/迁移消费者时再设计和实现。建筑就业不能靠人口边际比例推算。
+明确延后：财富/购买力、支付、阶级配额、工资、商品替代、商品品质批次、市场清算、能源基础设施、跨殖民地物流、人口迁移与产权/租赁框架。没有真实消费者前不提前建立对应通用抽象。

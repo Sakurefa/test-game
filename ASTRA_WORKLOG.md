@@ -27,13 +27,14 @@ Files use YYYY-MM-DD_NN_topic.txt; NN is one shared chronological sequence per d
 - 2026-11-20: 01
 - 2026-11-21: 01–08
 - 2026-11-22: 01–17
-- 2026-11-23: 01–07
+- 2026-11-23: 01–08
 
 Latest 2026-11-23 records:
 - Astra/WORKFLOWS/2026-11-23_04_tag-based-population-needs-design.txt
 - Astra/WORKFLOWS/2026-11-23_05_need-allocation-policy-interface.txt
 - Astra/WORKFLOWS/2026-11-23_06_engine-mod-boundary-cleanup.txt
 - Astra/WORKFLOWS/2026-11-23_07_shared-stockpile-allocation-engine-contract.txt
+- Astra/WORKFLOWS/2026-11-23_08_species-based-population-matching-foundation.txt
 
 Key boundary discussion:
 - Astra/DISCUSSIONS/Engine 与 Mod 边界清单.txt
@@ -57,19 +58,19 @@ Key boundary discussion:
 
 - Core currently keeps the transitional colony-aggregate daily-need rule: population × commodity.daily_need_per_thousand, stock-limited shared inventory consumption, requested/consumed/unmet/satisfaction reporting. It is not group Tag Need or a group-level allocation policy.
 - Shared-stock execution is implemented as the generic Mod Effect `colony.stockpile.allocate`. Mod submits the allocation plan; Engine validates complete request coverage, per-request bounds and per-commodity inventory conservation, then applies and audits the result. No Engine allocation policy or fallback exists.
-- No group-level Tag matching/explicit joint shares or group-level Need requests; the shared-stock allocation executor now exists, with Core's colony-aggregate Need as its first consumer. Purchasing power, wages, workforce assignment, goods substitution, quality-batch inventory and market clearing remain unimplemented.
+- The generic population module now provides exact matching of one or more categories within one Mod-defined dimension; it does not combine independent dimensions. Need rule loading, Tag mapping, overlapping-rule semantics, explicit joint shares and group-level Need requests remain unimplemented. The shared-stock allocation executor exists, with Core's colony-aggregate Need as its current consumer. Purchasing power, wages, workforce assignment, goods substitution, quality-batch inventory and market clearing remain unimplemented.
 - No full cargo logistics, energy generation/capacity/storage/scheduling, cross-colony migration/robot transfer, ownership/lease framework.
 - engine/queries.cjs retains read-only data projections for the current Core world model. Effect whitelist remains a bounded state-transition interface, not an arbitrary World patch.
 
 ## Confirmed design constraints
 
-- Organic Pops need biological goods; synthetic/android/mechanical Pops instead need energy, precision components and maintenance.
+- Pop Group race/species categories are Mod-defined. Different races may have different Needs through Mod-defined Tags and rules; Engine does not predefine organic/synthetic/android/mechanical population types or infer Needs from a race ID.
 - AI/automation means production capacity is not simply proportional to organic headcount.
 - Energy is location/technology/capacity constrained; future design must distinguish generation, available supply, consumption/allocation, storage and transportable energy.
 - Interstellar travel, gates and mixed transport exist; inhospitable colonies are possible but local self-sufficiency may be very expensive.
 - Population location, political jurisdiction, origin, employment and ownership are separate relations. Employment references resident groups; it must not create a second population ledger.
 
-Next work: close the minimum Tag-driven group Need matching contract, including explicit population-share representation and overlapping-rule semantics. The shared-stock executor already exists; distribution policy stays Mod-owned. Never infer joint population from marginal dimensions. Keep exact rules, categories and balance values in Mods.
+Next work: define the minimal Mod INI Tag-to-population-category mapping and Need-rule contract, then handle rule overlap and explicit joint shares. The Engine's current matcher only selects categories within one dimension. The shared-stock executor already exists; distribution policy stays Mod-owned. Never infer joint population from marginal dimensions. Keep race categories, Needs and balance values in Mods.
 
 ## Verification and acceptance
 

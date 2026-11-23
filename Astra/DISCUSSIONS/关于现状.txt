@@ -34,13 +34,13 @@
 - Campaign clock、命名随机流、候选 World 日结算原子提交、版本化计算审计、命令运行时、财务账本、Domain Events、post-commit read-only Event Bus、Trigger/Resolution/Settlement 基础均已实现。
 - Trigger 当前支持 date、elapsed-day、new Domain Event due sources；effect.apply、formula.effect、event.emit 三种 Resolution；13 种即时批准 Effect。条件/阈值来源、Command Resolution、通用 Modifier 生命周期、Presentation 仍未实现；没有真实消费者时不继续扩张。
 - Core 当前人口需求仍为殖民地总人口 × commodity.daily_need_per_thousand，并执行共享库存受限消费；这只是过渡性的聚合人口需求规则，不是群体 Tag Need。
-- 群体 Tag/Need 匹配、精确交叉人口份额、群体间库存分配接口均未实现。短缺分配属于 Mod 经济规则；Engine 不设 pro-rata、公平配给、阶级优先或隐藏 fallback。
-- 商品品质/市场相对档次/品质批次、购买力/工资、建筑 workforce、完整订单市场、跨殖民地物流、能源发电/容量/储能/调度、人口迁移/机器人调拨仍未实现。
+- Engine 已有单一维度类别份额选择原语 `matchPopulationDimensionCategories`，可精确匹配一个维度内的一个或多个类别；它不是完整 Tag/Need 系统。Need 规则、跨维度联合份额、重叠去重和群体级报告仍未实现。共享库存执行接口已实现，策略由 Mod 提供；Engine 不设 pro-rata、公平配给、阶级优先或隐藏 fallback。
+- 商品品质/市场相对档次/品质批次、购买力/工资、建筑 workforce、完整订单市场、跨殖民地物流、能源发电/容量/储能/调度、人口迁移/群体调拨仍未实现。
 - engine/queries.cjs 的部分查询仍是只读 Core 世界模型投影；Effect whitelist 仍是有限、明确的领域状态转换 API，而非任意 World patch。
 
 ## 已确认的世界经济与人口前提
 
-- 有机生命 Pop 需要食物等生物需求；仿生人和机械劳工 Pop 不需要食物，转而需要能源、精密部件与维护。AI/机械劳工意味着生产能力不能简单等同于有机人口数量。
+- Pop Group 的种族/物种类别由 Mod 定义；各类种族可以通过 Mod Tag / Need 规则拥有不同需求。Engine 不预设有机、仿生、合成或机械分类，也不从种族名称推断需求。
 - 能源是受地点、技术和容量限制的战略瓶颈；未来需区分发电能力、实际供给、消耗分配、储能和可运输能源载体。
 - 星际航行、星门和混合运输并存；不宜居殖民地也可培养食物，但自给自足成本可能极高。
 - 当前所在地、政治归属、来源/籍贯、就业关系、所有权必须区分；群体人口数量只保留一份权威账本。建筑 workforce 引用居住人口群体，不应双重计数。

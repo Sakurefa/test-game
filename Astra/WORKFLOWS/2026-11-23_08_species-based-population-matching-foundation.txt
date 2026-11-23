@@ -1,0 +1,73 @@
+【工作流记录】种族维度的人口匹配基础与错误设定纠正
+====================================================
+
+工作日期：2026-11-23
+当日序号：08
+代码基线：d14764e5fa88d288adb206347a084aa0294f8eb2
+代码提交：26641ef625e3ad3c1c980b07a3075b61b3f43df8
+本次目标：依据用户最新纠正，清除“有机/仿生/机械是人口分类轴”的错误前提；沿用 Mod-defined species/dimension 数据，推进最小、精确的人口类别匹配原语。
+
+一、方向复核
+------------
+- 最新 main 基线：d14764e5fa88d288adb206347a084aa0294f8eb2；此前文档 CI 45152016111 success。
+- 阅读 AGENTS.md、Astra README、Working Memory、AK / MOD 化最高优先级原则、当前工作日志索引、人口/经济/现状/下一步/人口归属等讨论，以及 2026-11-23_04～07 工作记录。
+- 复核 engine/population.cjs：Pop Group 只有稳定 ID、人口计数及 generic dimensions；每个 dimension 是独立分类比例分布，没有种族专用 runtime entity。
+- 复核 engine/catalog.cjs 与 electron/mod-loader.cjs：population_group 的 `dimension.<id>` 完全由 Mod INI 提供；profession / wealth_tier 有现有 Catalog 引用校验，其他 dimension/category 使用通用 ID。Engine 没有 species 类型列表。
+- 复核 mods/core/content/population.ini：仅定义中性的 profession.unassigned 与 wealth_tier.unclassified；Core 未提供任何实际种族人口组成。
+- 复核 mods/core/manifest.ini：Core 的基础人口需求仍按殖民地总人口处理；尚无群体 Need rules。
+- 确认旧讨论中“有机 Pop / 仿生 Pop / 机械劳工 Pop 自动拥有不同固定需求”的句子属于错误假设，现由用户明确纠正：人口分类重点是不同种族/物种；不按生命形态在 Engine 中硬编码。
+
+二、本次实现
+------------
+Engine 在 `engine/population.cjs` 新增 `matchPopulationDimensionCategories(group, dimensionId, categoryIds)`：
+- dimensionId 和 categoryIds 均为调用方提供的通用稳定 ID；Engine 不硬编码 `species` 或任何种族名。
+- 一个 dimension 内的多个 category 按 OR 处理。该维度类别互斥，其比例可直接相加得到精确匹配人口份额。
+- 返回 dimensionPresent、matchedProportion、matchedPopulation；群体没有该 dimension 时返回 null 匹配值，明确表示未知，而不是悄悄把未知当成零人口。
+- 拒绝非法维度/类别 ID、重复类别与不合法人口计数；不读取、组合或相乘其他独立 dimension。
+- 不新增 World schema、Mod 内容类型、Tag Catalog、Need Profile 实体或 Core 种族数据。
+
+三、测试
+--------
+新增人口测试：
+- 一个 Mod-defined species 类别精确映射为群体人数；
+- 同一维度多类别 OR 结果精确；
+- 其他任意维度同样可用，函数不具备种族专用行为；
+- 缺少目标维度时显式返回未知；
+- 非法/重复选择器被拒绝。
+
+本次代码提交后的 CI 尚待运行。未执行本地 Node 测试/构建；未进行 Windows GUI 验收。
+
+四、讨论与工作记忆修正
+----------------------
+更新：
+- Astra/WORKING_MEMORY.txt
+- Astra/DISCUSSIONS/人口系统设计.txt
+- Astra/DISCUSSIONS/经济系统设计.txt
+- Astra/DISCUSSIONS/关于现状.txt
+- Astra/DISCUSSIONS/关于接下来的工作.txt
+- Astra/DISCUSSIONS/人口归属、所在地与流动设计.txt
+- ASTRA_WORKLOG.md
+
+修正规则：
+- Pop Group 的种族/物种分类由 Mod 提供，Engine 不预设种族列表或生命形态。
+- Need 规则由 Mod Tag / Need 定义，不能从 species 名称推断某种商品需求。
+- 一维分类比例可精确计算该类别人口；跨独立维度交集仍要求显式联合数据，禁止边际相乘。
+- 历史 WORKFLOWS 保留为当时记录，不篡改历史；本记录与专题讨论声明当前正确方向并覆盖旧假设。
+
+五、未完成事项
+--------------
+- 尚无通用 Tag 到 population dimension/category 的 Mod INI 映射。
+- 尚无 Need rule 内容格式、规则重叠/去重/累加语义，也未生成群体级请求。
+- 多维交集匹配仍未实现；必须先有显式人口份额数据。
+- 商品 Tag、品质、市场相对档次、购买力、工资、就业、能源调度等不属于本次范围。
+- Core 不添加种族类别、人口比例或种族需求数值；需由具体 Mod 提供。
+
+下一步
+------
+先定义最小的 Mod INI Tag ↔ population dimension/category 映射及 Need rule 输入输出，再闭合同一人群命中多条规则时的累加/冲突语义。继续沿用 Mod-defined categories 和显式份额，不新增专用 NeedProfile 实体或 Engine 默认种族/需求政策。
+
+验收状态
+--------
+- 代码 CI：等待 run 45154966675 完成。
+- 本地 Node 测试/构建：未执行。
+- Windows GUI：未验收。

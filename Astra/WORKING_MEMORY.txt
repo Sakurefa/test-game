@@ -134,25 +134,26 @@ END
 - The intended conceptual hierarchy is political/organizational context → colony as current residence/location → population group as the authoritative aggregate. Faction summaries are derived views, not another population ledger.
 - Buildings are workplaces. Actual employment must be represented as a relationship/allocation referencing resident population groups and headcounts; employed people remain part of colony population and must not be counted a second time or disappear from resident needs.
 - Keep distinct concepts separate: current location/residence, political jurisdiction or affiliation, origin/homeland/manufacturing origin, employment, and (where applicable) legal ownership/control. A single generic owner/faction field must not stand in for all of them.
-- Origin and ownership are optional semantics, not mandatory attributes for every organic population group. For synthetic/android/mechanical populations, manufacturing origin and ownership may matter; ownership can differ from political jurisdiction, current location and employer.
-- Migration, transfer, natural population change, manufacturing/creation, attrition/scrapping, employment change, political control change and ownership transfer are distinct operations. Migration changes location; unemployment changes employment; jurisdiction changes political control; ownership transfer does not by itself move or create/destroy population.
+- Origin and ownership are optional, Mod-defined relations; do not tie them to presumed organic, synthetic or mechanical population types. If a specific game Mod needs origin or ownership for a group, it must define that relation explicitly and keep it separate from species, current location, political jurisdiction and employment.
+- Migration, transfer, population creation/removal, employment change, political control change and ownership transfer are distinct operations. Migration changes location; unemployment changes employment; jurisdiction changes political control; ownership transfer does not by itself move or create/destroy population. Mod-defined creation/removal semantics must not be inferred from a species label.
 - Cross-colony movement must conserve the transferred headcount globally and update source/destination authoritative records as one atomic operation. Do not implement this until the group identity, split/merge and transaction semantics are designed against actual consumers.
 - Do not introduce individual records for ordinary residents. Named personnel remain a separate narrative/strategic pool and any abstraction from population must define whether the source group count changes to prevent double counting.
 - These are durable design constraints, not an approved immediate schema or implementation. Defer migration, ownership registries and origin-distribution mechanics until a concrete consumer requires them.
 
-13. SCI-FI POPULATION AND ECONOMY PREMISES
-------------------------------------------
-- The world includes organic Pops, synthetic/android Pops and mechanical-labor Pops. Population type/need profile must be capable of distinguishing their maintenance needs: organic populations need food and other biological necessities; synthetic/mechanical populations do not need food and instead require energy and precision components/maintenance.
-- AI and mechanical labor reduce the assumption that production capacity is proportional to organic headcount. Production must eventually distinguish throughput/capacity, workforce requirement, energy input and maintenance.
-- Energy is a central strategic/economic bottleneck, not merely an unlimited ordinary market input. Stellar generation and technological generation have location- and capacity-dependent limits; colonies and star systems compete for energy supply.
-- The setting supports interstellar travel and gates, including mixed transport modes; colonization is possible on inhospitable worlds. Food can be cultivated locally, but self-sufficiency in unsuitable environments is extremely expensive.
-- These premises guide future generic Engine capability design. Specific species, commodities, need profiles, energy technologies, costs and balance remain Mod INI content. Do not add these concrete definitions to Engine.
-- Future energy design must distinguish generation capacity/available power, actual consumption and allocation, storage, and transportable energy carriers. Do not assume all forms of energy are interchangeable as ordinary colony stockpile quantities before the domain contract is decided.
+13. MOD-DEFINED SPECIES, TAGS AND POPULATION NEEDS
+----------------------------------------------------
+- Population races/species are defined by Mods, using the existing generic population-group dimension model (for example, a Mod may use the dimension ID `species`). Category IDs and their meaning come entirely from Mod content. Engine must not predefine humans, aliens, organic, synthetic, android, mechanical or any other race/category list or infer a group's nature from its name.
+- Different Mod-defined races may have different Needs. The Need rules and Tag associations that express those differences belong to Mods; Engine only handles generic dimension/category data and exact matching/settlement mechanics. A race label does not automatically imply a biological type, commodity list or maintenance rule.
+- Species, profession, class/social status, wealth and legal status remain distinct concepts. Their categories are Mod-defined; one must not be inferred from another.
+- A single dimension's category proportions are explicit population shares. A rule selecting one or more categories within that same dimension can sum those mutually exclusive shares exactly. Conditions spanning multiple independent dimensions cannot be multiplied or otherwise guessed into a joint population; they require explicitly represented cohort data.
+- Production capacity must not be inferred from race/species labels or raw population totals. If a Mod later models workforce, automation, throughput, energy input or maintenance, those are separate concepts with explicit data and consumers.
+- Energy may be a strategic/economic bottleneck with location- and capacity-dependent supply. Whether any particular race has an energy Need is a Mod rule, not a universal Engine assumption. Future energy design must distinguish generation/available power, actual consumption/allocation, storage and transportable energy carriers.
+- Interstellar travel and gates may use mixed transport modes; inhospitable colonies may be costly to sustain. Concrete goods, needs, technologies, costs and balance remain Mod content, not Engine defaults.
 
 
 14. CLASS-BASED NEEDS, PRODUCT QUALITY AND MARKET GRADES
 -------------------------------------------------------
-- Preserve the Mod-defined species population dimension for human/alien compatibility. Engine treats all populations as generic Pop Groups; it does not hardcode separate runtime entity classes for organic, android, alien or mechanical populations.
+- Preserve the Mod-defined species dimension as the race classification axis. Engine treats every population as a generic Pop Group and never hardcodes species/race categories or assigns biological/technological meaning to them.
 - Species, profession, class/social status, wealth and legal status are distinct concepts. Slavery is not a species. Do not automatically equate wealth_tier with class. Mod definitions decide categories and mappings.
 - User's confirmed direction for needs: class/social level affects acceptable and expected quality/grade of need goods. Quantity consumption can be met while quality/lifestyle expectations remain unmet; report these separately.
 - Goods may carry multiple Mod-defined tags (e.g. carbohydrate and protein) with different quality contributions. Production/building/process modifiers can raise or lower quality; negative processing labels may reduce it. Exact formula, weights and tag semantics remain open.
@@ -165,8 +166,8 @@ END
 14. TAG-BASED POPULATION NEED DESIGN (2026-11-23)
 -------------------------------------------------
 - User decision: use Tags as the unified descriptive/matching vocabulary; do not create a special NeedProfile runtime entity or dedicated NeedProfile content type merely to classify Pops.
-- Species remains a Mod-defined population dimension/category, compatible with humans, aliens and future intelligent life. Mechanical laborers and slaves are not automatically separate species; synthetic and organic populations remain generic Pop Groups in Engine.
-- Need rules should be selected through Mod-defined Tags and matching rules. Goods may carry multiple Tags (e.g. carbohydrate/protein); processing/building effects and negative Tags may affect quality; market grade remains contextual.
+- Species/race categories remain entirely Mod-defined. Engine neither assumes a fixed race list nor classifies Pops by organic, synthetic, android or mechanical form. Occupation and legal identity are separate from species; a Mod decides whether any particular concept is a race, profession, status or Tag.
+- Need rules should be selected through Mod-defined Tags and matching rules, including race-specific rules where a Mod defines them. Goods may carry multiple Tags (e.g. carbohydrate/protein); processing/building effects and negative Tags may affect quality; market grade remains contextual.
 - Tag presence and population share are different facts. Existing population dimensions are independent marginal distributions. A Tag rule that needs a joint cohort must use explicitly represented population membership/shares or a directly classified cohort; never multiply independent dimension proportions to invent a joint count.
 - The exact INI representation and matching operators remain to be designed. Reuse existing population-group dimension distributions where they express explicit population shares; do not add a broad Tag framework or new runtime layer without a concrete consumer.
 
@@ -188,3 +189,12 @@ END
 - Core's existing aggregate-population Need system is the first consumer. Its requester currently identifies the colony aggregate, not an individual Population Group. This does not implement Tag matching or group-level Needs.
 - Stockpile subtraction clamps only a tiny floating-point residue within a 1e-12 relative tolerance to zero; individual request allocation values are not rounded.
 - Tag operators, overlapping-rule semantics, explicit joint population-share representation and group-level reports remain open. Never infer joint population by multiplying independent dimensions.
+
+
+17. SPECIES/RACE CLASSIFICATION CORRECTION (2026-11-23)
+-------------------------------------------------------
+- User correction: Pop Groups are not to be classified by a built-in organic / synthetic / android / mechanical split. The intended population distinction is different Mod-defined races/species.
+- The existing generic `species` dimension is the appropriate example: Mods choose the dimension/category IDs and their meanings. Engine must not contain a race list, biological taxonomy, life-form inference or default race-to-Need mapping.
+- Need differences between races are expressed by Mod-defined Tags and Need rules. A species label alone does not imply food, energy, component, maintenance or other requirements.
+- The first exact matching primitive selects one or more mutually exclusive categories within one explicit population dimension. It may calculate that dimension's population share; it must never combine independent dimensions to infer an intersection. Multi-dimensional cohorts require explicit population data.
+- The first Engine increment is `matchPopulationDimensionCategories`; it is generic over dimension/category IDs and does not hardcode the name `species`.

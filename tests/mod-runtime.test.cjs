@@ -364,8 +364,8 @@ test("applies a Mod-selected stockpile allocation without imposing an Engine fai
     payload: {
       colonyId: "colonyOne",
       requests: [
-        { id: "food.group-a", requesterId: "group-a", commodityId: "food", requested: 8 },
-        { id: "food.group-b", requesterId: "group-b", commodityId: "food", requested: 6 },
+        { id: "food.group-a", requesterId: "group-a", sourceId: "need.humanoid-food", commodityId: "food", requested: 8 },
+        { id: "food.group-b", requesterId: "group-b", sourceId: "need.xenari-food", commodityId: "food", requested: 6 },
         { id: "water.group-a", requesterId: "group-a", commodityId: "water", requested: 2 }
       ],
       // Deliberately unequal shares: the Engine applies the Mod's legal policy unchanged.
@@ -377,8 +377,8 @@ test("applies a Mod-selected stockpile allocation without imposing an Engine fai
     }
   }, world, catalog, "test-mod");
   assert.deepEqual(result.requests, [
-    { id: "food.group-a", requesterId: "group-a", commodityId: "food", requested: 8, allocated: 8, unmet: 0, satisfaction: 1 },
-    { id: "food.group-b", requesterId: "group-b", commodityId: "food", requested: 6, allocated: 2, unmet: 4, satisfaction: 2 / 6 },
+    { id: "food.group-a", requesterId: "group-a", sourceId: "need.humanoid-food", commodityId: "food", requested: 8, allocated: 8, unmet: 0, satisfaction: 1 },
+    { id: "food.group-b", requesterId: "group-b", sourceId: "need.xenari-food", commodityId: "food", requested: 6, allocated: 2, unmet: 4, satisfaction: 2 / 6 },
     { id: "water.group-a", requesterId: "group-a", commodityId: "water", requested: 2, allocated: 1.5, unmet: 0.5, satisfaction: 0.75 }
   ]);
   assert.deepEqual(result.stockpileChanges, [
@@ -414,6 +414,7 @@ test("rejects invalid stockpile allocation plans without partially changing inve
     { payload: { ...validPayload, allocations: [{ requestId: "food.a", allocated: 2 }] }, message: /matching bounded/ },
     { payload: { ...validPayload, allocations: [{ requestId: "food.a", allocated: -1 }, { requestId: "food.b", allocated: 2 }] }, message: /cannot be negative/ },
     { payload: { ...validPayload, allocations: [{ requestId: "food.a", allocated: 5 }, { requestId: "food.b", allocated: 0 }] }, message: /exceeds requested quantity/ },
+    { payload: { ...validPayload, requests: [{ ...validPayload.requests[0], sourceId: "not a stable ID" }, validPayload.requests[1]] }, message: /sourceId must be a stable identifier/ },
     { payload: { ...validPayload, allocations: [{ requestId: "food.a", allocated: 4 }, { requestId: "food.b", allocated: 4 }] }, message: /exceeds available inventory/ }
   ];
   for (const invalid of invalidPlans) {

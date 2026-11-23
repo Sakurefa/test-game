@@ -561,16 +561,26 @@ function applyModEffect(effect, world, catalog, modId) {
       const requests = [];
       const requestsById = new Map();
       for (const [index, request] of payload.requests.entries()) {
-        requireKeys(request, ["id", "requesterId", "commodityId", "requested"], effect.type + ".requests[" + index + "]");
+        requireKeys(request, ["id", "requesterId", "commodityId", "requested", "sourceId"], effect.type + ".requests[" + index + "]");
         if (typeof request.id !== "string" || !STOCKPILE_ALLOCATION_ID_PATTERN.test(request.id)
           || typeof request.requesterId !== "string" || !STOCKPILE_ALLOCATION_ID_PATTERN.test(request.requesterId)) {
           throw new TypeError("Stockpile allocation request IDs must be stable identifiers");
+        }
+        if (request.sourceId !== undefined
+          && (typeof request.sourceId !== "string" || !STOCKPILE_ALLOCATION_ID_PATTERN.test(request.sourceId))) {
+          throw new TypeError("Stockpile allocation request sourceId must be a stable identifier");
         }
         if (requestsById.has(request.id)) throw new Error("Stockpile allocation contains a duplicate request ID: " + request.id);
         getRequired(catalog.commodities, request.commodityId, "commodity");
         const requested = requireFinite(request.requested, effect.type + ".requested");
         if (requested < 0) throw new RangeError("Stockpile allocation requested quantity cannot be negative");
-        const normalized = { id: request.id, requesterId: request.requesterId, commodityId: request.commodityId, requested };
+        const normalized = {
+          id: request.id,
+          requesterId: request.requesterId,
+          ...(request.sourceId === undefined ? {} : { sourceId: request.sourceId }),
+          commodityId: request.commodityId,
+          requested
+        };
         requests.push(normalized);
         requestsById.set(request.id, normalized);
       }

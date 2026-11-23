@@ -5,7 +5,7 @@ const {
   applyPopulationDelta,
   applyPopulationGroupSplit,
   applyPopulationGroupMerge,
-  applyPopulationGroupDimensionSet
+  applyPopulationGroupDimensionSet,
   matchPopulationDimensionCategories
 } = require("./population.cjs");
 const { CALCULATION_AUDIT_LIMIT } = require("./formulas.cjs");

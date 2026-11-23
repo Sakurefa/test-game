@@ -6,8 +6,9 @@
 ## 仓库与验证基线（2026-11-23）
 
 - Repository：Sakurefa/test-game，默认分支 main。
-- 当前 main：a2d90f588de220276bc476aab28cbe795e625df9（CI 自动生成 Renderer 产物后的 HEAD）。
-- 功能代码提交：7c441c0b3dd59406bd127947fbfc904c1e8dc7a1。
+- 功能代码验证提交：7c441c0b3dd59406bd127947fbfc904c1e8dc7a1。
+- CI 自动生成 Renderer 产物后的源码/构建基线：a2d90f588de220276bc476aab28cbe795e625df9。
+- Astra 现状/工作日志归档提交：e13b901c476da2b2c11459d0424ecde02e73874d。
 - Windows 源码 CI：45144034925，success；235/235 tests passed，Electron/Engine syntax、Simulation/Mod Loader tests、Renderer build 与 generated-renderer 步骤全部成功。
 - CI 自动生成提交 a2d90f5 仅更新 dist/assets/index-BU1AwfrZ.js 与 dist/index.html；与功能代码提交比较确认未引入额外模拟逻辑。
 - 本次没有执行本地测试或构建；没有用户 Windows GUI 验收。CI 成功不能代替用户设备验收。

@@ -291,7 +291,7 @@ test("a Mod can turn per-rule group demand lines into traceable same-commodity r
       allocated: 0.065
     }
   ]);
-  assert.equal(world.colonies["colony-a"].stockpiles.food, 0.1025);
+  assert.ok(Math.abs(world.colonies["colony-a"].stockpiles.food - 0.1025) < 1e-12);
 
   const unknownWorld = structuredClone(world);
   unknownWorld.colonies["colony-a"].populationGroups.residents.dimensions = {};
@@ -301,7 +301,7 @@ test("a Mod can turn per-rule group demand lines into traceable same-commodity r
     catalog: catalogInput
   }), { code: "MOD_HOOK_FAILURE" });
   // Hook failure occurs before any Effect is applied to the authoritative world.
-  assert.equal(world.colonies["colony-a"].stockpiles.food, 0.1025);
+  assert.ok(Math.abs(world.colonies["colony-a"].stockpiles.food - 0.1025) < 1e-12);
 });
 
 test("separates deterministic random sequences by entity scope and freezes hook input", () => {

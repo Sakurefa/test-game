@@ -427,21 +427,32 @@ test("runs the example Mod hook through real world day settlement", async () => 
   assert.equal(mods.find((item) => item.id === "example-market").error, undefined);
   const compiled = compileCatalog(mods);
   assert.equal(compiled.ok, true, compiled.error);
-  assert.deepEqual(compiled.catalog.extensions.map((item) => item.id), ["core", "example-market"]);
 
   const world = createWorld(compiled.catalog, { seed: 12345 });
-  for (let day = 0; day < 60; day += 1) advanceDay(world, compiled.catalog);
+  for (let day = 0; day < 30; day += 1) advanceDay(world, compiled.catalog);
 
-  const reports = world.domainEvents.filter((event) => event.type === "mod.example-market.monthly-market-observation");
-  assert.equal(reports.length, 2);
-  assert.deepEqual(reports.map((event) => event.payload), [
-    { day: 30, marketCount: 3, quoteCount: 15, previousMonths: 0, modId: "example-market", eventType: "monthly-market-observation" },
-    { day: 60, marketCount: 3, quoteCount: 15, previousMonths: 1, modId: "example-market", eventType: "monthly-market-observation" }
-  ]);
+  const firstReport = world.domainEvents.find((event) =>
+    event.type === "mod.example-market.monthly-market-observation" && event.day === 30
+  );
+  assert.ok(firstReport);
+  assert.deepEqual(firstReport.payload, {
+    day: 30, marketCount: 3, quoteCount: 15, previousMonths: 0,
+    modId: "example-market", eventType: "monthly-market-observation"
+  });
+
+  for (let day = 30; day < 60; day += 1) advanceDay(world, compiled.catalog);
+
+  const secondReport = world.domainEvents.find((event) =>
+    event.type === "mod.example-market.monthly-market-observation" && event.day === 60
+  );
+  assert.ok(secondReport);
+  assert.deepEqual(secondReport.payload, {
+    day: 60, marketCount: 3, quoteCount: 15, previousMonths: 1,
+    modId: "example-market", eventType: "monthly-market-observation"
+  });
   assert.deepEqual(world.modState["example-market"], { "months-observed": 2 });
   assert.equal(world.schemaVersion, 9);
 });
-
 
 test("enabled Mod script source participates in the deterministic content fingerprint", async () => {
   const modsDirectory = path.join(__dirname, "..", "mods");

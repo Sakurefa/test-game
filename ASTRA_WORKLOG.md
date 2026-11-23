@@ -8,11 +8,11 @@
 - Branch: main
 - Functional boundary-cleanup commit: [7c441c0b3dd59406bd127947fbfc904c1e8dc7a1](https://github.com/Sakurefa/test-game/commit/7c441c0b3dd59406bd127947fbfc904c1e8dc7a1).
 - CI-generated Renderer output baseline: [a2d90f588de220276bc476aab28cbe795e625df9](https://github.com/Sakurefa/test-game/commit/a2d90f588de220276bc476aab28cbe795e625df9).
-- Astra current-state/worklog archive commit: [e13b901c476da2b2c11459d0424ecde02e73874d](https://github.com/Sakurefa/test-game/commit/e13b901c476da2b2c11459d0424ecde02e73874d).
+- Latest Astra global-foundation handoff documentation commit: [13fe59303ce78d45cd473c48ad2cc5902ea17143](https://github.com/Sakurefa/test-game/commit/13fe59303ce78d45cd473c48ad2cc5902ea17143).
 - Latest Engine code commit: [e49c0b2c5955d979ecfd56fea928f38c93495faf](https://github.com/Sakurefa/test-game/commit/e49c0b2c5955d979ecfd56fea928f38c93495faf), adding per-rule/per-group population Need evaluation, optional request sourceId provenance and conditional population helper injection; prior [11226f0](https://github.com/Sakurefa/test-game/commit/11226f0af016db4f13679d5066a6ad5d2e3f287a) established Need Rule content and Tag matching.
 - Latest species-direction documentation commit: [b19df9ce7c706b91b82363e063ff32e98a195403](https://github.com/Sakurefa/test-game/commit/b19df9ce7c706b91b82363e063ff32e98a195403).
 - Latest source CI: [45163818200](https://github.com/Sakurefa/test-game/actions/runs/45163818200), success; 251/251 tests passed, Electron/Simulation syntax, Simulation/Mod Loader tests, Renderer build and generated-renderer steps all succeeded. The first integration-test attempt had one strict floating-point assertion error plus an intermittent existing Core market Hook 50ms timeout; the assertion now uses tolerance, and no timeout was changed. Local Node tests/build were not run.
-- Direction-documentation CI: [45155199026](https://github.com/Sakurefa/test-game/actions/runs/45155199026), success; syntax check, all tests and Renderer build succeeded.
+- Earlier direction-documentation CI: [45155199026](https://github.com/Sakurefa/test-game/actions/runs/45155199026), success; syntax check, all tests and Renderer build succeeded. The 2026-11-23 global-foundation handoff docs CI [45166274413](https://github.com/Sakurefa/test-game/actions/runs/45166274413) is in progress at the time of this update.
 - CI-generated follow-up commit a2d90f5 only updates dist/assets/index-BU1AwfrZ.js and dist/index.html; it contains generated Renderer output, not additional simulation source changes.
 - No local tests/build were executed in this session. User-side Windows GUI acceptance remains outstanding. CI results do not prove user-device launch behavior.
 

@@ -32,12 +32,13 @@ const TYPE_FILES = {
   profession: "professions",
   wealth_tier: "wealthTiers",
   population_group: "populationGroups",
+  population_tag: "populationTags",
   currency: "currencies",
   financial_account: "financialAccounts"
 };
 const LIST_FIELDS = new Set([
   "links", "location_ids", "colony_ids", "commodity_ids", "security_ids",
-  "participants", "fleet_ids", "tags"
+  "participants", "fleet_ids", "tags", "category_ids"
 ]);
 
 function isSafeModId(id) {

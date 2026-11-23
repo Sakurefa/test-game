@@ -20,6 +20,7 @@ const DEFINITION_TYPES = Object.freeze({
   profession: "professions",
   wealth_tier: "wealthTiers",
   population_group: "populationGroups",
+  population_tag: "populationTags",
   currency: "currencies",
   financial_account: "financialAccounts"
 });
@@ -162,6 +163,22 @@ function validateCatalog(catalog, registryEntries) {
       if (industry.companyId) requireReference(catalog.companies, industry.companyId, `industry operator ${colony.id}`);
     }
   }
+  for (const tag of catalog.populationTags.values()) {
+    if (typeof tag.dimensionId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(tag.dimensionId)) {
+      throw new Error("Population tag " + tag.id + " requires a valid dimensionId");
+    }
+    requireArray(tag.categoryIds, "population tag " + tag.id + " categoryIds");
+    if (tag.categoryIds.length === 0) {
+      throw new Error("Population tag " + tag.id + " requires at least one categoryId");
+    }
+    requireUnique(tag.categoryIds, "population tag " + tag.id + " categoryIds");
+    for (const categoryId of tag.categoryIds) {
+      if (typeof categoryId !== "string" || !/^[a-z0-9][a-z0-9._-]{0,63}$/.test(categoryId)) {
+        throw new Error("Population tag " + tag.id + " has an invalid categoryId: " + String(categoryId));
+      }
+    }
+  }
+
   const populationGroupsByColony = new Map();
   for (const group of catalog.populationGroups.values()) {
     requireReference(catalog.colonies, group.colonyId, "population group colony " + group.id);
@@ -369,7 +386,7 @@ function validateLocalizationReferences(catalog, localizations, locale) {
     for (const entity of catalog[collectionName].values()) {
       for (const field of ["nameKey", "descriptionKey", "governmentKey", "unitKey"]) {
         const key = entity[field];
-        if (field === "nameKey" && type !== "population_group" && (typeof key !== "string" || !key.trim())) {
+        if (field === "nameKey" && !["population_group", "population_tag"].includes(type) && (typeof key !== "string" || !key.trim())) {
           throw new Error(`Definition ${entity.id} requires a localization nameKey`);
         }
         if (key !== undefined && (typeof key !== "string" || !Object.hasOwn(strings, key))) {
@@ -439,7 +456,7 @@ function compileCatalog(modPackages) {
     validateLocalizationReferences(catalog, localizations, defaultLocale);
     const serializable = {};
     for (const [name, collection] of Object.entries(catalog)) {
-      if (name === "populationGroups" && collection.size === 0) continue;
+      if (["populationGroups", "populationTags"].includes(name) && collection.size === 0) continue;
       serializable[name] = [...collection.values()].map(({ _type, _source, ...entity }) => entity);
     }
     const extensions = enabled

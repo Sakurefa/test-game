@@ -16,6 +16,56 @@ test("location kinds and war states remain Mod-extensible identifiers",async()=>
  assert.equal(result.catalog.locations.get("new-dawn").type,"orbital-habitat");
  assert.equal(result.catalog.wars.get("cinder-conflict").status,"mobilizing");
 });
+test("catalog exposes Mod-defined population Tags and keeps them in the content fingerprint", async () => {
+ const packages = await mods();
+ const core = packages.find(item => item.id === "core");
+ core.data.content["population.ini"].populationTags = [{
+  id: "tag.humanoid",
+  dimensionId: "species",
+  categoryIds: ["human", "xenari"]
+ }];
+ core.data.registry["definitions.ini"].entries.push({
+  id: "tag.humanoid",
+  type: "population_tag"
+ });
+ const result = compileCatalog(packages);
+ assert.equal(result.ok, true, result.error);
+ assert.deepEqual(result.catalog.populationTags.get("tag.humanoid").categoryIds, ["human", "xenari"]);
+ assert.deepEqual(result.catalog.serializable.populationTags, [{
+  id: "tag.humanoid",
+  dimensionId: "species",
+  categoryIds: ["human", "xenari"]
+ }]);
+});
+
+test("catalog rejects malformed population Tag mappings", async () => {
+ const packages = await mods();
+ const core = packages.find(item => item.id === "core");
+ core.data.content["population.ini"].populationTags = [{
+  id: "tag.humanoid",
+  dimensionId: "species",
+  categoryIds: ["human", "human"]
+ }];
+ core.data.registry["definitions.ini"].entries.push({
+  id: "tag.humanoid",
+  type: "population_tag"
+ });
+ const duplicate = compileCatalog(packages);
+ assert.equal(duplicate.ok, false);
+ assert.match(duplicate.error, /categoryIds contains duplicate entries/);
+
+ core.data.content["population.ini"].populationTags[0].categoryIds = [];
+ const empty = compileCatalog(packages);
+ assert.equal(empty.ok, false);
+ assert.match(empty.error, /requires at least one categoryId/);
+
+ core.data.content["population.ini"].populationTags[0].categoryIds = ["human"];
+ core.data.content["population.ini"].populationTags[0].dimensionId = "Bad Dimension";
+ const invalidDimension = compileCatalog(packages);
+ assert.equal(invalidDimension.ok, false);
+ assert.match(invalidDimension.error, /valid dimensionId/);
+});
+
 test("catalog rejects unresolved production references",async()=>{const m=await mods(),core=m.find(x=>x.id==="core");core.data.content["universe.ini"].colonies[0].industries[0].recipeId="missing-recipe";const r=compileCatalog(m);assert.equal(r.ok,false);assert.match(r.error,/industry recipe/);});
 test("daily needs settle before market pricing while colony production remains weekly",async()=>{
  const c=await catalog(),w=createWorld(c,{seed:42,createdAt:"2478-04-01T00:00:00.000Z"});

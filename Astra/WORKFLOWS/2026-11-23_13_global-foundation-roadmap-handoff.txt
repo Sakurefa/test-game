@@ -1,0 +1,69 @@
+【工作流记录】全局 Engine 地基方向交接
+====================================
+
+工作日期：2026-11-23
+当日序号：13
+仓库基线：0c1e82f72b73c4bb6fc45f6fb3e81024f523b66d
+目标：更新项目方向、现状与工作索引，使新对话可以从全局 Engine 地基视角继续讨论下一方向的详细需求。本次为文档交接，不是代码审计或施工授权。
+
+一、仓库检查
+------------
+- 按 AGENTS.md / Astra/README.txt 的顺序检查了工作记忆、根工作索引、AK 原则、MOD 化原则及相关现状/方向讨论。
+- 确认 main 基线为 0c1e82f72b73c4bb6fc45f6fb3e81024f523b66d。
+- 最新源码功能/测试提交为 14477c8acc1f4c34edf06e749ba0f3e598f27e02；CI [45163818200](https://github.com/Sakurefa/test-game/actions/runs/45163818200) 成功，251/251。
+- 文档基线提交 0c1e82f 的 CI [45164338641](https://github.com/Sakurefa/test-game/actions/runs/45164338641) 成功。
+- 本轮没有执行本地测试/构建，也没有进行 Windows GUI 验收。
+
+二、交接目标与结论
+------------------
+用户将于新对话讨论下一个方向的详细需求。为避免近期 Population Need 专项工作造成方向偏科，本轮将下一步调整为：先审视整个项目的 Engine 地基，整理已有、部分已有、缺失、依赖和暂不做，再由用户选择具体方向。
+
+全局审视范围：
+1. 商品、生产与建筑生产能力。
+2. 人口群体、就业/劳动力、工资与建筑条件结算。
+3. Need、生活水平、市场报价/交易/清算与金融。
+4. 物流、运输、能源供给/储能/传输。
+5. 政治归属、管辖、战争、舰队与补给。
+6. Clock、Mod Runtime、Formula/System、Command、Domain Event、Trigger/Resolution、Effect、Settlement、持久化及 Presentation 等跨系统机制。
+
+这只是审视地图，不是优先级决定。不得因为方向列在前面就视为施工顺序；必须检查实际代码、调用路径、测试和系统依赖。
+
+三、保留的关键现状与边界
+------------------------
+- World schema 9；Population Group 人数是权威人口账本，殖民地标量 population 是派生投影。
+- 人口维度为独立边际分布；不得相乘推断跨维度联合人口。
+- Population Tag / Need Rule、逐 Rule × Group 需求行、可选 request sourceId、共享库存分配执行与逐请求审计已有基础；端到端测试夹具只验证 Mod 自主选择策略的能力。
+- 测试夹具选择“每条规则/群体单独请求、unknown 即失败”仅为 fixture 行为，不是 Engine/Core/正式游戏政策。
+- Core 仍使用殖民地总人口聚合 Needs；没有真实种族人口构成或群体级 Need 消费者。
+- Engine 不决定库存短缺配给；具体规则归 Mod。
+- 商品/配方/库存、Core 基线生产、财务账本/转账、价格计算/市场报价、部分战争时间线已有；完整就业/工资、市场成交/清算、物流网络、能源网络、舰队/战争完整状态结算等仍需进一步核对，不能仅凭粗略列表断言完全不存在。
+- Engine 与 Mod 边界、AK 原则与 MOD 化原则不变；Core 是 mods/core 中必需的基线内容 Mod。
+
+四、修改文件
+------------
+1. ASTRA_WORKLOG.md：更新最新仓库与 CI 快照，新增全局地基审视入口。
+2. Astra/DISCUSSIONS/关于现状.txt：追加当前全局系统状态矩阵与交接说明。
+3. Astra/DISCUSSIONS/关于接下来的工作.txt：修正旧的单线 Need 下一步描述，新增全局审视范围和新对话工作方法。
+4. Astra/WORKFLOWS/2026-11-23_13_global-foundation-roadmap-handoff.txt：本次交接记录。
+
+未修改游戏源码、测试、Mod 内容、World schema 或存档；未修改 WORKING_MEMORY 和最高优先级原则。
+
+五、验证与验收
+--------------
+- 本轮文档修改后的 GitHub Actions 结果需以最终 docs commit 的 CI 为准；本记录创建时的基线 docs CI 为 45164338641 success。
+- 本地 Node tests/build：未执行。
+- Windows GUI：未验收。
+
+六、新对话接续说明
+------------------
+建议新对话从以下文件开始：
+1. AGENTS.md
+2. Astra/README.txt
+3. Astra/WORKING_MEMORY.txt
+4. ASTRA_WORKLOG.md
+5. Astra/IMPORTANT_PRINCIPLES/ 下 AK 原则与 MOD 化原则
+6. Astra/DISCUSSIONS/关于现状.txt
+7. Astra/DISCUSSIONS/关于接下来的工作.txt
+8. 与所选方向相关的专题讨论和工作流
+
+新对话第一项任务：在当前 main 上做全局地基审视，形成证据驱动的依赖矩阵；之后由用户选择一个方向讨论详细需求。不要直接按本工作流的范围清单开工。

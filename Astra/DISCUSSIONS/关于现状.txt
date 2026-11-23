@@ -91,3 +91,24 @@
 - CI [45163818200](https://github.com/Sakurefa/test-game/actions/runs/45163818200) 成功：251/251 tests passed；语法检查、Simulation/Mod Loader 测试、Renderer 构建与生成文件步骤全部通过。
 - 首次集成测试尝试包含一个严格浮点断言错误，并碰到既有 Core 市场 Hook 的 50ms 压力测试超时；修正断言为容差比较后，最终 CI 一次通过。未修改 Hook 时限。
 - 没有本地 Node 测试/构建；没有 Windows GUI 验收。Core 需求行为与 World schema 9 均未改变。
+
+## 2026-11-23：从 Population Need 专项转入全局地基审视
+
+最新仓库基线：main / [0c1e82f72b73c4bb6fc45f6fb3e81024f523b66d](https://github.com/Sakurefa/test-game/commit/0c1e82f72b73c4bb6fc45f6fb3e81024f523b66d)。源码测试提交 [14477c8acc1f4c34edf06e749ba0f3e598f27e02](https://github.com/Sakurefa/test-game/commit/14477c8acc1f4c34edf06e749ba0f3e598f27e02) 的 CI [45163818200](https://github.com/Sakurefa/test-game/actions/runs/45163818200) 成功，251/251；随后文档提交 [0c1e82f](https://github.com/Sakurefa/test-game/commit/0c1e82f72b73c4bb6fc45f6fb3e81024f523b66d) 的 CI [45164338641](https://github.com/Sakurefa/test-game/actions/runs/45164338641) 也成功。未运行本地 Node tests/build；Windows GUI 未验收。
+
+用户准备在新对话讨论下一个方向的详细需求。本阶段不再默认把 Population Need 当作唯一主线；先建立全局 Engine 地基地图，再由用户选择具体方向。以下是当前粗粒度状态，不替代下一轮逐文件审计：
+
+| 方向 | 当前已有基础 | 尚待审视/补齐 |
+|---|---|---|
+| 商品、库存与生产 | Commodity/Recipe/库存、Core 基线生产、共享库存执行 | 建筑生产能力与容量、完整生产链、品质/批次等 |
+| 人口与劳动力 | 权威 Pop Groups、独立边际维度、Tag/Need Rule 匹配与需求行、库存分配执行审计 | 建筑雇佣/就业人数、岗位与劳动力需求、工资；正式 Need 重叠/unknown/短缺政策未定 |
+| 市场、贸易与金融 | 账户/财务账本、转账、价格计算与 Core 市场报价 | 订单与成交、市场清算、购买力/支付、工资流、跨殖民地贸易 |
+| 物流与能源 | 尚无完整通用货运网络/能源网络 | 运输路线/容量/在途货物/成本时间；发电/供给/分配/储能/传输 |
+| 政治、战争与军事 | 部分战争时间线和 Core 基线战争推进 | 势力与管辖、舰队实体/行动、战争目标、补给、战斗结果结算 |
+| 通用 Engine 与表现 | Clock、随机流、Mod Runtime、Formula/System registry、Command/Event/Trigger/Resolution、Effect、Settlement、存档迁移等不同程度已存在 | 按真实消费者审视条件来源、批准动作调用、Modifier 生命周期及 Presentation 契约 |
+
+上述“尚待审视”不代表这些能力完全不存在；下一轮必须检查真实代码、调用者和测试后再精确分类。系统之间的依赖关系也应在全局矩阵中明确，不根据这张粗表直接开工。
+
+硬边界不变：AK 原则、MOD 化原则并列最高；Engine 只实现通用机制，mods/core 是必需的基线游戏内容 Mod。人口群体数量是权威人口记录，独立维度不能相乘推断联合人口。Core 当前仍使用殖民地总人口聚合 Need，没有真实种族人口构成或群体级 Need 消费者。未决的 Need 规则和分配政策不得由 Engine 或测试夹具擅自决定。
+
+本次交接工作流：Astra/WORKFLOWS/2026-11-23_13_global-foundation-roadmap-handoff.txt。
